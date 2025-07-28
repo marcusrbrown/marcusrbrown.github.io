@@ -1,0 +1,63 @@
+{
+  "name": "mrbro.dev",
+  "version": "0.0.0",
+  "description": "My portfolio.",
+  "keywords": [
+    "portfolio",
+    "developer",
+    "blog",
+    "vite",
+    "typescript",
+    "react",
+    "github-pages"
+  ],
+  "homepage": "https://mrbro.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marcusrbrown/marcusrbrown.github.io.git"
+  },
+  "license": "MIT",
+  "author": "Marcus R. Brown <marcus@mrbro.dev>",
+  "type": "module",
+  "main": "src/main.tsx",
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite",
+    "fix": "eslint . --fix",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "prettier": "@bfra.me/prettier-config/120-proof",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.7.1"
+  },
+  "devDependencies": {
+    "@bfra.me/eslint-config": "^0.25.0",
+    "@bfra.me/prettier-config": "^0.16.0",
+    "@bfra.me/tsconfig": "^0.11.0",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^22.8.7",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react-swc": "^3.11.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "happy-dom": "^18.0.1",
+    "jiti": "^2.5.1",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^7.0.6",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": "^10.13.1"
+  }
+}
