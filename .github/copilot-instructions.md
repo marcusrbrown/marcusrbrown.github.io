@@ -7,12 +7,13 @@ This is a developer portfolio website built with modern web technologies and dep
 ## Technical Stack
 
 - **Framework**: React 18+ with TypeScript
-- **Build Tool**: Vite 6+ (latest)
+- **Routing**: React Router v7+
+- **Build Tool**: Vite 7+ (latest)
 - **Package Manager**: pnpm (required)
 - **Testing**: Vitest with happy-dom
-- **Styling**: CSS Modules and global styles
+- **Styling**: Global CSS styles
 - **Linting**: ESLint 9+ with flat config
-- **Formatting**: Prettier via @bfra.me/eslint-config
+- **Formatting**: Prettier via @bfra.me/prettier-config/120-proof
 - **Deployment**: GitHub Pages via GitHub Actions
 - **Node.js**: v22+ LTS required
 
@@ -20,16 +21,16 @@ This is a developer portfolio website built with modern web technologies and dep
 
 ### TypeScript Configuration
 
-- Uses project references with `tsconfig.json`, `tsconfig.app.json`, and `tsconfig.node.json`
+- Uses single `tsconfig.json` configuration
 - Pure ESM modules only (`"type": "module"` in package.json)
 - Strict TypeScript settings enabled
 - Modern bundler resolution with Vite
 
 ### ESLint Configuration
 
-- **IMPORTANT**: Uses flat config (`eslint.config.js`) not legacy `.eslintrc.*`
+- **IMPORTANT**: Uses flat config (`eslint.config.ts`) not legacy `.eslintrc.*`
 - Extends `@bfra.me/eslint-config` which includes Prettier
-- No separate Prettier config needed - uses `"prettier": "@bfra.me/prettier-config"` in package.json
+- Separate Prettier config: `"prettier": "@bfra.me/prettier-config/120-proof"` in package.json
 - Ignores: `dist/`, `node_modules/`, `**/*.d.ts`, `coverage/`, `.github/`, `public/`
 
 ### File Naming Conventions
@@ -121,34 +122,36 @@ pnpm fix              # Fix linting issues
 
 ```typescript
 // src/components/ComponentName.tsx
-import { FC } from 'react';
+import React from 'react';
 
-interface ComponentNameProps {
-  // Props interface
-}
-
-export const ComponentName: FC<ComponentNameProps> = ({ /* props */ }) => {
+const ComponentName: React.FC = () => {
   return (
     <div>
       {/* Component JSX */}
     </div>
   );
 };
+
+export default ComponentName;
 ```
 
 ### API Integration
 
 ```typescript
 // src/utils/github.ts
-export const fetchGitHubRepos = async (): Promise<Repository[]> => {
-  // GitHub API integration
+export const fetchRepositories = async (username: string) => {
+  // GitHub API integration for fetching user repositories
+};
+
+export const fetchBlogPosts = async (repo: string) => {
+  // Fetch blog posts from GitHub Issues with 'blog' label
 };
 ```
 
 ### Hook Pattern
 
 ```typescript
-// src/hooks/useGitHub.ts
+// src/hooks/UseGitHub.ts (Note: Uses PascalCase naming)
 import { useState, useEffect } from 'react';
 
 export const useGitHub = () => {
@@ -159,15 +162,16 @@ export const useGitHub = () => {
 
 ## Repository Showcase Feature
 
-The site includes a special feature where repositories can be showcased at custom paths:
-- `mrbro.dev/vbs/` maps to `https://github.com/marcusrbrown/vbs`
-- Add new mappings in routing configuration
-- Automatically fetch repository metadata from GitHub API
+The site includes GitHub API integration to showcase repositories:
+- Fetches user repositories via `fetchRepositories()` function
+- Displays repository metadata and links
+- Supports blog posts from GitHub Issues labeled with 'blog'
+- Simple routing structure: Home (`/`), Blog (`/blog`), Projects (`/projects`), About (`/about`)
 
 ## Development Guidelines
 
 1. **Always use ESM imports** - No CommonJS (`require()`)
-2. **Prefer named exports** over default exports for components
+2. **Prefer default exports** for components (current pattern)
 3. **Use TypeScript strict mode** - No `any` types
 4. **Follow self-explanatory code commenting** as per project instructions
 5. **Test coverage is mandatory** - Maintain 80%+ coverage
