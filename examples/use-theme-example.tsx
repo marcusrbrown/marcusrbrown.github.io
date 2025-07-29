@@ -27,7 +27,7 @@ const ThemeExample = () => {
         <p>Effective mode: {getEffectiveThemeMode()}</p>
         <p>Is system mode: {isSystemMode ? 'Yes' : 'No'}</p>
       </div>
-      
+
       <div style={{marginTop: '20px'}}>
         <button onClick={toggleTheme} style={{marginRight: '10px'}}>
           Toggle Theme
@@ -38,20 +38,14 @@ const ThemeExample = () => {
         <button onClick={switchToDark} style={{marginRight: '10px'}}>
           Dark
         </button>
-        <button onClick={switchToSystem}>
-          System
-        </button>
+        <button onClick={switchToSystem}>System</button>
       </div>
     </div>
   )
 }
 
 // Example app wrapper
-const App = ({children}: {children: ReactNode}) => (
-  <ThemeProvider>
-    {children}
-  </ThemeProvider>
-)
+const App = ({children}: {children: ReactNode}) => <ThemeProvider>{children}</ThemeProvider>
 
 // Export for potential documentation/demo use
 export {App, ThemeExample}
