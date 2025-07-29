@@ -74,7 +74,6 @@ const ThemeToggle: React.FC = () => {
       className="theme-toggle"
       aria-label={getAriaLabel()}
       aria-describedby="theme-toggle-description"
-      role="button"
       tabIndex={0}
     >
       <span className="theme-toggle__icon" aria-hidden="true">
