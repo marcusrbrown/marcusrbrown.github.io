@@ -59,7 +59,7 @@ This implementation plan outlines the development of a comprehensive dark/light 
 | Task | Description | Completed | Date |
 | --- | --- | --- | --- |
 | TASK-007 | Create ThemeToggle component in `src/components/ThemeToggle.tsx` with accessibility features | ✅ | 2025-07-29 |
-| TASK-008 | Update Header component to include theme toggle with proper positioning |  |  |
+| TASK-008 | Update Header component to include theme toggle with proper positioning | ✅ | 2025-07-29 |
 | TASK-009 | Refactor globals.css to use CSS custom properties for all color values |  |  |
 | TASK-010 | Update ProjectCard component styling to use theme-aware CSS custom properties |  |  |
 | TASK-011 | Update BlogPost component styling to use theme-aware CSS custom properties |  |  |
