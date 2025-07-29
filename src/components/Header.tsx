@@ -1,36 +1,44 @@
 import React from 'react'
 import {Link} from 'react-router-dom'
+import ThemeToggle from './ThemeToggle'
 
 const Header: React.FC = () => {
   return (
-    <header className="bg-gray-800 text-white p-4">
-      <h1 className="text-2xl font-bold">
-        <Link to="/">My Portfolio</Link>
-      </h1>
-      <nav>
-        <ul className="flex space-x-4">
-          <li>
-            <Link to="/" className="hover:underline">
-              Home
-            </Link>
-          </li>
-          <li>
-            <Link to="/blog" className="hover:underline">
-              Blog
-            </Link>
-          </li>
-          <li>
-            <Link to="/projects" className="hover:underline">
-              Projects
-            </Link>
-          </li>
-          <li>
-            <Link to="/about" className="hover:underline">
-              About
-            </Link>
-          </li>
-        </ul>
-      </nav>
+    <header className="header">
+      <div className="header__container">
+        <h1 className="header__title">
+          <Link to="/" className="header__title-link">
+            mrbro.dev
+          </Link>
+        </h1>
+        <nav className="header__nav">
+          <ul className="header__nav-list">
+            <li className="header__nav-item">
+              <Link to="/" className="header__nav-link">
+                Home
+              </Link>
+            </li>
+            <li className="header__nav-item">
+              <Link to="/blog" className="header__nav-link">
+                Blog
+              </Link>
+            </li>
+            <li className="header__nav-item">
+              <Link to="/projects" className="header__nav-link">
+                Projects
+              </Link>
+            </li>
+            <li className="header__nav-item">
+              <Link to="/about" className="header__nav-link">
+                About
+              </Link>
+            </li>
+          </ul>
+        </nav>
+        <div className="header__actions">
+          <ThemeToggle />
+        </div>
+      </div>
     </header>
   )
 }
