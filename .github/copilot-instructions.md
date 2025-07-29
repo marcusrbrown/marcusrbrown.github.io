@@ -75,7 +75,47 @@ pnpm preview          # Preview production build
 pnpm test             # Run tests
 pnpm lint             # Lint code
 pnpm fix              # Fix linting issues
+pnpm setup-hooks      # Set up git hooks (manual)
 ```
+
+### Git Hooks & Code Quality
+
+The project uses **simple-git-hooks** and **lint-staged** for automated code quality enforcement:
+
+- **Pre-commit hooks**: Automatically run ESLint fixes and Prettier formatting on staged files
+- **simple-git-hooks**: v2.13.0 - Lightweight, zero-dependency git hooks manager
+- **lint-staged**: v16.1.2 - Run tools on git staged files only
+- **Automatic setup**: Hooks are installed automatically via `prepare` script during `pnpm install`
+
+#### Git Hooks Configuration
+
+Located in `package.json`:
+```json
+{
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,css,md,yaml}": ["eslint --fix"]
+  }
+}
+```
+
+#### Git Hooks Workflow
+
+1. **Automatic**: Hooks are set up during `pnpm install` via `prepare` script
+2. **Manual**: Run `pnpm run setup-hooks` to manually set up hooks
+3. **Pre-commit**: On every commit, automatically:
+   - Fix ESLint issues and format all supported file types
+   - Prevent commit if unfixable issues exist
+
+#### Benefits
+
+- **Consistent code quality**: All commits meet linting standards
+- **Automatic formatting**: No manual formatting needed
+- **Early error detection**: Catch issues before they reach CI/CD
+- **Zero overhead**: Only processes staged files for speed
+- **Team consistency**: Same standards enforced for all contributors
 
 ### GitHub Integration
 
@@ -183,6 +223,7 @@ The site includes GitHub API integration to showcase repositories:
 - Keep dependencies up to date
 - Prefer smaller, focused packages
 - Use pnpm for package management (faster, more efficient)
+- **Git hooks auto-setup**: simple-git-hooks runs automatically on install via `prepare` script
 
 ## Troubleshooting
 
@@ -192,6 +233,8 @@ The site includes GitHub API integration to showcase repositories:
 2. **TypeScript errors**: Check configuration is correct
 3. **Build failures**: Verify Node.js v22+ and pnpm are used
 4. **GitHub Pages**: Ensure workflow has correct permissions
+5. **Git hooks not working**: Run `pnpm run setup-hooks` to reinstall
+6. **Pre-commit failures**: Fix ESLint errors manually if auto-fix fails
 
 ### Debug Commands
 
@@ -199,6 +242,7 @@ The site includes GitHub API integration to showcase repositories:
 pnpm install --frozen-lockfile  # Exact dependency install
 pnpm build --debug             # Verbose build output
 pnpm test --reporter=verbose    # Detailed test output
+pnpm run setup-hooks           # Reinstall git hooks
 ```
 
 ## AI Coding Agent Guidelines
