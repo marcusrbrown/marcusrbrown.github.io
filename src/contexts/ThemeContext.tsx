@@ -1,0 +1,117 @@
+import type {Theme, ThemeContextValue, ThemeMode} from '../types'
+import {createContext, useContext, useEffect, useState, type ReactNode} from 'react'
+
+const defaultLightTheme: Theme = {
+  id: 'default-light',
+  name: 'Light',
+  mode: 'light',
+  colors: {
+    primary: '#2563eb',
+    secondary: '#64748b',
+    accent: '#0ea5e9',
+    background: '#ffffff',
+    surface: '#f8fafc',
+    text: '#0f172a',
+    textSecondary: '#64748b',
+    border: '#e2e8f0',
+    error: '#dc2626',
+    warning: '#d97706',
+    success: '#16a34a',
+  },
+}
+
+const defaultDarkTheme: Theme = {
+  id: 'default-dark',
+  name: 'Dark',
+  mode: 'dark',
+  colors: {
+    primary: '#3b82f6',
+    secondary: '#94a3b8',
+    accent: '#0ea5e9',
+    background: '#0f172a',
+    surface: '#1e293b',
+    text: '#f1f5f9',
+    textSecondary: '#94a3b8',
+    border: '#334155',
+    error: '#ef4444',
+    warning: '#f59e0b',
+    success: '#22c55e',
+  },
+}
+
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
+
+export const useThemeContext = (): ThemeContextValue => {
+  const context = useContext(ThemeContext)
+  if (context === undefined) {
+    throw new Error('useThemeContext must be used within a ThemeProvider')
+  }
+  return context
+}
+
+interface ThemeProviderProps {
+  children: ReactNode
+}
+
+export const ThemeProvider = ({children}: ThemeProviderProps) => {
+  const [themeMode, setThemeMode] = useState<ThemeMode>('system')
+  const [customTheme, setCustomTheme] = useState<Theme | null>(null)
+  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>('light')
+
+  const availableThemes = [defaultLightTheme, defaultDarkTheme]
+
+  // Detect system preference
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    setSystemPreference(mediaQuery.matches ? 'dark' : 'light')
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setSystemPreference(e.matches ? 'dark' : 'light')
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
+  // Determine current theme based on mode and system preference
+  const currentTheme: Theme = (() => {
+    if (customTheme) {
+      return customTheme
+    }
+
+    const targetMode = themeMode === 'system' ? systemPreference : themeMode
+    return targetMode === 'dark' ? defaultDarkTheme : defaultLightTheme
+  })()
+
+  // Apply CSS custom properties when theme changes
+  useEffect(() => {
+    const root = document.documentElement
+    const {colors} = currentTheme
+
+    root.style.setProperty('--color-primary', colors.primary)
+    root.style.setProperty('--color-secondary', colors.secondary)
+    root.style.setProperty('--color-accent', colors.accent)
+    root.style.setProperty('--color-background', colors.background)
+    root.style.setProperty('--color-surface', colors.surface)
+    root.style.setProperty('--color-text', colors.text)
+    root.style.setProperty('--color-text-secondary', colors.textSecondary)
+    root.style.setProperty('--color-border', colors.border)
+    root.style.setProperty('--color-error', colors.error)
+    root.style.setProperty('--color-warning', colors.warning)
+    root.style.setProperty('--color-success', colors.success)
+
+    // Set data attribute for theme-specific styling
+    root.dataset['theme'] = currentTheme.mode
+  }, [currentTheme])
+
+  const contextValue: ThemeContextValue = {
+    currentTheme,
+    themeMode,
+    availableThemes,
+    systemPreference,
+    setThemeMode,
+    setCustomTheme,
+  }
+
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>
+}
