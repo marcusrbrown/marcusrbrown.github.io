@@ -47,7 +47,7 @@ This implementation plan outlines the development of a comprehensive dark/light 
 | --- | --- | --- | --- |
 | TASK-001 | Create theme context and provider in `src/contexts/ThemeContext.tsx` with TypeScript interfaces | ✅ | 2025-07-28 |
 | TASK-002 | Implement `useTheme` hook in `src/hooks/UseTheme.ts` with system preference detection |  |  |
-| TASK-003 | Create theme storage utilities in `src/utils/themeStorage.ts` with localStorage integration |  |  |
+| TASK-003 | Create theme storage utilities in `src/utils/theme-storage.ts` with localStorage integration |  |  |
 | TASK-004 | Define CSS custom properties for color system in `src/styles/themes.css` |  |  |
 | TASK-005 | Create theme type definitions in `src/types/theme.ts` with strict TypeScript interfaces |  |  |
 | TASK-006 | Add theme provider to App.tsx and establish global theme context |  |  |
