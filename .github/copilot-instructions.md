@@ -124,6 +124,18 @@ Located in `package.json`:
 - Deployment: Automatic on push to `main` branch
 - GitHub API integration for showcasing repositories
 
+### CI/CD Pipeline
+
+The project uses a comprehensive CI/CD pipeline with modern GitHub Actions:
+
+- **Reusable Setup Action**: Composite action (`.github/actions/setup`) for consistent environment setup
+- **Comprehensive CI Workflow**: Multi-job pipeline with lint, test, build, type-check, validate, matrix testing
+- **Build Analysis**: Automated bundle size analysis with GitHub job summaries
+- **GitHub CLI Integration**: Uses `gh` CLI for PR comments instead of external actions
+- **Performance Monitoring**: Automated warnings for bundle size thresholds
+- **Cross-Platform Testing**: Ubuntu, Windows, macOS matrix builds
+- **Security**: SHA-pinned actions, dependency auditing, frozen lockfiles
+
 ## Deployment
 
 ### GitHub Pages Setup
@@ -259,6 +271,16 @@ When working on this project:
 8. **Keep accessibility in mind** - This is a public portfolio
 9. **Optimize for SEO** - Important for discoverability
 10. **Mobile-first responsive design** - Modern web standards
+11. **Leverage CI/CD pipeline** - Use GitHub Actions job summaries for build analysis
+12. **Monitor bundle performance** - The build analysis script tracks size metrics automatically
+
+### Build Performance Guidelines
+
+- **JavaScript bundles** should stay under 500KB (warnings generated above this)
+- **Total bundle size** should stay under 1MB (optimal) or 2MB (maximum)
+- **Use the build analysis script** (`scripts/analyze-build.mjs`) when optimizing
+- **GitHub job summaries** provide rich markdown reports for build metrics
+- **Performance status** is automatically tracked and reported in CI
 
 ## Future Enhancements
 
