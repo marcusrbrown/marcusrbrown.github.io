@@ -186,6 +186,8 @@ jobs:
     name: Quality Gate
     runs-on: ubuntu-latest
     needs: [lint, test, build, type-check, validate]
+    permissions:
+      pull-requests: write
     if: always()
     steps:
       - name: Check all jobs
