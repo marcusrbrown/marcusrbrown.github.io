@@ -15,34 +15,29 @@ export interface BlogPost {
   url: string
 }
 
-export type ThemeMode = 'light' | 'dark' | 'system'
-
-export interface ThemeColors {
-  primary: string
-  secondary: string
-  accent: string
-  background: string
-  surface: string
-  text: string
-  textSecondary: string
-  border: string
-  error: string
-  warning: string
-  success: string
-}
-
-export interface Theme {
-  id: string
-  name: string
-  mode: Exclude<ThemeMode, 'system'>
-  colors: ThemeColors
-}
-
-export interface ThemeContextValue {
-  currentTheme: Theme
-  themeMode: ThemeMode
-  availableThemes: Theme[]
-  setThemeMode: (mode: ThemeMode) => void
-  setCustomTheme: (theme: Theme) => void
-  systemPreference: 'light' | 'dark'
-}
+// Re-export theme types from dedicated theme types file
+export type {
+  ColorContrastResult,
+  ColorValue,
+  ExtendedTheme,
+  ExtendedThemeColors,
+  HSLColor,
+  ResolvedThemeMode,
+  RGBColor,
+  SystemPreference,
+  Theme,
+  ThemeAnimations,
+  ThemeColors,
+  ThemeContextValue,
+  ThemeCustomizationOptions,
+  ThemeExportData,
+  ThemeMetadata,
+  ThemeMode,
+  ThemePerformanceMetrics,
+  ThemePreset,
+  ThemeSpacing,
+  ThemeStorageConfig,
+  ThemeTransitionOptions,
+  ThemeTypography,
+  ThemeValidationResult,
+} from './theme'
