@@ -24,7 +24,11 @@ export type SystemPreference = 'light' | 'dark'
  * Color values for theme customization
  * Supports hex, hsl, rgb, and named colors
  */
-export type ColorValue = string
+export type ColorValue =
+  | `#${string}` // Hex color, e.g. #fff or #ffffff
+  | `hsl(${string})` // HSL color, e.g. hsl(0, 100%, 50%)
+  | `rgb(${string})` // RGB color, e.g. rgb(255, 255, 255)
+  | string // fallback for named colors like 'red', 'blue'
 
 /**
  * HSL color representation for theme customization
