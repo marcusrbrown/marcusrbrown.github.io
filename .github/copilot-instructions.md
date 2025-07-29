@@ -216,6 +216,17 @@ export default ComponentName;
 // src/utils/github.ts - Direct fetch API usage, no external libraries
 const GITHUB_API_URL = 'https://api.github.com'
 
+interface GitHubLabel {
+  id: number;
+  name: string;
+  [key: string]: unknown;
+}
+
+interface GitHubIssue {
+  labels: GitHubLabel[];
+  [key: string]: unknown;
+}
+
 export const fetchRepositories = async (username: string) => {
   const response = await fetch(`${GITHUB_API_URL}/users/${username}/repos`)
   return await response.json()
@@ -225,7 +236,9 @@ export const fetchBlogPosts = async (repo: string) => {
   const response = await fetch(`${GITHUB_API_URL}/repos/${repo}/issues`)
   const data = await response.json()
   // Filter issues with 'blog' label for blog posts
-  return data.filter((post: any) => post.labels.some((label: any) => label.name === 'blog'))
+  return (data as GitHubIssue[]).filter((post) =>
+    post.labels.some((label) => label.name === 'blog')
+  )
 }
 ```
 
