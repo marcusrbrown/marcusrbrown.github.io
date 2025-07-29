@@ -4,8 +4,8 @@ body {
     margin: 0;
     font-family: 'Arial', sans-serif;
     line-height: 1.6;
-    background-color: #f4f4f4;
-    color: #333;
+    background-color: var(--color-background);
+    color: var(--color-text);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -14,7 +14,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 a {
-    color: #0070f3;
+    color: var(--color-link);
     text-decoration: none;
 }
 
@@ -40,7 +40,7 @@ a:hover {
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 1px 3px var(--color-shadow, rgba(0, 0, 0, 0.1));
+    box-shadow: 0 1px 3px var(--color-shadow);
 }
 
 .header__container {
@@ -180,16 +180,16 @@ a:hover {
 }
 
 .project-card {
-    background: #fff;
-    border: 1px solid #ddd;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
     border-radius: 5px;
     padding: 1rem;
     margin: 1rem 0;
 }
 
 .blog-post {
-    background: #fff;
-    border: 1px solid #ddd;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
     border-radius: 5px;
     padding: 1rem;
     margin: 1rem 0;

@@ -34,6 +34,9 @@
   --color-focus: var(--color-accent);
   --color-focus-ring: rgba(14, 165, 233, 0.2);
 
+  /* Shadow colors */
+  --color-shadow: rgba(0, 0, 0, 0.1);
+
   /* Transition properties for smooth theme switching */
   --transition-theme: color 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
   --transition-theme-fast: color 0.1s ease-in-out, background-color 0.1s ease-in-out;
@@ -68,6 +71,7 @@
   --color-overlay: rgba(0, 0, 0, 0.5);
   --color-backdrop: rgba(255, 255, 255, 0.8);
   --color-focus-ring: rgba(37, 99, 235, 0.2);
+  --color-shadow: rgba(0, 0, 0, 0.1);
 }
 
 /* Dark theme definitions */
@@ -99,6 +103,7 @@
   --color-overlay: rgba(0, 0, 0, 0.7);
   --color-backdrop: rgba(15, 23, 42, 0.8);
   --color-focus-ring: rgba(59, 130, 246, 0.3);
+  --color-shadow: rgba(0, 0, 0, 0.25);
 }
 
 /* System preference media queries for fallback when JavaScript is disabled */
