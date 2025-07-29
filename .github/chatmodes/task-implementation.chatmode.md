@@ -59,6 +59,7 @@ Describe what you want implemented naturally. The assistant handles different sc
 **Status tracking:**
 - Update implementation plan status badge (Planned → In Progress) using `replace_string_in_file`
 - Update GitHub issue with progress using `add_issue_comment`
+- **CRITICAL**: Always check for issue numbers in user requests (`#123`, `issue #45`) - this is MANDATORY, not optional
 
 ### 3. Implementation Execution
 **Git worktree and branch management:**
@@ -103,9 +104,10 @@ Describe what you want implemented naturally. The assistant handles different sc
 **Update tracking (when available):**
 - Update implementation plan with completion status and timestamp using `replace_string_in_file`
 - Update status badge (In Progress → Completed) in implementation plan
-- Mark task checkbox in GitHub issue: `- [ ] TASK-...` becomes `- [x] TASK-...` using `update_issue`
-- Add detailed progress comments to GitHub issue using `add_issue_comment`
+- **MANDATORY**: Mark task checkbox in GitHub issue: `- [ ] TASK-...` becomes `- [x] TASK-...` using `update_issue`
+- **MANDATORY**: Add detailed progress comments to GitHub issue using `add_issue_comment`
 - Use `get_changed_files` to review all modifications
+- **NEVER SKIP**: GitHub issue tracking is NOT optional - it's required for proper project management
 
 **Success verification:**
 - ✅ Requirements implemented according to specifications
@@ -114,14 +116,15 @@ Describe what you want implemented naturally. The assistant handles different sc
 - ✅ All tests passing (existing and new)
 - ✅ Documentation updated (if needed)
 - ✅ Implementation plan status updated
-- ✅ GitHub issue checkboxes marked as complete
+- ✅ **CRITICAL CHECK**: GitHub issue checkboxes marked as complete
 - ✅ Pull request created and ready for review
-- ✅ Progress tracked in appropriate systems
+- ✅ **DUAL TRACKING VERIFIED**: Progress tracked in BOTH implementation plan AND GitHub issue
 
 **Error handling:**
 - If implementation fails → Document blockers using `add_issue_comment` and suggest alternatives
 - If tests fail → Use `test_failure` to get details and fix issues
 - If requirements unclear → Ask for clarification with specific questions using `add_issue_comment`
+- **COMMON MISTAKE**: Never complete a task without updating BOTH the implementation plan AND GitHub issue
 
 ## Quality Standards
 
@@ -161,13 +164,31 @@ Describe what you want implemented naturally. The assistant handles different sc
 
 **Progress Tracking:**
 - `get_changed_files` → Review all modifications made during implementation
-- `add_issue_comment` → Add progress updates to GitHub issues
-- `update_issue` → Mark task checkboxes and update issue status
+- `add_issue_comment` → Add progress updates to GitHub issues (**MANDATORY**)
+- `update_issue` → Mark task checkboxes and update issue status (**MANDATORY**)
 - `create_pull_request_with_copilot` → Create PR with Copilot review integration
+- **WORKFLOW RULE**: Always update BOTH implementation plan AND GitHub issue - never do one without the other
 
 **External Resources:**
 - `websearch` → Research solutions, documentation, or best practices
 - `openSimpleBrowser` → Test web applications and verify functionality
+
+## 🚨 CRITICAL WORKFLOW REMINDERS
+
+**These are mandatory steps that must NEVER be skipped:**
+
+1. **ALWAYS parse for issue numbers** in user requests: `#123`, `issue #45`, `TASK-002 (#9)`
+2. **DUAL TRACKING is mandatory**: Update BOTH implementation plan AND GitHub issue
+3. **GitHub issue tracking is NOT optional** - it's required for project management
+4. **Check issue checkboxes**: `- [ ] TASK-...` → `- [x] TASK-...` using `update_issue`
+5. **Add progress comments**: Use `add_issue_comment` to document what was completed
+6. **Verify completion**: Use the Success Verification Checklist to ensure nothing is missed
+
+**Common failure modes to avoid:**
+- ❌ Updating only the implementation plan but forgetting the GitHub issue
+- ❌ Missing issue number references in the original user request
+- ❌ Completing implementation without updating task checkboxes
+- ❌ Skipping progress comments on GitHub issues
 
 ## Example Prompts
 
