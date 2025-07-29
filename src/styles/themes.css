@@ -1,0 +1,180 @@
+/* mrbro.dev/src/styles/themes.css */
+
+/* Root-level CSS custom properties for the theme system */
+:root {
+  /* Default theme values (light theme) */
+  --color-primary: #2563eb;
+  --color-secondary: #64748b;
+  --color-accent: #0ea5e9;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-border: #e2e8f0;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-success: #16a34a;
+
+  /* Component-specific colors derived from core colors */
+  --color-header-bg: var(--color-surface);
+  --color-header-text: var(--color-text);
+  --color-footer-bg: var(--color-surface);
+  --color-footer-text: var(--color-text);
+  --color-card-bg: var(--color-background);
+  --color-card-border: var(--color-border);
+  --color-card-text: var(--color-text);
+  --color-link: var(--color-primary);
+  --color-link-hover: var(--color-accent);
+
+  /* Opacity variants for layering and overlays */
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-backdrop: rgba(255, 255, 255, 0.8);
+
+  /* Focus and interactive states */
+  --color-focus: var(--color-accent);
+  --color-focus-ring: rgba(14, 165, 233, 0.2);
+
+  /* Transition properties for smooth theme switching */
+  --transition-theme: color 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  --transition-theme-fast: color 0.1s ease-in-out, background-color 0.1s ease-in-out;
+}
+
+/* Light theme explicit definitions (matches default) */
+[data-theme="light"] {
+  --color-primary: #2563eb;
+  --color-secondary: #64748b;
+  --color-accent: #0ea5e9;
+  --color-background: #ffffff;
+  --color-surface: #f8fafc;
+  --color-text: #0f172a;
+  --color-text-secondary: #64748b;
+  --color-border: #e2e8f0;
+  --color-error: #dc2626;
+  --color-warning: #d97706;
+  --color-success: #16a34a;
+
+  /* Light theme component colors */
+  --color-header-bg: #f8fafc;
+  --color-header-text: #0f172a;
+  --color-footer-bg: #f8fafc;
+  --color-footer-text: #0f172a;
+  --color-card-bg: #ffffff;
+  --color-card-border: #e2e8f0;
+  --color-card-text: #0f172a;
+  --color-link: #2563eb;
+  --color-link-hover: #0ea5e9;
+
+  /* Light theme overlays */
+  --color-overlay: rgba(0, 0, 0, 0.5);
+  --color-backdrop: rgba(255, 255, 255, 0.8);
+  --color-focus-ring: rgba(37, 99, 235, 0.2);
+}
+
+/* Dark theme definitions */
+[data-theme="dark"] {
+  --color-primary: #3b82f6;
+  --color-secondary: #94a3b8;
+  --color-accent: #0ea5e9;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-text: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-border: #334155;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
+
+  /* Dark theme component colors */
+  --color-header-bg: #1e293b;
+  --color-header-text: #f1f5f9;
+  --color-footer-bg: #1e293b;
+  --color-footer-text: #f1f5f9;
+  --color-card-bg: #1e293b;
+  --color-card-border: #334155;
+  --color-card-text: #f1f5f9;
+  --color-link: #3b82f6;
+  --color-link-hover: #0ea5e9;
+
+  /* Dark theme overlays */
+  --color-overlay: rgba(0, 0, 0, 0.7);
+  --color-backdrop: rgba(15, 23, 42, 0.8);
+  --color-focus-ring: rgba(59, 130, 246, 0.3);
+}
+
+/* System preference media queries for fallback when JavaScript is disabled */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-primary: #2563eb;
+    --color-secondary: #64748b;
+    --color-accent: #0ea5e9;
+    --color-background: #ffffff;
+    --color-surface: #f8fafc;
+    --color-text: #0f172a;
+    --color-text-secondary: #64748b;
+    --color-border: #e2e8f0;
+    --color-error: #dc2626;
+    --color-warning: #d97706;
+    --color-success: #16a34a;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-primary: #3b82f6;
+    --color-secondary: #94a3b8;
+    --color-accent: #0ea5e9;
+    --color-background: #0f172a;
+    --color-surface: #1e293b;
+    --color-text: #f1f5f9;
+    --color-text-secondary: #94a3b8;
+    --color-border: #334155;
+    --color-error: #ef4444;
+    --color-warning: #f59e0b;
+    --color-success: #22c55e;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-theme: none;
+    --transition-theme-fast: none;
+  }
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border: currentColor;
+  }
+
+  [data-theme="light"] {
+    --color-border: #000000;
+    --color-text-secondary: #000000;
+  }
+
+  [data-theme="dark"] {
+    --color-border: #ffffff;
+    --color-text-secondary: #ffffff;
+  }
+}
+
+/* Base theme application for smooth transitions */
+* {
+  transition: var(--transition-theme);
+}
+
+/* Specific elements that need faster transitions */
+button,
+input,
+select,
+textarea,
+[role="button"] {
+  transition: var(--transition-theme-fast);
+}
+
+/* Elements that should not animate */
+[data-no-theme-transition],
+[data-no-theme-transition] * {
+  transition: none !important;
+}
