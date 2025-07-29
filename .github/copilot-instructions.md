@@ -168,7 +168,30 @@ The project uses a comprehensive CI/CD pipeline with modern GitHub Actions:
 - Optimized for GitHub Pages hosting
 - Modern ES2020+ target for smaller bundles
 
-## Common Patterns
+## Architecture Patterns
+
+### Theme System Architecture
+
+The project implements a comprehensive theme system with Context + Hook pattern:
+
+```typescript
+// src/contexts/ThemeContext.tsx - Centralized theme state
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
+
+// src/hooks/UseTheme.ts - Feature-rich hook interface
+export const useTheme = (): UseThemeReturn => {
+  // Provides: currentTheme, themeMode, toggleTheme, etc.
+  return useThemeContext()
+}
+
+// Usage in components
+const MyComponent = () => {
+  const { currentTheme, isDarkMode, toggleTheme } = useTheme()
+  // ...
+}
+```
+
+**CSS Custom Properties Integration**: Themes dynamically update CSS custom properties on `:root`, enabling seamless style transitions without CSS-in-JS overhead.
 
 ### Component Structure
 
@@ -187,38 +210,67 @@ const ComponentName: React.FC = () => {
 export default ComponentName;
 ```
 
-### API Integration
+### GitHub API Integration
 
 ```typescript
-// src/utils/github.ts
+// src/utils/github.ts - Direct fetch API usage, no external libraries
+const GITHUB_API_URL = 'https://api.github.com'
+
 export const fetchRepositories = async (username: string) => {
-  // GitHub API integration for fetching user repositories
-};
+  const response = await fetch(`${GITHUB_API_URL}/users/${username}/repos`)
+  return await response.json()
+}
 
 export const fetchBlogPosts = async (repo: string) => {
-  // Fetch blog posts from GitHub Issues with 'blog' label
-};
+  const response = await fetch(`${GITHUB_API_URL}/repos/${repo}/issues`)
+  const data = await response.json()
+  // Filter issues with 'blog' label for blog posts
+  return data.filter((post: any) => post.labels.some((label: any) => label.name === 'blog'))
+}
 ```
 
 ### Hook Pattern
 
 ```typescript
-// src/hooks/UseGitHub.ts (Note: Uses PascalCase naming)
-import { useState, useEffect } from 'react';
+// src/hooks/UseTheme.ts (Note: Uses PascalCase naming convention)
+import type { UseThemeReturn } from '../types'
 
-export const useGitHub = () => {
-  // Custom hook logic
-  return { /* hook return */ };
-};
+export const useTheme = (): UseThemeReturn => {
+  // Comprehensive interface with state, actions, and utilities
+  const context = useThemeContext()
+  return {
+    currentTheme, themeMode, availableThemes,
+    isDarkMode, isLightMode, isSystemMode,
+    setThemeMode, toggleTheme, switchToLight,
+    // ... full interface
+  }
+}
 ```
+
+### CSS Architecture
+
+**CSS Custom Properties Pattern**: All theming uses CSS custom properties defined in `src/styles/themes.css`:
+
+```css
+:root {
+  --color-primary: #2563eb;
+  --color-background: #ffffff;
+  /* Component-specific derived colors */
+  --color-header-bg: var(--color-surface);
+  --color-card-bg: var(--color-background);
+}
+```
+
+**Dynamic Theme Updates**: ThemeContext automatically updates these properties when theme changes, providing instant visual feedback.
 
 ## Repository Showcase Feature
 
-The site includes GitHub API integration to showcase repositories:
-- Fetches user repositories via `fetchRepositories()` function
-- Displays repository metadata and links
-- Supports blog posts from GitHub Issues labeled with 'blog'
-- Simple routing structure: Home (`/`), Blog (`/blog`), Projects (`/projects`), About (`/about`)
+The site includes comprehensive GitHub API integration:
+- **Repository Display**: Fetches user repositories via `fetchRepositories()` function using direct fetch API
+- **Blog System**: GitHub Issues with 'blog' label converted to blog posts via `fetchBlogPosts()`
+- **Theme Integration**: Full dark/light theme system with system preference detection
+- **Routing Structure**: Home (`/`), Blog (`/blog`), Projects (`/projects`), About (`/about`) via React Router v7+
+- **Context Architecture**: ThemeContext provides centralized theme state with `useTheme()` hook interface
 
 ## Development Guidelines
 
@@ -285,10 +337,10 @@ When working on this project:
 ## Future Enhancements
 
 Consider these areas for improvement:
-- Dark/light theme toggle
-- Blog post creation workflow
-- Enhanced GitHub integration
-- Performance monitoring
+- Enhanced blog post creation workflow
+- Advanced GitHub integration (pull requests, gists)
+- Performance monitoring dashboard
 - Analytics integration
 - SEO optimizations
 - PWA features
+- Multi-language support
