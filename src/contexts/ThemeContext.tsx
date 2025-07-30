@@ -1,5 +1,5 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
-import {createContext, useContext, useEffect, useState, type ReactNode} from 'react'
+import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
 import {loadCustomTheme, loadThemeMode, saveCustomTheme, saveThemeMode} from '../utils/theme-storage'
 
 const defaultLightTheme: Theme = {
@@ -81,7 +81,8 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
   const [customTheme, setCustomThemeState] = useState<Theme | null>(() => loadCustomTheme())
 
   // Initialize system preference synchronously to prevent theme flash on startup
-  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>(() => detectSystemPreference())
+  const initialSystemPreference = useRef<'light' | 'dark'>(detectSystemPreference())
+  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>(initialSystemPreference.current)
 
   const availableThemes = [defaultLightTheme, defaultDarkTheme]
 
