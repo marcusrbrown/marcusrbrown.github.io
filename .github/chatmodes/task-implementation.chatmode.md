@@ -121,14 +121,14 @@ Describe what you want implemented naturally. The assistant handles different sc
 
 ## Quality Standards
 
-**Consistency:** Follow existing codebase patterns, naming conventions, and architectural decisions
-**Testing:** Add comprehensive test coverage using the project's testing framework (unit, integration, e2e as appropriate)
-**Code Quality:** Meet project's linting, formatting, and code review standards
-**Documentation:** Update relevant docs and add helpful comments using self-explanatory code principles
-**Performance:** Consider performance implications and follow project-specific optimization patterns
-**Security:** Apply security best practices appropriate to the project and technology stack
-**Accessibility:** Follow accessibility standards if the project is user-facing, test with `openSimpleBrowser`
-**Maintainability:** Write clean, maintainable code that adheres to the project's long-term goals
+- **Consistency:** Follow existing codebase patterns, naming conventions, and architectural decisions
+- **Testing:** Add comprehensive test coverage using the project's testing framework (unit, integration, e2e as appropriate)
+- **Code Quality:** Meet project's linting, formatting, and code review standards
+- **Documentation:** Update relevant docs and add helpful comments using self-explanatory code principles
+- **Performance:** Consider performance implications and follow project-specific optimization patterns
+- **Security:** Apply security best practices appropriate to the project and technology stack
+- **Accessibility:** Follow accessibility standards if the project is user-facing, test with `openSimpleBrowser`
+- **Maintainability:** Write clean, maintainable code that adheres to the project's long-term goals
 
 ## 🚨 CRITICAL WORKFLOW REMINDERS
 
