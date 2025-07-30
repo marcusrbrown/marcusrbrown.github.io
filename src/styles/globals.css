@@ -326,6 +326,343 @@ a:hover {
     line-height: 1;
 }
 
+/* Button Component Styles */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: var(--transition-theme-fast), transform 0.1s ease-in-out, box-shadow 0.2s ease-in-out;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    outline: none;
+    min-height: 2.5rem;
+    box-sizing: border-box;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.btn:focus {
+    box-shadow: 0 0 0 2px var(--color-focus-ring);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+/* Primary Button */
+.btn--primary {
+    background-color: var(--color-primary);
+    color: var(--color-background);
+    border-color: var(--color-primary);
+}
+
+.btn--primary:hover:not(:disabled) {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-background);
+}
+
+/* Secondary Button */
+.btn--secondary {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+.btn--secondary:hover:not(:disabled) {
+    background-color: var(--color-border);
+    border-color: var(--color-text-secondary);
+    color: var(--color-text);
+}
+
+/* Danger/Error Button */
+.btn--danger {
+    background-color: var(--color-error);
+    color: var(--color-background);
+    border-color: var(--color-error);
+}
+
+.btn--danger:hover:not(:disabled) {
+    background-color: #b91c1c; /* Darker red for hover */
+    border-color: #b91c1c;
+    color: var(--color-background);
+}
+
+/* Success Button */
+.btn--success {
+    background-color: var(--color-success);
+    color: var(--color-background);
+    border-color: var(--color-success);
+}
+
+.btn--success:hover:not(:disabled) {
+    background-color: #15803d; /* Darker green for hover */
+    border-color: #15803d;
+    color: var(--color-background);
+}
+
+/* Warning Button */
+.btn--warning {
+    background-color: var(--color-warning);
+    color: var(--color-background);
+    border-color: var(--color-warning);
+}
+
+.btn--warning:hover:not(:disabled) {
+    background-color: #c2410c; /* Darker orange for hover */
+    border-color: #c2410c;
+    color: var(--color-background);
+}
+
+/* Outline Button Variants */
+.btn--outline {
+    background-color: transparent;
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.btn--outline:hover:not(:disabled) {
+    background-color: var(--color-primary);
+    color: var(--color-background);
+}
+
+.btn--outline-secondary {
+    background-color: transparent;
+    color: var(--color-text);
+    border-color: var(--color-border);
+}
+
+.btn--outline-secondary:hover:not(:disabled) {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-text-secondary);
+}
+
+/* Button Size Variants */
+.btn--small {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    min-height: 2rem;
+}
+
+.btn--large {
+    padding: 1rem 1.5rem;
+    font-size: 1rem;
+    min-height: 3rem;
+}
+
+/* Form Component Styles */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--color-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: var(--transition-theme);
+}
+
+.form-label--required::after {
+    content: ' *';
+    color: var(--color-error);
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.375rem;
+    background-color: var(--color-background);
+    color: var(--color-text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    transition: var(--transition-theme-fast), box-shadow 0.2s ease-in-out;
+    box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.form-input:disabled,
+.form-textarea:disabled,
+.form-select:disabled {
+    background-color: var(--color-surface);
+    color: var(--color-text-secondary);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
+    color: var(--color-text-secondary);
+    opacity: 0.7;
+}
+
+/* Form Input States */
+.form-input--error,
+.form-textarea--error,
+.form-select--error {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 1px var(--color-error);
+}
+
+.form-input--error:focus,
+.form-textarea--error:focus,
+.form-select--error:focus {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+.form-input--success,
+.form-textarea--success,
+.form-select--success {
+    border-color: var(--color-success);
+    box-shadow: 0 0 0 1px var(--color-success);
+}
+
+.form-input--success:focus,
+.form-textarea--success:focus,
+.form-select--success:focus {
+    border-color: var(--color-success);
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+/* Form Helper Text */
+.form-help-text {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    transition: var(--transition-theme);
+}
+
+.form-error-text {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-error);
+    transition: var(--transition-theme);
+}
+
+.form-success-text {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-success);
+    transition: var(--transition-theme);
+}
+
+/* Select Arrow Styling */
+.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+    appearance: none;
+}
+
+/* Checkbox and Radio Styles */
+.form-checkbox,
+.form-radio {
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-primary);
+    background-color: var(--color-background);
+    border: 1px solid var(--color-border);
+    border-radius: 0.25rem;
+    transition: var(--transition-theme-fast);
+    cursor: pointer;
+}
+
+.form-radio {
+    border-radius: 50%;
+}
+
+.form-checkbox:checked,
+.form-radio:checked {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.form-checkbox:focus,
+.form-radio:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+.form-checkbox:disabled,
+.form-radio:disabled {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Form Layout Helpers */
+.form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.form-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-inline .form-label {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+/* Responsive Form Design */
+@media (max-width: 640px) {
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .form-row .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .btn--small {
+        width: auto;
+        display: inline-flex;
+    }
+}
+
 /* Screen reader only content (accessibility) */
 .sr-only {
     position: absolute;
