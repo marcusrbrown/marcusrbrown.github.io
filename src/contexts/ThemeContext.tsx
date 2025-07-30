@@ -1,5 +1,6 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
 import {createContext, useContext, useEffect, useState, type ReactNode} from 'react'
+import {loadCustomTheme, loadThemeMode, saveCustomTheme, saveThemeMode} from '../utils/theme-storage'
 
 const defaultLightTheme: Theme = {
   id: 'default-light',
@@ -54,23 +55,51 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider = ({children}: ThemeProviderProps) => {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('system')
-  const [customTheme, setCustomTheme] = useState<Theme | null>(null)
+  // Initialize theme mode from localStorage, fallback to 'system'
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => loadThemeMode())
+
+  // Initialize custom theme from localStorage if available
+  const [customTheme, setCustomThemeState] = useState<Theme | null>(() => loadCustomTheme())
+
+  // Initialize system preference to light, will be updated by useEffect
   const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>('light')
 
   const availableThemes = [defaultLightTheme, defaultDarkTheme]
 
-  // Detect system preference
+  // Enhanced setThemeMode that persists to localStorage
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode)
+    saveThemeMode(mode)
+  }
+
+  // Enhanced setCustomTheme that persists to localStorage
+  const setCustomTheme = (theme: Theme | null) => {
+    setCustomThemeState(theme)
+    if (theme) {
+      saveCustomTheme(theme)
+    }
+  }
+
+  // Detect system preference and listen for changes
   useEffect(() => {
+    // Early return if running on server
+    if (typeof window === 'undefined') return
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+    // Update system preference immediately
     setSystemPreference(mediaQuery.matches ? 'dark' : 'light')
 
     const handleChange = (e: MediaQueryListEvent) => {
       setSystemPreference(e.matches ? 'dark' : 'light')
     }
 
+    // Add event listener for changes
     mediaQuery.addEventListener('change', handleChange)
-    return () => mediaQuery.removeEventListener('change', handleChange)
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange)
+    }
   }, [])
 
   // Determine current theme based on mode and system preference
