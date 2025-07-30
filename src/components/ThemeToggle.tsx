@@ -12,13 +12,14 @@ import {useTheme} from '../hooks/UseTheme'
  * - WCAG 2.1 AA color contrast compliant
  */
 const ThemeToggle: React.FC = () => {
-  const {themeMode, isDarkMode, isLightMode, setThemeMode} = useTheme()
+  const {themeMode, setThemeMode} = useTheme()
 
   const handleToggle = () => {
     // Cycle through themes: light → dark → system → light...
-    if (isLightMode) {
+    // Use themeMode directly instead of resolved theme mode
+    if (themeMode === 'light') {
       setThemeMode('dark')
-    } else if (isDarkMode) {
+    } else if (themeMode === 'dark') {
       setThemeMode('system')
     } else {
       setThemeMode('light')
@@ -35,9 +36,9 @@ const ThemeToggle: React.FC = () => {
 
   // Dynamic ARIA label based on current state and next action
   const getAriaLabel = (): string => {
-    if (isLightMode) {
+    if (themeMode === 'light') {
       return 'Switch to dark mode'
-    } else if (isDarkMode) {
+    } else if (themeMode === 'dark') {
       return 'Switch to system theme preference'
     } else {
       return 'Switch to light mode'
@@ -46,9 +47,9 @@ const ThemeToggle: React.FC = () => {
 
   // Visual icon based on current theme mode
   const getThemeIcon = (): string => {
-    if (isLightMode) {
+    if (themeMode === 'light') {
       return '☀️' // Sun for light mode
-    } else if (isDarkMode) {
+    } else if (themeMode === 'dark') {
       return '🌙' // Moon for dark mode
     } else {
       return '🖥️' // Computer for system mode
@@ -57,9 +58,9 @@ const ThemeToggle: React.FC = () => {
 
   // Screen reader friendly current state description
   const getCurrentThemeDescription = (): string => {
-    if (isLightMode) {
+    if (themeMode === 'light') {
       return 'Current theme: Light mode'
-    } else if (isDarkMode) {
+    } else if (themeMode === 'dark') {
       return 'Current theme: Dark mode'
     } else {
       return 'Current theme: System preference'
