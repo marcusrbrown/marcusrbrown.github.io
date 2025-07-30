@@ -38,8 +38,33 @@
   --color-shadow: rgba(0, 0, 0, 0.1);
 
   /* Transition properties for smooth theme switching */
-  --transition-theme: color 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
-  --transition-theme-fast: color 0.1s ease-in-out, background-color 0.1s ease-in-out;
+  /* Comprehensive theme transitions optimized for performance */
+  --transition-theme: color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                      background-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                      border-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                      box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                      opacity 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Fast transitions for interactive elements */
+  --transition-theme-fast: color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                           background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+                           border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Instant transitions for text and icons */
+  --transition-theme-instant: color 100ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Slow transitions for layout changes */
+  --transition-theme-slow: color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                           background-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                           border-color 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                           box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Shadow-specific transitions for better performance */
+  --transition-shadow: box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Border-specific transitions */
+  --transition-border: border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+                       border-width 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Light theme explicit definitions (matches default) */
@@ -142,8 +167,23 @@
 /* Reduced motion preferences */
 @media (prefers-reduced-motion: reduce) {
   :root {
+    /* Disable all theme transitions for users who prefer reduced motion */
     --transition-theme: none;
     --transition-theme-fast: none;
+    --transition-theme-instant: none;
+    --transition-theme-slow: none;
+    --transition-shadow: none;
+    --transition-border: none;
+  }
+
+  /* Override all transitions for reduced motion */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 }
 
@@ -165,8 +205,11 @@
 }
 
 /* Base theme application for smooth transitions */
+/* Apply comprehensive theme transitions to all elements */
 * {
   transition: var(--transition-theme);
+  /* Add will-change for better performance during theme switches */
+  will-change: auto;
 }
 
 /* Specific elements that need faster transitions */
@@ -174,12 +217,66 @@ button,
 input,
 select,
 textarea,
-[role="button"] {
+[role="button"],
+a,
+.theme-toggle {
   transition: var(--transition-theme-fast);
+}
+
+/* Elements that need instant transitions for better UX */
+span,
+code,
+em,
+strong,
+small,
+.icon {
+  transition: var(--transition-theme-instant);
+}
+
+/* Elements that need slower, more deliberate transitions */
+.header,
+.footer,
+.card,
+.modal,
+nav {
+  transition: var(--transition-theme-slow);
+}
+
+/* Shadow-specific elements */
+.card,
+.header,
+.modal,
+.dropdown,
+[class*="shadow"] {
+  transition: var(--transition-theme), var(--transition-shadow);
+}
+
+/* Border-specific elements */
+input,
+textarea,
+select,
+button,
+.card,
+[class*="border"] {
+  transition: var(--transition-theme), var(--transition-border);
 }
 
 /* Elements that should not animate */
 [data-no-theme-transition],
 [data-no-theme-transition] * {
   transition: none !important;
+  will-change: auto !important;
+}
+
+/* Performance optimizations for theme switching */
+/* Prepare elements for theme transitions */
+.theme-switching,
+.theme-switching * {
+  will-change: color, background-color, border-color, box-shadow;
+}
+
+/* Clean up will-change after transitions complete */
+.theme-switch-complete,
+.theme-switch-complete * {
+  will-change: auto;
 }
