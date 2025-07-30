@@ -1,4 +1,5 @@
 import type {Theme, ThemeMode} from '../types'
+import {sanitizeTheme} from './theme-validation'
 
 // Storage keys for localStorage
 const STORAGE_KEYS = {
@@ -14,47 +15,6 @@ const FALLBACK_THEME_MODE: ThemeMode = 'system'
  */
 const isValidThemeMode = (value: unknown): value is ThemeMode => {
   return typeof value === 'string' && ['light', 'dark', 'system'].includes(value)
-}
-
-/**
- * Validates if an object is a valid Theme
- */
-const isValidTheme = (value: unknown): value is Theme => {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const theme = value as Partial<Theme>
-
-  // Check required properties
-  if (!theme.id || typeof theme.id !== 'string') return false
-  if (!theme.name || typeof theme.name !== 'string') return false
-  if (!theme.mode || !['light', 'dark'].includes(theme.mode)) return false
-  if (!theme.colors || typeof theme.colors !== 'object') return false
-
-  const colors = theme.colors
-  const requiredColorKeys = [
-    'primary',
-    'secondary',
-    'accent',
-    'background',
-    'surface',
-    'text',
-    'textSecondary',
-    'border',
-    'error',
-    'warning',
-    'success',
-  ]
-
-  // Validate all required color properties are strings
-  for (const key of requiredColorKeys) {
-    if (!(key in colors) || typeof colors[key as keyof typeof colors] !== 'string') {
-      return false
-    }
-  }
-
-  return true
 }
 
 /**
@@ -143,12 +103,14 @@ export const loadThemeMode = (): ThemeMode => {
  * Saves custom theme to localStorage
  */
 export const saveCustomTheme = (theme: Theme): boolean => {
-  if (!isValidTheme(theme)) {
+  // Use comprehensive validation from theme-validation utilities
+  const sanitized = sanitizeTheme(theme)
+  if (!sanitized) {
     console.warn('Invalid theme provided for storage:', theme)
     return false
   }
 
-  return safeSetItem(STORAGE_KEYS.CUSTOM_THEME, JSON.stringify(theme))
+  return safeSetItem(STORAGE_KEYS.CUSTOM_THEME, JSON.stringify(sanitized))
 }
 
 /**
@@ -158,8 +120,9 @@ export const loadCustomTheme = (): Theme | null => {
   const stored = safeGetItem(STORAGE_KEYS.CUSTOM_THEME)
   const parsed = safeParse<Theme>(stored)
 
-  if (parsed && isValidTheme(parsed)) {
-    return parsed
+  if (parsed) {
+    // Use comprehensive validation and sanitization
+    return sanitizeTheme(parsed)
   }
 
   return null
