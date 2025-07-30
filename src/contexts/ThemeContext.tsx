@@ -1,5 +1,5 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
-import {createContext, useContext, useEffect, useState, type ReactNode} from 'react'
+import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
 import {loadCustomTheme, loadThemeMode, saveCustomTheme, saveThemeMode} from '../utils/theme-storage'
 
 const defaultLightTheme: Theme = {
@@ -42,6 +42,25 @@ const defaultDarkTheme: Theme = {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
+/**
+ * Synchronously detects system color scheme preference
+ * Used during initialization to prevent flash of incorrect theme
+ */
+const detectSystemPreference = (): 'light' | 'dark' => {
+  // Return light as fallback for SSR or environments without matchMedia
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return 'light'
+  }
+
+  try {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    return mediaQuery.matches ? 'dark' : 'light'
+  } catch {
+    // Fallback if matchMedia fails for any reason
+    return 'light'
+  }
+}
+
 export const useThemeContext = (): ThemeContextValue => {
   const context = useContext(ThemeContext)
   if (context === undefined) {
@@ -61,8 +80,9 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
   // Initialize custom theme from localStorage if available
   const [customTheme, setCustomThemeState] = useState<Theme | null>(() => loadCustomTheme())
 
-  // Initialize system preference to light, will be updated by useEffect
-  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>('light')
+  // Initialize system preference synchronously to prevent theme flash on startup
+  const initialSystemPreference = useRef<'light' | 'dark'>(detectSystemPreference())
+  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>(initialSystemPreference.current)
 
   const availableThemes = [defaultLightTheme, defaultDarkTheme]
 
@@ -87,7 +107,7 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
-    // Update system preference immediately
+    // Update system preference (may be redundant with initial detection, but ensures consistency)
     setSystemPreference(mediaQuery.matches ? 'dark' : 'light')
 
     const handleChange = (e: MediaQueryListEvent) => {
