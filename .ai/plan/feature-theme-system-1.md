@@ -124,7 +124,7 @@ This implementation plan outlines the development of a comprehensive dark/light 
 
 - **FILE-001**: `src/contexts/ThemeContext.tsx` - Main theme context provider with state management
 - **FILE-002**: `src/hooks/UseTheme.ts` - Custom hook for theme operations and system preference detection
-- **FILE-003**: `src/utils/themeStorage.ts` - LocalStorage utilities with error handling
+- **FILE-003**: `src/utils/theme-storage.ts` - LocalStorage utilities with error handling
 - **FILE-004**: `src/types/theme.ts` - TypeScript interfaces for theme system
 - **FILE-005**: `src/styles/themes.css` - CSS custom properties for all theme variables
 - **FILE-006**: `src/components/ThemeToggle.tsx` - Accessible theme toggle button component
