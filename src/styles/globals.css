@@ -230,9 +230,56 @@ a:hover {
 .blog-post {
     background: var(--color-card-bg);
     border: 1px solid var(--color-card-border);
-    border-radius: 5px;
-    padding: 1rem;
+    border-radius: 8px;
+    padding: 1.5rem;
     margin: 1rem 0;
+    color: var(--color-card-text);
+    box-shadow: 0 1px 3px var(--color-shadow);
+    transition: var(--transition-theme), box-shadow 0.2s ease-in-out;
+}
+
+.blog-post:hover {
+    box-shadow: 0 4px 6px var(--color-shadow);
+}
+
+.blog-post h2 {
+    margin: 0 0 0.5rem 0;
+    color: var(--color-text);
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.blog-post time {
+    display: block;
+    margin: 0 0 1rem 0;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.blog-post p {
+    margin: 0 0 1rem 0;
+    color: var(--color-card-text);
+    line-height: 1.6;
+}
+
+.blog-post a {
+    color: var(--color-link);
+    text-decoration: none;
+    font-weight: 500;
+    transition: var(--transition-theme);
+}
+
+.blog-post a:hover {
+    color: var(--color-link-hover);
+    text-decoration: underline;
+}
+
+.blog-post a:focus {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 
 /* Theme Toggle Component Styles */
