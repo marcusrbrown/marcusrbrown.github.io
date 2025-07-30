@@ -112,11 +112,15 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     return targetMode === 'dark' ? defaultDarkTheme : defaultLightTheme
   })()
 
-  // Apply CSS custom properties when theme changes
+  // Apply CSS custom properties when theme changes with performance optimizations
   useEffect(() => {
     const root = document.documentElement
     const {colors} = currentTheme
 
+    // Add theme switching class for performance optimization
+    root.classList.add('theme-switching')
+
+    // Apply CSS custom properties
     root.style.setProperty('--color-primary', colors.primary)
     root.style.setProperty('--color-secondary', colors.secondary)
     root.style.setProperty('--color-accent', colors.accent)
@@ -131,6 +135,22 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
 
     // Set data attribute for theme-specific styling
     root.dataset['theme'] = currentTheme.mode
+
+    // Clean up performance optimization class after transition
+    const cleanupTimer = setTimeout(() => {
+      root.classList.remove('theme-switching')
+      root.classList.add('theme-switch-complete')
+
+      // Remove the complete class after a brief moment
+      setTimeout(() => {
+        root.classList.remove('theme-switch-complete')
+      }, 50)
+    }, 300) // Allow for the longest transition (300ms)
+
+    return () => {
+      clearTimeout(cleanupTimer)
+      root.classList.remove('theme-switching', 'theme-switch-complete')
+    }
   }, [currentTheme])
 
   const contextValue: ThemeContextValue = {
