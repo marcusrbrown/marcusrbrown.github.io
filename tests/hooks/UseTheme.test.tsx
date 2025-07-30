@@ -7,15 +7,39 @@ import {useTheme} from '../../src/hooks/UseTheme'
 // Mock matchMedia for testing system preference detection
 const mockMatchMedia = vi.fn()
 
+// Mock localStorage for testing
+const localStorageMock = (() => {
+  let store: Record<string, string> = {}
+
+  return {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key]
+    }),
+    clear: vi.fn(() => {
+      store = {}
+    }),
+  }
+})()
+
 beforeEach(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: mockMatchMedia,
   })
+
+  Object.defineProperty(window, 'localStorage', {
+    value: localStorageMock,
+    writable: true,
+  })
 })
 
 afterEach(() => {
   vi.clearAllMocks()
+  localStorageMock.clear()
 })
 
 const wrapper = ({children}: {children: ReactNode}) => <ThemeProvider>{children}</ThemeProvider>
