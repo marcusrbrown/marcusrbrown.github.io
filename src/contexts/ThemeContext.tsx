@@ -122,6 +122,38 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     }
   }, [])
 
+  // Listen for cross-tab theme changes via storage events
+  useEffect(() => {
+    // Early return if running on server
+    if (typeof window === 'undefined') return
+
+    const handleStorageChange = (e: StorageEvent) => {
+      // Only handle theme-related storage changes
+      if (!e.key || !e.key.includes('mrbro-dev-theme')) return
+
+      try {
+        if (e.key === 'mrbro-dev-theme-mode') {
+          // Theme mode changed in another tab
+          const newThemeMode = loadThemeMode()
+          setThemeModeState(newThemeMode)
+        } else if (e.key === 'mrbro-dev-custom-theme') {
+          // Custom theme changed in another tab
+          const newCustomTheme = loadCustomTheme()
+          setCustomThemeState(newCustomTheme)
+        }
+      } catch (error) {
+        console.warn('Error handling cross-tab theme sync:', error)
+      }
+    }
+
+    // Add storage event listener for cross-tab synchronization
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [])
+
   // Determine current theme based on mode and system preference
   const currentTheme: Theme = (() => {
     if (customTheme) {
