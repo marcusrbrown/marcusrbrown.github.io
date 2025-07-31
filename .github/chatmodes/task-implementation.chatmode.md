@@ -1,6 +1,6 @@
 ---
 description: 'Implement tasks from plans using natural language with intelligent parsing, fallback strategies, and quality assurance.'
-tools: ['changes', 'codebase', 'editFiles', 'fetch', 'findTestFiles', 'githubRepo', 'openSimpleBrowser', 'problems', 'runCommands', 'search', 'terminalLastCommand', 'terminalSelection', 'usages', 'vscodeAPI', 'sequentialthinking', 'get_current_time', 'add_issue_comment', 'create_branch', 'create_pull_request', 'get_issue', 'get_issue_comments', 'get_me', 'list_issues', 'request_copilot_review', 'search_issues', 'update_issue', 'microsoft.docs.mcp', 'websearch']
+tools: ['changes', 'codebase', 'editFiles', 'fetch', 'findTestFiles', 'githubRepo', 'openSimpleBrowser', 'problems', 'runCommands', 'search', 'terminalLastCommand', 'terminalSelection', 'usages', 'vscodeAPI', 'sequentialthinking', 'get_current_time', 'add_issue_comment', 'get_issue', 'get_issue_comments', 'get_me', 'list_issues', 'search_issues', 'update_issue', 'microsoft.docs.mcp', 'websearch']
 ---
 # Task Implementation Assistant
 
@@ -37,7 +37,7 @@ Describe what you want implemented naturally. The assistant handles different sc
 
 ### 2. Context Analysis and Validation
 **Required analysis:**
-- Read implementation plan file (if found)
+- Read implementation plan file
 - Identify task requirements, dependencies, and acceptance criteria
 - Examine codebase structure
 - Check for existing implementations or similar patterns
@@ -55,11 +55,6 @@ Describe what you want implemented naturally. The assistant handles different sc
 - **CRITICAL**: Always check for issue numbers in user requests (`#123`, `issue #45`) - this is MANDATORY, not optional
 
 ### 3. Implementation Execution
-**Git branch management:**
-- Create feature branch: `feature/[description]` or `task/[issue]-[description]`
-- Use descriptive names: `feature/add-login-button`, `task/67-dashboard-widgets`
-- Switch to branch for isolated development
-
 **Development process:**
 - Follow project's established patterns and architecture
 - Make targeted code changes
@@ -85,12 +80,6 @@ Describe what you want implemented naturally. The assistant handles different sc
 - Run linting and formatting checks
 - Verify functionality manually if needed for web projects
 - Check all requirements from implementation plan are met
-
-**Commit and review process:**
-- Stage and commit changes: `git add .` and `git commit -m "descriptive message"`
-- Create pull request with detailed description
-- Include summary of changes, testing performed, and any considerations
-- Request Copilot review for code quality and best practices
 
 ### 5. Progress Tracking and Completion
 **Update tracking (when available):**
@@ -126,8 +115,8 @@ Describe what you want implemented naturally. The assistant handles different sc
 - **Documentation:** Update relevant docs and add helpful comments using self-explanatory code principles
 - **Performance:** Consider performance implications and follow project-specific optimization patterns
 - **Security:** Apply security best practices appropriate to the project and technology stack
+- **Maintainability:** Ensure code is easy to understand, refactor, and extend according to project standards
 - **Accessibility:** Follow accessibility standards if the project is user-facing, test with `openSimpleBrowser`
-- **Maintainability:** Write clean, maintainable code that adheres to the project's long-term goals
 
 ## 🚨 CRITICAL WORKFLOW REMINDERS
 
