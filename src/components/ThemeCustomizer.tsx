@@ -11,7 +11,7 @@ import {useCallback, useMemo, useRef, useState} from 'react'
 import {useTheme} from '../hooks/UseTheme'
 import {copyThemeToClipboard, exportTheme, importTheme, validateThemeFile} from '../utils/theme-export'
 import {loadSavedThemes, removeThemeFromLibrary, saveThemeToLibrary} from '../utils/theme-storage'
-import {rgbToHsl, validateTheme} from '../utils/theme-validation'
+import {rgbToHsl, validateTheme, validateThemeAccessibility} from '../utils/theme-validation'
 import PresetThemeGallery from './PresetThemeGallery'
 import ThemePreview from './ThemePreview'
 
@@ -398,6 +398,11 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
   const [activeTab, setActiveTab] = useState<'editor' | 'presets' | 'library'>('editor')
   const [notification, setNotification] = useState<{type: 'success' | 'error'; message: string} | null>(null)
 
+  // Get accessibility validation results for the current theme
+  const accessibilityResults = useMemo(() => {
+    return validateThemeAccessibility(editingTheme)
+  }, [editingTheme.colors])
+
   // Show notification temporarily
   const showNotification = useCallback((type: 'success' | 'error', message: string) => {
     setNotification({type, message})
@@ -732,6 +737,45 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             <aside className="theme-customizer__preview-panel">
               <h3 className="theme-customizer__preview-title">Live Preview</h3>
               <ThemePreview theme={editingTheme} className="theme-customizer__preview" />
+
+              {/* Accessibility Status */}
+              <div className="accessibility-status">
+                <h4 className="accessibility-status__title">
+                  Accessibility Status
+                  {accessibilityResults.isAccessible ? (
+                    <span className="accessibility-status__badge accessibility-status__badge--success">✓ WCAG AA</span>
+                  ) : (
+                    <span className="accessibility-status__badge accessibility-status__badge--warning">⚠ Issues</span>
+                  )}
+                </h4>
+
+                {accessibilityResults.issues.length > 0 && (
+                  <div className="accessibility-status__issues">
+                    <p className="accessibility-status__warning">Color contrast issues found:</p>
+                    <ul className="accessibility-status__issues-list">
+                      {accessibilityResults.issues.map(({pair, contrast}, index) => (
+                        <li key={index} className="accessibility-status__issue">
+                          <strong>{pair[0]}</strong> on <strong>{pair[1]}</strong>: {contrast.ratio.toFixed(2)}:1
+                          <span
+                            className={`accessibility-status__grade accessibility-status__grade--${contrast.grade.toLowerCase()}`}
+                          >
+                            {contrast.grade}
+                          </span>
+                          {!contrast.meetsAA && (
+                            <span className="accessibility-status__recommendation">(needs 4.5:1 for WCAG AA)</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {accessibilityResults.isAccessible && (
+                  <p className="accessibility-status__success">
+                    ✨ All color combinations meet WCAG 2.1 AA accessibility standards!
+                  </p>
+                )}
+              </div>
             </aside>
           </div>
         </div>
