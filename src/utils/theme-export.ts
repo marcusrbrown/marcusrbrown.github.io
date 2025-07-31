@@ -2,10 +2,11 @@
  * Theme Export/Import Utilities
  *
  * Utilities for exporting themes to JSON files and importing themes from JSON files.
- * Includes validation, error handling, and proper browser file handling.
+ * Includes JSON schema validation, error handling, and proper browser file handling.
  */
 
 import type {Theme, ThemeExportData} from '../types'
+import {sanitizeThemeData, validateThemeExportData} from './schema-validation'
 import {sanitizeTheme, validateTheme} from './theme-validation'
 
 /**
@@ -44,23 +45,28 @@ export const exportTheme = (theme: Theme, filename?: string): void => {
 }
 
 /**
- * Imports a theme from a JSON file
+ * Imports a theme from a JSON file with JSON schema validation
  */
 export const importTheme = async (file: File): Promise<Theme> => {
   try {
     const content = await file.text()
-    const exportData = JSON.parse(content) as ThemeExportData
+    const rawData = JSON.parse(content)
 
-    // Validate the export data structure
-    if (!exportData.theme) {
-      throw new Error('Invalid theme file: missing theme data')
+    // First validate against JSON schema
+    const schemaValidation = validateThemeExportData(rawData)
+    if (!schemaValidation.isValid) {
+      throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
     }
 
-    if (!exportData.version) {
-      throw new Error('Invalid theme file: missing version information')
+    // Sanitize using schema validation
+    const sanitizedData = sanitizeThemeData(rawData)
+    if (!sanitizedData) {
+      throw new Error('Failed to sanitize theme data')
     }
 
-    // Validate and sanitize the theme
+    const exportData = sanitizedData
+
+    // Additional validation using existing validation functions for compatibility
     const sanitized = sanitizeTheme(exportData.theme)
     if (!sanitized) {
       throw new Error('Invalid theme data in file')
@@ -78,7 +84,7 @@ export const importTheme = async (file: File): Promise<Theme> => {
 }
 
 /**
- * Validates a file before import
+ * Validates a theme file before import with detailed error reporting
  */
 export const validateThemeFile = (file: File): string[] => {
   const errors: string[] = []
@@ -100,6 +106,37 @@ export const validateThemeFile = (file: File): string[] => {
   }
 
   return errors
+}
+
+/**
+ * Validates theme content with detailed schema validation
+ */
+export const validateThemeContent = async (
+  file: File,
+): Promise<{
+  isValid: boolean
+  errors: string[]
+  warnings: string[]
+}> => {
+  try {
+    const content = await file.text()
+    const rawData = JSON.parse(content)
+
+    // Use schema validation for detailed results
+    const validation = validateThemeExportData(rawData)
+
+    return {
+      isValid: validation.isValid,
+      errors: validation.errors,
+      warnings: validation.warnings,
+    }
+  } catch (error) {
+    return {
+      isValid: false,
+      errors: [error instanceof Error ? error.message : 'Failed to parse JSON'],
+      warnings: [],
+    }
+  }
 }
 
 /**
@@ -136,17 +173,28 @@ export const copyThemeToClipboard = async (theme: Theme): Promise<void> => {
 }
 
 /**
- * Imports theme from clipboard text
+ * Imports theme from clipboard text with JSON schema validation
  */
 export const importThemeFromClipboard = async (): Promise<Theme> => {
   try {
     const text = await navigator.clipboard.readText()
-    const exportData = JSON.parse(text) as ThemeExportData
+    const rawData = JSON.parse(text)
 
-    if (!exportData.theme) {
-      throw new Error('Invalid theme data in clipboard')
+    // First validate against JSON schema
+    const schemaValidation = validateThemeExportData(rawData)
+    if (!schemaValidation.isValid) {
+      throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
     }
 
+    // Sanitize using schema validation
+    const sanitizedData = sanitizeThemeData(rawData)
+    if (!sanitizedData) {
+      throw new Error('Failed to sanitize theme data')
+    }
+
+    const exportData = sanitizedData
+
+    // Additional validation using existing validation functions for compatibility
     const sanitized = sanitizeTheme(exportData.theme)
     if (!sanitized) {
       throw new Error('Invalid theme data')

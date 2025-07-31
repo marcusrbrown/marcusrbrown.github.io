@@ -40,6 +40,8 @@
   },
   "prettier": "@bfra.me/prettier-config/120-proof",
   "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.7.1"

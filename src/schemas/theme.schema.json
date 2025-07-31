@@ -1,0 +1,351 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mrbro.dev/schemas/theme-export.json",
+  "title": "Theme Export Data",
+  "description": "JSON schema for validating theme export/import data for the mrbro.dev theme system",
+  "type": "object",
+  "required": ["version", "theme", "exportedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Export format version",
+      "pattern": "^\\d+\\.\\d+$",
+      "examples": ["1.0", "1.1", "2.0"]
+    },
+    "theme": {
+      "$ref": "#/definitions/ExtendedTheme"
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the theme was exported"
+    },
+    "exportedBy": {
+      "type": "string",
+      "description": "Information about what exported the theme",
+      "maxLength": 255
+    }
+  },
+  "definitions": {
+    "ColorValue": {
+      "type": "string",
+      "description": "Valid CSS color value (hex, hsl, rgb, or safe named color)",
+      "oneOf": [
+        {
+          "pattern": "^#[0-9a-fA-F]{3}$",
+          "description": "3-digit hex color"
+        },
+        {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "6-digit hex color"
+        },
+        {
+          "pattern": "^#[0-9a-fA-F]{8}$",
+          "description": "8-digit hex color with alpha"
+        },
+        {
+          "pattern": "^hsl\\(\\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:100|[1-9]?[0-9])%\\s*,\\s*(?:100|[1-9]?[0-9])%\\s*\\)$",
+          "description": "HSL color format"
+        },
+        {
+          "pattern": "^hsla\\(\\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:100|[1-9]?[0-9])%\\s*,\\s*(?:100|[1-9]?[0-9])%\\s*,\\s*(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)\\s*\\)$",
+          "description": "HSLA color format"
+        },
+        {
+          "pattern": "^rgb\\(\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*\\)$",
+          "description": "RGB color format"
+        },
+        {
+          "pattern": "^rgba\\(\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)\\s*\\)$",
+          "description": "RGBA color format"
+        },
+        {
+          "enum": [
+            "black",
+            "white",
+            "red",
+            "green",
+            "blue",
+            "yellow",
+            "cyan",
+            "magenta",
+            "gray",
+            "grey",
+            "transparent",
+            "currentcolor"
+          ],
+          "description": "Safe named CSS colors"
+        }
+      ]
+    },
+    "ResolvedThemeMode": {
+      "type": "string",
+      "enum": ["light", "dark"],
+      "description": "Theme mode (light or dark, system is resolved to one of these)"
+    },
+    "ThemeColors": {
+      "type": "object",
+      "description": "Core color palette for themes",
+      "required": [
+        "primary",
+        "secondary",
+        "accent",
+        "background",
+        "surface",
+        "text",
+        "textSecondary",
+        "border",
+        "error",
+        "warning",
+        "success"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "primary": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Primary brand color for buttons, links, and key UI elements"
+        },
+        "secondary": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Secondary color for supporting elements"
+        },
+        "accent": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Accent color for highlights and call-to-action elements"
+        },
+        "background": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Main background color for the application"
+        },
+        "surface": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Surface color for cards, modals, and elevated content"
+        },
+        "text": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Primary text color for headings and body content"
+        },
+        "textSecondary": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Secondary text color for supporting text and descriptions"
+        },
+        "border": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Border color for dividers, inputs, and component boundaries"
+        },
+        "error": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Error state color for warnings and error messages"
+        },
+        "warning": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Warning state color for caution indicators"
+        },
+        "success": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Success state color for confirmations and positive feedback"
+        }
+      }
+    },
+    "ExtendedThemeColors": {
+      "type": "object",
+      "description": "Extended color palette with optional colors",
+      "allOf": [{"$ref": "#/definitions/ThemeColors"}],
+      "properties": {
+        "info": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Information state color for informational messages"
+        },
+        "muted": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Muted color for disabled or inactive elements"
+        },
+        "hover": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Hover state color for interactive elements"
+        },
+        "focus": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Focus state color for keyboard navigation"
+        },
+        "selection": {
+          "$ref": "#/definitions/ColorValue",
+          "description": "Selection color for text highlighting"
+        }
+      }
+    },
+    "ThemeTypography": {
+      "type": "object",
+      "description": "Typography configuration for themes",
+      "additionalProperties": false,
+      "properties": {
+        "headingFont": {
+          "type": "string",
+          "description": "Font family for headings",
+          "maxLength": 200
+        },
+        "bodyFont": {
+          "type": "string",
+          "description": "Font family for body text",
+          "maxLength": 200
+        },
+        "monospaceFont": {
+          "type": "string",
+          "description": "Font family for monospace/code text",
+          "maxLength": 200
+        },
+        "baseFontSize": {
+          "type": "string",
+          "description": "Base font size",
+          "pattern": "^\\d+(\\.\\d+)?(px|em|rem|%)$"
+        },
+        "lineHeight": {
+          "type": "number",
+          "description": "Line height ratio",
+          "minimum": 0.5,
+          "maximum": 3.0
+        }
+      }
+    },
+    "ThemeSpacing": {
+      "type": "object",
+      "description": "Spacing and layout configuration",
+      "additionalProperties": false,
+      "properties": {
+        "baseUnit": {
+          "type": "string",
+          "description": "Base spacing unit",
+          "pattern": "^\\d+(\\.\\d+)?(px|em|rem)$"
+        },
+        "containerMaxWidth": {
+          "type": "string",
+          "description": "Container max width",
+          "pattern": "^\\d+(\\.\\d+)?(px|em|rem|%)$"
+        },
+        "borderRadius": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "small": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?(px|em|rem)$"
+            },
+            "medium": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?(px|em|rem)$"
+            },
+            "large": {
+              "type": "string",
+              "pattern": "^\\d+(\\.\\d+)?(px|em|rem)$"
+            }
+          }
+        }
+      }
+    },
+    "ThemeAnimations": {
+      "type": "object",
+      "description": "Animation and transition configuration",
+      "additionalProperties": false,
+      "properties": {
+        "transitionDuration": {
+          "type": "string",
+          "description": "Transition duration for theme switches",
+          "pattern": "^\\d+(\\.\\d+)?(ms|s)$"
+        },
+        "transitionTimingFunction": {
+          "type": "string",
+          "description": "Transition timing function",
+          "maxLength": 100
+        },
+        "respectReducedMotion": {
+          "type": "boolean",
+          "description": "Whether to respect prefers-reduced-motion"
+        }
+      }
+    },
+    "ExtendedTheme": {
+      "type": "object",
+      "description": "Extended theme definition with additional customization options",
+      "required": ["id", "name", "mode", "colors"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the theme",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable theme name",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "description": {
+          "type": "string",
+          "description": "Theme description for display in theme selector",
+          "maxLength": 500
+        },
+        "author": {
+          "type": "string",
+          "description": "Theme author information",
+          "maxLength": 100
+        },
+        "version": {
+          "type": "string",
+          "description": "Theme version for compatibility tracking",
+          "pattern": "^\\d+\\.\\d+(\\.\\d+)?$"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Tags for categorizing themes",
+          "items": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "isBuiltIn": {
+          "type": "boolean",
+          "description": "Whether this theme is built-in or user-created"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last modification timestamp"
+        },
+        "mode": {
+          "$ref": "#/definitions/ResolvedThemeMode"
+        },
+        "colors": {
+          "$ref": "#/definitions/ExtendedThemeColors"
+        },
+        "customProperties": {
+          "type": "object",
+          "description": "Custom CSS properties for advanced styling",
+          "additionalProperties": {
+            "$ref": "#/definitions/ColorValue"
+          },
+          "maxProperties": 50
+        },
+        "typography": {
+          "$ref": "#/definitions/ThemeTypography"
+        },
+        "spacing": {
+          "$ref": "#/definitions/ThemeSpacing"
+        },
+        "animations": {
+          "$ref": "#/definitions/ThemeAnimations"
+        }
+      }
+    }
+  }
+}
