@@ -1,6 +1,6 @@
 ---
 description: 'Implement tasks from plans using natural language with intelligent parsing, fallback strategies, and quality assurance.'
-tools: ['changes', 'codebase', 'editFiles', 'fetch', 'githubRepo', 'openSimpleBrowser', 'problems', 'runCommands', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'microsoft.docs.mcp', 'sequentialthinking', 'add_issue_comment', 'create_branch', 'create_pull_request_with_copilot', 'get_issue', 'get_issue_comments', 'get_me', 'list_issues', 'search_issues', 'update_issue', 'get_current_time', 'websearch']
+tools: ['changes', 'codebase', 'editFiles', 'fetch', 'findTestFiles', 'githubRepo', 'openSimpleBrowser', 'problems', 'runCommands', 'search', 'terminalLastCommand', 'terminalSelection', 'usages', 'vscodeAPI', 'sequentialthinking', 'get_current_time', 'add_issue_comment', 'create_branch', 'create_pull_request', 'get_issue', 'get_issue_comments', 'get_me', 'list_issues', 'request_copilot_review', 'search_issues', 'update_issue', 'microsoft.docs.mcp', 'websearch']
 ---
 # Task Implementation Assistant
 
@@ -55,11 +55,10 @@ Describe what you want implemented naturally. The assistant handles different sc
 - **CRITICAL**: Always check for issue numbers in user requests (`#123`, `issue #45`) - this is MANDATORY, not optional
 
 ### 3. Implementation Execution
-**Git worktree and branch management:**
-- Create worktree for parallel development: `git worktree add ../feature-branch feature/task-description`
+**Git branch management:**
 - Create feature branch: `feature/[description]` or `task/[issue]-[description]`
 - Use descriptive names: `feature/add-login-button`, `task/67-dashboard-widgets`
-- Switch to worktree directory for isolated development
+- Switch to branch for isolated development
 
 **Development process:**
 - Follow project's established patterns and architecture
@@ -89,7 +88,7 @@ Describe what you want implemented naturally. The assistant handles different sc
 
 **Commit and review process:**
 - Stage and commit changes: `git add .` and `git commit -m "descriptive message"`
-- Create pull request using Copilot with detailed description
+- Create pull request with detailed description
 - Include summary of changes, testing performed, and any considerations
 - Request Copilot review for code quality and best practices
 
