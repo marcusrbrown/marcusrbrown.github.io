@@ -152,36 +152,16 @@ export const sanitizeThemeData = (data: unknown): ThemeExportData | null => {
 }
 
 /**
- * Validates color value format specifically
- * Uses the ColorValue definition from the imported theme schema for consistency.
+ * Validates color value format specifically using the main schema validation.
+ * Defers to Ajv and the schema's ColorValue definition.
  */
 export const validateColorFormat = (color: unknown): boolean => {
-  if (typeof color !== 'string') {
-    return false
+  // Use Ajv to validate the color against the ColorValue definition in the main schema
+  const colorSchema = themeSchema.definitions?.ColorValue
+  if (!colorSchema) {
+    // If no definition is found, fallback to a basic string check
+    return typeof color === 'string'
   }
-
-  // Reference the ColorValue definition from the imported theme schema
-  // Assumes themeSchema.definitions.ColorValue exists and matches the color validation requirements
-  const colorSchema = themeSchema.definitions?.ColorValue ||
-    // fallback to a basic string type if not defined
-    {type: 'string'}
-
-  colorSchema.oneOf = colorSchema.oneOf.map((item: any) => {
-    if (item.pattern && item.pattern.includes('hsl')) {
-      // Replace with stricter pattern for HSL/HSLA
-      return {
-        ...item,
-        pattern: String.raw`^hsl\(\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*\)$`,
-      }
-    }
-    if (item.pattern && item.pattern.includes('hsla')) {
-      return {
-        ...item,
-        pattern: String.raw`^hsla\(\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*,\s*(?:0(?:\.[0-9]+)?|1(?:\.0+)?)\s*\)$`,
-      }
-    }
-    return item
-  })
 
   const validateColor = ajv.compile(colorSchema)
   return validateColor(color)
