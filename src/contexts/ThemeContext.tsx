@@ -1,5 +1,6 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
 import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
+import {cleanupThemeOptimizations, getOptimalPerformanceLevel, optimizeForThemeSwitch} from '../utils/theme-performance'
 import {loadCustomTheme, loadThemeMode, saveCustomTheme, saveThemeMode} from '../utils/theme-storage'
 
 const defaultLightTheme: Theme = {
@@ -86,18 +87,36 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
 
   const availableThemes = [defaultLightTheme, defaultDarkTheme]
 
-  // Enhanced setThemeMode that persists to localStorage
+  // Enhanced setThemeMode that persists to localStorage and optimizes performance
   const setThemeMode = (mode: ThemeMode) => {
+    // Optimize for theme switching performance
+    const performanceLevel = getOptimalPerformanceLevel()
+    optimizeForThemeSwitch(performanceLevel)
+
     setThemeModeState(mode)
     saveThemeMode(mode)
+
+    // Clean up performance optimizations after transition
+    setTimeout(() => {
+      cleanupThemeOptimizations()
+    }, 350) // Slightly longer than max transition duration
   }
 
-  // Enhanced setCustomTheme that persists to localStorage
+  // Enhanced setCustomTheme that persists to localStorage and optimizes performance
   const setCustomTheme = (theme: Theme | null) => {
+    // Optimize for theme switching performance
+    const performanceLevel = getOptimalPerformanceLevel()
+    optimizeForThemeSwitch(performanceLevel)
+
     setCustomThemeState(theme)
     if (theme) {
       saveCustomTheme(theme)
     }
+
+    // Clean up performance optimizations after transition
+    setTimeout(() => {
+      cleanupThemeOptimizations()
+    }, 350) // Slightly longer than max transition duration
   }
 
   // Detect system preference and listen for changes

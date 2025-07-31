@@ -296,14 +296,142 @@ button,
 }
 
 /* Performance optimizations for theme switching */
-/* Prepare elements for theme transitions */
-.theme-switching,
-.theme-switching * {
-  will-change: color, background-color, border-color, box-shadow;
+/* CSS Containment for performance isolation */
+
+/* Independent content sections - isolate layout and rendering */
+.project-card,
+.blog-post,
+article,
+.card,
+.theme-customizer,
+.theme-preview,
+.preset-theme-gallery {
+  /* Layout and paint containment for independent sections */
+  contain: layout paint style;
+  /* Prepare for GPU acceleration */
+  transform: translateZ(0);
+  /* Reduce repaints during theme switching */
+  backface-visibility: hidden;
 }
 
-/* Clean up will-change after transitions complete */
+/* Large content areas that may be offscreen */
+.projects-grid,
+.blog-posts-list,
+.theme-gallery-grid {
+  /* Auto-optimize rendering for offscreen content */
+  content-visibility: auto;
+  /* Intrinsic size to prevent layout shift */
+  contain-intrinsic-size: 100% 400px;
+}
+
+/* Header and footer - isolate from main content changes */
+.header,
+.footer,
+nav {
+  /* Paint containment prevents repaints of main content */
+  contain: layout paint;
+  /* Force composite layer for better performance */
+  will-change: background-color, color;
+  transform: translateZ(0);
+}
+
+/* Modal and overlay performance */
+.modal,
+.overlay,
+.dropdown,
+.theme-customizer-modal {
+  /* Full containment for modal content */
+  contain: layout paint style;
+  /* Composite layer for smooth animations */
+  transform: translateZ(0);
+  /* Optimize for theme transitions */
+  will-change: opacity, transform, background-color;
+}
+
+/* Interactive elements optimization */
+button,
+input,
+select,
+textarea,
+.theme-toggle,
+[role="button"],
+a:hover,
+a:focus {
+  /* Force composite layer for better interaction performance */
+  transform: translateZ(0);
+  /* Prepare for theme and interaction changes */
+  will-change: background-color, color, border-color, box-shadow;
+}
+
+/* Code blocks and syntax highlighting */
+pre,
+code,
+.code-block,
+.syntax-highlight {
+  /* Isolate code rendering from theme changes */
+  contain: layout paint;
+  /* GPU acceleration for large code blocks */
+  transform: translateZ(0);
+  /* Optimize text rendering during theme switches */
+  will-change: background-color, color;
+}
+
+/* Theme switching performance states */
+.theme-switching {
+  /* Enhanced containment during theme transitions */
+  contain: layout paint style;
+  /* Prepare all theme-related properties */
+  will-change: color, background-color, border-color, box-shadow, opacity;
+}
+
+.theme-switching * {
+  /* Propagate performance optimizations to children */
+  will-change: color, background-color, border-color;
+  /* Force composite layers for smooth transitions */
+  transform: translateZ(0);
+}
+
+/* Clean up performance optimizations after theme switch */
 .theme-switch-complete,
 .theme-switch-complete * {
   will-change: auto;
+  /* Keep composite layers for frequently changing elements */
+}
+
+/* Keep composite layers for interactive elements */
+.theme-switch-complete button,
+.theme-switch-complete input,
+.theme-switch-complete .theme-toggle,
+.theme-switch-complete [role="button"] {
+  transform: translateZ(0);
+  will-change: background-color, color;
+}
+
+/* Performance optimizations for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable GPU acceleration if reduced motion is preferred */
+  * {
+    transform: none !important;
+    will-change: auto !important;
+  }
+
+  /* Keep minimal optimizations for theme switching */
+  .theme-switching {
+    contain: paint;
+    will-change: color, background-color;
+  }
+}
+
+/* High refresh rate display optimizations */
+@media (min-resolution: 120dpi) {
+  /* Enhanced GPU acceleration for high-DPI displays */
+  .project-card,
+  .blog-post,
+  .card,
+  .theme-toggle,
+  button {
+    transform: translate3d(0, 0, 0);
+    /* Subpixel rendering optimization */
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
 }
