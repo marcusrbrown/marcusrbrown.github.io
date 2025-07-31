@@ -219,12 +219,24 @@ jobs:
 
           echo "✅ All quality checks passed!"
 
+      - id: get-app-token
+        name: Get Workflow Access Token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        with:
+          app-id: ${{ secrets.APPLICATION_ID }}
+          permission-contents: read
+          permission-pull-requests: write
+          private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          token: ${{ steps.get-app-token.outputs.token }}
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && github.event.action != 'synchronize'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} --body "✅ All CI checks passed! Ready for review."
