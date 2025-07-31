@@ -1,6 +1,12 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
 import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
-import {cleanupThemeOptimizations, getOptimalPerformanceLevel, optimizeForThemeSwitch} from '../utils/theme-performance'
+import {prefersReducedMotion} from '../utils/accessibility'
+import {
+  cleanupThemeOptimizations,
+  getOptimalPerformanceLevel,
+  optimizeForThemeSwitch,
+  setupReducedMotionListener,
+} from '../utils/theme-performance'
 import {loadCustomTheme, loadThemeMode, saveCustomTheme, saveThemeMode} from '../utils/theme-storage'
 
 const defaultLightTheme: Theme = {
@@ -89,6 +95,13 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
 
   // Enhanced setThemeMode that persists to localStorage and optimizes performance
   const setThemeMode = (mode: ThemeMode) => {
+    // Skip animations entirely if user prefers reduced motion
+    if (prefersReducedMotion()) {
+      setThemeModeState(mode)
+      saveThemeMode(mode)
+      return
+    }
+
     // Optimize for theme switching performance
     const performanceLevel = getOptimalPerformanceLevel()
     optimizeForThemeSwitch(performanceLevel)
@@ -104,6 +117,15 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
 
   // Enhanced setCustomTheme that persists to localStorage and optimizes performance
   const setCustomTheme = (theme: Theme | null) => {
+    // Skip animations entirely if user prefers reduced motion
+    if (prefersReducedMotion()) {
+      setCustomThemeState(theme)
+      if (theme) {
+        saveCustomTheme(theme)
+      }
+      return
+    }
+
     // Optimize for theme switching performance
     const performanceLevel = getOptimalPerformanceLevel()
     optimizeForThemeSwitch(performanceLevel)
@@ -173,6 +195,17 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     }
   }, [])
 
+  // Set up reduced motion listener for dynamic preference changes
+  useEffect(() => {
+    // Early return if running on server
+    if (typeof window === 'undefined') return
+
+    // Set up the reduced motion listener which handles CSS property updates
+    const cleanupReducedMotionListener = setupReducedMotionListener()
+
+    return cleanupReducedMotionListener
+  }, [])
+
   // Determine current theme based on mode and system preference
   const currentTheme: Theme = (() => {
     if (customTheme) {
@@ -188,8 +221,13 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     const root = document.documentElement
     const {colors} = currentTheme
 
-    // Add theme switching class for performance optimization
-    root.classList.add('theme-switching')
+    // For reduced motion, skip the performance optimization classes
+    const isReducedMotion = prefersReducedMotion()
+
+    if (!isReducedMotion) {
+      // Add theme switching class for performance optimization (only for normal motion)
+      root.classList.add('theme-switching')
+    }
 
     // Apply CSS custom properties
     root.style.setProperty('--color-primary', colors.primary)
@@ -207,7 +245,14 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     // Set data attribute for theme-specific styling
     root.dataset['theme'] = currentTheme.mode
 
-    // Clean up performance optimization class after transition
+    if (isReducedMotion) {
+      // For reduced motion, clean up immediately without transitions
+      return () => {
+        // No cleanup needed for reduced motion
+      }
+    }
+
+    // Clean up performance optimization class after transition (normal motion only)
     const cleanupTimer = setTimeout(() => {
       root.classList.remove('theme-switching')
       root.classList.add('theme-switch-complete')

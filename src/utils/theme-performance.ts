@@ -3,6 +3,8 @@
  * Manages CSS containment and will-change properties for better theme transition performance
  */
 
+import {prefersReducedMotion} from './accessibility'
+
 export type PerformanceOptimizationLevel = 'minimal' | 'standard' | 'aggressive'
 
 interface PerformanceState {
@@ -38,12 +40,27 @@ const applyAggressiveOptimizations = (): void => {
 }
 
 /**
- * Applies minimal performance optimizations for lower-end devices
+ * Applies minimal performance optimizations for lower-end devices or reduced motion
  */
 const applyMinimalOptimizations = (): void => {
   const root = document.documentElement
-  root.style.setProperty('--transition-theme', 'color 150ms ease, background-color 150ms ease')
-  root.style.setProperty('--transition-theme-fast', 'color 100ms ease, background-color 100ms ease')
+
+  if (prefersReducedMotion()) {
+    // For reduced motion, disable transitions entirely
+    root.style.setProperty('--transition-theme', 'none')
+    root.style.setProperty('--transition-theme-fast', 'none')
+    root.style.setProperty('--transition-theme-instant', 'none')
+    root.style.setProperty('--transition-theme-slow', 'none')
+    root.style.setProperty('--transition-shadow', 'none')
+    root.style.setProperty('--transition-border', 'none')
+
+    // Add reduced motion class for additional styling control
+    root.classList.add('reduce-motion')
+  } else {
+    // For low-performance devices, use faster but still visible transitions
+    root.style.setProperty('--transition-theme', 'color 150ms ease, background-color 150ms ease')
+    root.style.setProperty('--transition-theme-fast', 'color 100ms ease, background-color 100ms ease')
+  }
 }
 
 /**
@@ -59,6 +76,11 @@ export const cleanupThemeOptimizations = (): void => {
   // Remove switching class and add complete class
   root.classList.remove(PERFORMANCE_CLASSES.switching)
   root.classList.add(PERFORMANCE_CLASSES.complete)
+
+  // Clean up reduced motion class if it was added temporarily
+  if (!prefersReducedMotion()) {
+    root.classList.remove('reduce-motion')
+  }
 
   // Log performance metrics in development
   const duration = performance.now() - performanceState.startTime
@@ -161,11 +183,11 @@ export const supportsHardwareAcceleration = (): boolean => {
 }
 
 /**
- * Gets the optimal performance level based on device capabilities
+ * Gets the optimal performance level based on device capabilities and user preferences
  */
 export const getOptimalPerformanceLevel = (): PerformanceOptimizationLevel => {
-  // Check for reduced motion preference
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  // Always return minimal for reduced motion preference - this is the highest priority
+  if (prefersReducedMotion()) {
     return 'minimal'
   }
 
@@ -276,4 +298,65 @@ if (typeof window !== 'undefined') {
 
   // Initialize performance monitoring
   monitorThemePerformance()
+}
+
+/**
+ * Configures theme animations based on reduced motion preference
+ * This function ensures all theme-related animations respect user preferences
+ */
+export const configureReducedMotionSupport = (): void => {
+  const root = document.documentElement
+
+  if (prefersReducedMotion()) {
+    // Disable all theme transitions
+    root.style.setProperty('--transition-theme', 'none')
+    root.style.setProperty('--transition-theme-fast', 'none')
+    root.style.setProperty('--transition-theme-instant', 'none')
+    root.style.setProperty('--transition-theme-slow', 'none')
+    root.style.setProperty('--transition-shadow', 'none')
+    root.style.setProperty('--transition-border', 'none')
+
+    // Add class for additional CSS targeting
+    root.classList.add('reduce-motion')
+
+    // Disable hardware acceleration for reduced motion
+    root.classList.add('disable-gpu-acceleration')
+  } else {
+    // Restore normal transitions if they were disabled
+    root.style.removeProperty('--transition-theme')
+    root.style.removeProperty('--transition-theme-fast')
+    root.style.removeProperty('--transition-theme-instant')
+    root.style.removeProperty('--transition-theme-slow')
+    root.style.removeProperty('--transition-shadow')
+    root.style.removeProperty('--transition-border')
+
+    // Remove reduced motion classes
+    root.classList.remove('reduce-motion', 'disable-gpu-acceleration')
+  }
+}
+
+/**
+ * Sets up a listener for reduced motion preference changes
+ * Automatically reconfigures animations when user preference changes
+ */
+export const setupReducedMotionListener = (): (() => void) => {
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return () => {} // No-op cleanup for SSR
+  }
+
+  const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+  const handleChange = () => {
+    configureReducedMotionSupport()
+  }
+
+  // Configure initial state
+  configureReducedMotionSupport()
+
+  // Listen for changes
+  mediaQuery.addEventListener('change', handleChange)
+
+  return () => {
+    mediaQuery.removeEventListener('change', handleChange)
+  }
 }
