@@ -6,12 +6,14 @@ This is a developer portfolio website built with modern web technologies and dep
 
 ## Technical Stack
 
-- **Framework**: React 18+ with TypeScript
-- **Routing**: React Router v7+
-- **Build Tool**: Vite 7+ (latest)
-- **Package Manager**: pnpm (required)
+- **Framework**: React 19+ with TypeScript
+- **Routing**: React Router v7+ (latest v7.7.1)
+- **Build Tool**: Vite 7+ (latest v7.0.6)
+- **Package Manager**: pnpm v10.13.1+ (required)
 - **Testing**: Vitest with happy-dom
-- **Styling**: Global CSS styles
+- **Styling**: Global CSS styles with CSS custom properties
+- **Syntax Highlighting**: Shiki v3.8.1 with theme integration
+- **Schema Validation**: Ajv v8.17.1 + ajv-formats v3.0.1
 - **Linting**: ESLint 9+ with flat config
 - **Formatting**: Prettier via @bfra.me/prettier-config/120-proof
 - **Deployment**: GitHub Pages via GitHub Actions
@@ -172,7 +174,7 @@ The project uses a comprehensive CI/CD pipeline with modern GitHub Actions:
 
 ### Theme System Architecture
 
-The project implements a comprehensive theme system with Context + Hook pattern:
+The project implements a comprehensive theme system with Context + Hook pattern plus advanced features:
 
 ```typescript
 // src/contexts/ThemeContext.tsx - Centralized theme state
@@ -180,34 +182,91 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 // src/hooks/UseTheme.ts - Feature-rich hook interface
 export const useTheme = (): UseThemeReturn => {
-  // Provides: currentTheme, themeMode, toggleTheme, etc.
+  // Provides: currentTheme, themeMode, toggleTheme, preset gallery, custom themes, etc.
   return useThemeContext()
 }
 
 // Usage in components
 const MyComponent = () => {
-  const { currentTheme, isDarkMode, toggleTheme } = useTheme()
+  const { currentTheme, isDarkMode, toggleTheme, setCustomTheme } = useTheme()
   // ...
 }
 ```
 
-**CSS Custom Properties Integration**: Themes dynamically update CSS custom properties on `:root`, enabling seamless style transitions without CSS-in-JS overhead.
+**Advanced Theme Features**:
+- **Custom Theme Creation**: Full theme customizer with HSL color controls (`src/components/ThemeCustomizer.tsx`)
+- **Preset Theme Gallery**: 10+ built-in themes (GitHub, Material, Nord, Solarized, etc.) (`src/utils/preset-themes.ts`)
+- **Theme Import/Export**: JSON-based theme sharing with schema validation (`src/utils/theme-export.ts`)
+- **JSON Schema Validation**: Comprehensive validation using Ajv (`src/schemas/theme.schema.json`, `src/utils/schema-validation.ts`)
+- **CSS Custom Properties Integration**: Themes dynamically update CSS custom properties on `:root`
+- **Syntax Highlighting Integration**: Shiki themes automatically match app themes (`src/utils/syntax-highlighting.ts`)
 
-### Component Structure
+### JSON Schema Validation Pattern
+
+Critical for theme security and validation:
 
 ```typescript
-// src/components/ComponentName.tsx
-import React from 'react';
+// src/utils/schema-validation.ts - Schema-based validation
+import Ajv from 'ajv'
+import addFormats from 'ajv-formats'
+import themeSchema from '../schemas/theme.schema.json'
 
-const ComponentName: React.FC = () => {
+const ajv = new Ajv({ allErrors: true, removeAdditional: true })
+addFormats(ajv)
+const validateThemeExport = ajv.compile(themeSchema)
+
+// Usage in theme import/export
+export const validateThemeExportData = (data: unknown): ThemeValidationResult => {
+  const isValid = validateThemeExport(data)
+  return { isValid, errors: formatValidationErrors(validateThemeExport.errors || []) }
+}
+```
+
+### Syntax Highlighting Architecture
+
+Theme-aware syntax highlighting using Shiki:
+
+```typescript
+// src/utils/syntax-highlighting.ts - Shiki integration
+const SHIKI_THEME_MAP: Record<ResolvedThemeMode, BundledTheme> = {
+  light: 'github-light',
+  dark: 'github-dark',
+}
+
+export const highlightCode = async (code: string, language: BundledLanguage, options: {
+  theme?: ResolvedThemeMode
+  removeBackground?: boolean
+} = {}): Promise<string> => {
+  const highlighter = await initializeHighlighter()
+  return highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME_MAP[theme] })
+}
+```
+
+**Key Components**:
+- `src/components/CodeBlock.tsx` - Theme-aware code block component
+- `src/hooks/UseSyntaxHighlighting.ts` - Hook for automatic theme updates
+- Supports 15+ languages (TypeScript, JavaScript, Python, Rust, etc.)
+
+### Compound Component Pattern
+
+Used extensively in the theme system for modular, reusable components:
+
+```typescript
+// src/components/ThemeCustomizer.tsx - Compound component architecture
+const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({ onClose, onThemeChange }) => {
   return (
-    <div>
-      {/* Component JSX */}
+    <div className="theme-customizer">
+      <ColorSection title="Primary Colors" colors={primaryColors} />
+      <ColorSection title="Surface Colors" colors={surfaceColors} />
+      <ThemePreview theme={editingTheme} />
+      <PresetThemeGallery onThemeApply={handleThemeApply} />
     </div>
-  );
-};
+  )
+}
 
-export default ComponentName;
+// Individual compound components
+const ColorSection = ({ title, colors, onColorChange }) => { /* ... */ }
+const ColorInput = ({ label, value, onChange }) => { /* ... */ }
 ```
 
 ### GitHub API Integration
@@ -276,6 +335,23 @@ export const useTheme = (): UseThemeReturn => {
 
 **Dynamic Theme Updates**: ThemeContext automatically updates these properties when theme changes, providing instant visual feedback.
 
+### Component Structure
+
+```typescript
+// src/components/ComponentName.tsx
+import React from 'react';
+
+const ComponentName: React.FC = () => {
+  return (
+    <div>
+      {/* Component JSX */}
+    </div>
+  );
+};
+
+export default ComponentName;
+```
+
 ## Repository Showcase Feature
 
 The site includes comprehensive GitHub API integration:
@@ -292,7 +368,7 @@ The site includes comprehensive GitHub API integration:
 3. **Use TypeScript strict mode** - No `any` types
 4. **Follow self-explanatory code commenting** as per project instructions
 5. **Test coverage is mandatory** - Maintain 80%+ coverage
-6. **Modern React patterns** - Hooks, function components, React 18 features
+6. **Modern React patterns** - Hooks, function components, React 19 features
 
 ## Dependencies Management
 
