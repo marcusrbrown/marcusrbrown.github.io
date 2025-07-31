@@ -2,12 +2,15 @@
  * ThemeCustomizer Component
  *
  * Advanced theme creation interface with HSL color controls, real-time preview,
- * and theme validation. Follows compound component pattern for modularity.
+ * theme validation, save/export/import functionality, and theme library management.
+ * Follows compound component pattern for modularity.
  */
 
 import type {ColorValue, HSLColor, ResolvedThemeMode, Theme, ThemeColors} from '../types'
-import {useCallback, useMemo, useState} from 'react'
+import {useCallback, useMemo, useRef, useState} from 'react'
 import {useTheme} from '../hooks/UseTheme'
+import {copyThemeToClipboard, exportTheme, importTheme, validateThemeFile} from '../utils/theme-export'
+import {loadSavedThemes, removeThemeFromLibrary, saveThemeToLibrary} from '../utils/theme-storage'
 import {rgbToHsl, validateTheme} from '../utils/theme-validation'
 
 interface ParsedColor {
@@ -87,6 +90,14 @@ interface ThemeCustomizerProps {
   className?: string
   onThemeChange?: (theme: Theme) => void
   onClose?: () => void
+  showLibrary?: boolean
+}
+
+interface SavedThemeCardProps {
+  theme: Theme
+  onLoad: (theme: Theme) => void
+  onDelete: (themeId: string) => void
+  onExport: (theme: Theme) => void
 }
 
 interface ColorSectionProps {
@@ -277,6 +288,67 @@ const ColorInput: React.FC<ColorInputProps> = ({label, description, value, onCha
 }
 
 /**
+ * Saved theme card component for the theme library
+ */
+const SavedThemeCard: React.FC<SavedThemeCardProps> = ({theme, onLoad, onDelete, onExport}) => {
+  return (
+    <div className="saved-theme-card">
+      <div className="saved-theme-card__header">
+        <h4 className="saved-theme-card__name">{theme.name}</h4>
+        <span className="saved-theme-card__mode">{theme.mode}</span>
+      </div>
+
+      <div className="saved-theme-card__preview">
+        <div
+          className="saved-theme-card__color-preview"
+          style={
+            {
+              '--preview-primary': theme.colors.primary,
+              '--preview-background': theme.colors.background,
+              '--preview-surface': theme.colors.surface,
+              '--preview-text': theme.colors.text,
+            } as React.CSSProperties
+          }
+        >
+          <div className="saved-theme-card__color" style={{backgroundColor: theme.colors.primary}} title="Primary" />
+          <div
+            className="saved-theme-card__color"
+            style={{backgroundColor: theme.colors.background}}
+            title="Background"
+          />
+          <div className="saved-theme-card__color" style={{backgroundColor: theme.colors.surface}} title="Surface" />
+          <div className="saved-theme-card__color" style={{backgroundColor: theme.colors.text}} title="Text" />
+        </div>
+      </div>
+
+      <div className="saved-theme-card__actions">
+        <button
+          type="button"
+          className="saved-theme-card__action saved-theme-card__action--primary"
+          onClick={() => onLoad(theme)}
+        >
+          Load
+        </button>
+        <button
+          type="button"
+          className="saved-theme-card__action saved-theme-card__action--secondary"
+          onClick={() => onExport(theme)}
+        >
+          Export
+        </button>
+        <button
+          type="button"
+          className="saved-theme-card__action saved-theme-card__action--danger"
+          onClick={() => onDelete(theme.id)}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Color section component grouping related colors
  */
 const ColorSection: React.FC<ColorSectionProps> = ({title, colors, themeColors, onColorChange}) => {
@@ -301,8 +373,14 @@ const ColorSection: React.FC<ColorSectionProps> = ({title, colors, themeColors, 
 /**
  * Main ThemeCustomizer component
  */
-export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({className = '', onThemeChange, onClose}) => {
+export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
+  className = '',
+  onThemeChange,
+  onClose,
+  showLibrary: _showLibrary = false,
+}) => {
   const {currentTheme, setCustomTheme} = useTheme()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Local theme state for editing
   const [editingTheme, setEditingTheme] = useState<Theme>(() => ({
@@ -314,6 +392,15 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({className = '',
 
   const [themeMode, setThemeMode] = useState<ResolvedThemeMode>(currentTheme.mode)
   const [themeName, setThemeName] = useState(editingTheme.name)
+  const [savedThemes, setSavedThemes] = useState<Theme[]>(() => loadSavedThemes())
+  const [activeTab, setActiveTab] = useState<'editor' | 'library'>('editor')
+  const [notification, setNotification] = useState<{type: 'success' | 'error'; message: string} | null>(null)
+
+  // Show notification temporarily
+  const showNotification = useCallback((type: 'success' | 'error', message: string) => {
+    setNotification({type, message})
+    setTimeout(() => setNotification(null), 3000)
+  }, [])
 
   // Handle color changes
   const handleColorChange = useCallback(
@@ -385,6 +472,111 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({className = '',
     setThemeName(`Custom ${currentTheme.mode.charAt(0).toUpperCase() + currentTheme.mode.slice(1)}`)
   }, [currentTheme])
 
+  // Save theme to library
+  const handleSaveTheme = useCallback(() => {
+    const isValidTheme = validateTheme(editingTheme)
+    if (isValidTheme) {
+      const themeToSave = {
+        ...editingTheme,
+        name: themeName,
+        updatedAt: new Date().toISOString(),
+      }
+
+      const success = saveThemeToLibrary(themeToSave)
+      if (success) {
+        setSavedThemes(loadSavedThemes())
+        showNotification('success', `Theme "${themeName}" saved successfully!`)
+      } else {
+        showNotification('error', 'Failed to save theme')
+      }
+    } else {
+      showNotification('error', 'Theme validation failed')
+    }
+  }, [editingTheme, themeName, showNotification])
+
+  // Export theme as JSON file
+  const handleExportTheme = useCallback(
+    (theme?: Theme) => {
+      const themeToExport = theme || editingTheme
+      try {
+        exportTheme(themeToExport)
+        showNotification('success', 'Theme exported successfully!')
+      } catch {
+        showNotification('error', 'Failed to export theme')
+      }
+    },
+    [editingTheme, showNotification],
+  )
+
+  // Copy theme to clipboard
+  const handleCopyTheme = useCallback(async () => {
+    try {
+      await copyThemeToClipboard(editingTheme)
+      showNotification('success', 'Theme copied to clipboard!')
+    } catch {
+      showNotification('error', 'Failed to copy theme to clipboard')
+    }
+  }, [editingTheme, showNotification])
+
+  // Import theme from file
+  const handleImportTheme = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      const errors = validateThemeFile(file)
+      if (errors.length > 0) {
+        showNotification('error', `Invalid file: ${errors.join(', ')}`)
+        return
+      }
+
+      importTheme(file)
+        .then(importedTheme => {
+          setEditingTheme(importedTheme)
+          setThemeMode(importedTheme.mode)
+          setThemeName(importedTheme.name)
+          showNotification('success', `Theme "${importedTheme.name}" imported successfully!`)
+          onThemeChange?.(importedTheme)
+        })
+        .catch(error => {
+          showNotification('error', `Import failed: ${error.message}`)
+        })
+        .finally(() => {
+          // Reset file input
+          if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+          }
+        })
+    },
+    [onThemeChange, showNotification],
+  )
+
+  // Load saved theme
+  const handleLoadSavedTheme = useCallback(
+    (theme: Theme) => {
+      setEditingTheme(theme)
+      setThemeMode(theme.mode)
+      setThemeName(theme.name)
+      onThemeChange?.(theme)
+      showNotification('success', `Theme "${theme.name}" loaded!`)
+    },
+    [onThemeChange, showNotification],
+  )
+
+  // Delete saved theme
+  const handleDeleteSavedTheme = useCallback(
+    (themeId: string) => {
+      const success = removeThemeFromLibrary(themeId)
+      if (success) {
+        setSavedThemes(loadSavedThemes())
+        showNotification('success', 'Theme deleted successfully!')
+      } else {
+        showNotification('error', 'Failed to delete theme')
+      }
+    },
+    [showNotification],
+  )
+
   // Color sections configuration
   const colorSections = useMemo(
     () => [
@@ -438,6 +630,22 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({className = '',
     <div className={`theme-customizer ${className}`}>
       <header className="theme-customizer__header">
         <h2 className="theme-customizer__title">Theme Customizer</h2>
+        <div className="theme-customizer__tabs">
+          <button
+            type="button"
+            className={`theme-customizer__tab ${activeTab === 'editor' ? 'theme-customizer__tab--active' : ''}`}
+            onClick={() => setActiveTab('editor')}
+          >
+            Editor
+          </button>
+          <button
+            type="button"
+            className={`theme-customizer__tab ${activeTab === 'library' ? 'theme-customizer__tab--active' : ''}`}
+            onClick={() => setActiveTab('library')}
+          >
+            Library ({savedThemes.length})
+          </button>
+        </div>
         {onClose && (
           <button
             type="button"
@@ -450,74 +658,147 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({className = '',
         )}
       </header>
 
-      <div className="theme-customizer__content">
-        <section className="theme-customizer__metadata">
-          <div className="theme-metadata">
-            <label className="theme-metadata__label">
-              Theme Name
-              <input
-                type="text"
-                className="theme-metadata__input"
-                value={themeName}
-                onChange={handleThemeNameChange}
-                placeholder="Enter theme name"
-              />
-            </label>
-
-            <fieldset className="theme-metadata__mode">
-              <legend>Theme Mode</legend>
-              <label className="theme-mode__option">
-                <input
-                  type="radio"
-                  name="themeMode"
-                  value="light"
-                  checked={themeMode === 'light'}
-                  onChange={() => handleThemeModeChange('light')}
-                />
-                Light
-              </label>
-              <label className="theme-mode__option">
-                <input
-                  type="radio"
-                  name="themeMode"
-                  value="dark"
-                  checked={themeMode === 'dark'}
-                  onChange={() => handleThemeModeChange('dark')}
-                />
-                Dark
-              </label>
-            </fieldset>
-          </div>
-        </section>
-
-        <div className="theme-customizer__sections">
-          {colorSections.map(section => (
-            <ColorSection
-              key={section.title}
-              title={section.title}
-              colors={section.colors}
-              themeColors={editingTheme.colors}
-              onColorChange={handleColorChange}
-            />
-          ))}
+      {notification && (
+        <div className={`theme-customizer__notification theme-customizer__notification--${notification.type}`}>
+          {notification.message}
         </div>
-      </div>
+      )}
+
+      <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportTheme} style={{display: 'none'}} />
+
+      {activeTab === 'editor' ? (
+        <div className="theme-customizer__content">
+          <section className="theme-customizer__metadata">
+            <div className="theme-metadata">
+              <label className="theme-metadata__label">
+                Theme Name
+                <input
+                  type="text"
+                  className="theme-metadata__input"
+                  value={themeName}
+                  onChange={handleThemeNameChange}
+                  placeholder="Enter theme name"
+                />
+              </label>
+
+              <fieldset className="theme-metadata__mode">
+                <legend>Theme Mode</legend>
+                <label className="theme-mode__option">
+                  <input
+                    type="radio"
+                    name="themeMode"
+                    value="light"
+                    checked={themeMode === 'light'}
+                    onChange={() => handleThemeModeChange('light')}
+                  />
+                  Light
+                </label>
+                <label className="theme-mode__option">
+                  <input
+                    type="radio"
+                    name="themeMode"
+                    value="dark"
+                    checked={themeMode === 'dark'}
+                    onChange={() => handleThemeModeChange('dark')}
+                  />
+                  Dark
+                </label>
+              </fieldset>
+            </div>
+          </section>
+
+          <div className="theme-customizer__sections">
+            {colorSections.map(section => (
+              <ColorSection
+                key={section.title}
+                title={section.title}
+                colors={section.colors}
+                themeColors={editingTheme.colors}
+                onColorChange={handleColorChange}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="theme-customizer__library">
+          <div className="theme-library">
+            <div className="theme-library__header">
+              <h3 className="theme-library__title">Saved Themes</h3>
+              <button type="button" className="theme-library__import" onClick={() => fileInputRef.current?.click()}>
+                Import Theme
+              </button>
+            </div>
+
+            {savedThemes.length === 0 ? (
+              <div className="theme-library__empty">
+                <p>No saved themes yet.</p>
+                <p>Create and save themes from the Editor tab.</p>
+              </div>
+            ) : (
+              <div className="theme-library__grid">
+                {savedThemes.map(theme => (
+                  <SavedThemeCard
+                    key={theme.id}
+                    theme={theme}
+                    onLoad={handleLoadSavedTheme}
+                    onDelete={handleDeleteSavedTheme}
+                    onExport={handleExportTheme}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <footer className="theme-customizer__actions">
-        <button
-          type="button"
-          className="theme-customizer__action theme-customizer__action--secondary"
-          onClick={handleReset}
-        >
-          Reset
-        </button>
-        <button
-          type="button"
-          className="theme-customizer__action theme-customizer__action--primary"
-          onClick={handleApplyTheme}
-        >
-          Apply Theme
-        </button>
+        {activeTab === 'editor' ? (
+          <>
+            <button
+              type="button"
+              className="theme-customizer__action theme-customizer__action--secondary"
+              onClick={handleReset}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className="theme-customizer__action theme-customizer__action--secondary"
+              onClick={handleSaveTheme}
+            >
+              Save Theme
+            </button>
+            <button
+              type="button"
+              className="theme-customizer__action theme-customizer__action--secondary"
+              onClick={() => handleExportTheme()}
+            >
+              Export
+            </button>
+            <button
+              type="button"
+              className="theme-customizer__action theme-customizer__action--secondary"
+              onClick={handleCopyTheme}
+            >
+              Copy JSON
+            </button>
+            <button
+              type="button"
+              className="theme-customizer__action theme-customizer__action--primary"
+              onClick={handleApplyTheme}
+            >
+              Apply Theme
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="theme-customizer__action theme-customizer__action--secondary"
+            onClick={() => setActiveTab('editor')}
+          >
+            Back to Editor
+          </button>
+        )}
       </footer>
     </div>
   )
