@@ -11,6 +11,11 @@ import addFormats from 'ajv-formats'
 
 import themeSchema from '../schemas/theme.schema.json'
 
+// Theme export format version constant
+export const THEME_EXPORT_VERSION = '1.0'
+
+const SCHEMA_VALIDATOR_EXPORTER = 'schema-validator'
+
 // Create Ajv instance with configuration
 const ajv = new Ajv({
   allErrors: true, // Collect all validation errors
@@ -118,7 +123,7 @@ export const validateThemeSchema = (theme: unknown): ThemeValidationResult => {
     version: '1.0',
     theme,
     exportedAt: new Date().toISOString(),
-    exportedBy: 'schema-validator',
+    exportedBy: SCHEMA_VALIDATOR_EXPORTER,
   }
 
   return validateThemeExportData(exportData)
@@ -148,46 +153,35 @@ export const sanitizeThemeData = (data: unknown): ThemeExportData | null => {
 
 /**
  * Validates color value format specifically
+ * Uses the ColorValue definition from the imported theme schema for consistency.
  */
 export const validateColorFormat = (color: unknown): boolean => {
   if (typeof color !== 'string') {
     return false
   }
 
-  // Use the ColorValue schema definition for validation
-  const colorSchema = {
-    type: 'string',
-    oneOf: [
-      {pattern: String.raw`^#[0-9a-fA-F]{3}$`},
-      {pattern: String.raw`^#[0-9a-fA-F]{6}$`},
-      {pattern: String.raw`^#[0-9a-fA-F]{8}$`},
-      {pattern: String.raw`^hsl\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*\)$`},
-      {pattern: String.raw`^hsla\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)$`},
-      {
-        pattern: String.raw`^rgb\(\s*(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\s*\)$`,
-      },
-      {
-        pattern: String.raw`^rgba\(\s*(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\s*,\s*(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\s*,\s*(?:0(?:\.\d+)?|1(?:\.0+)?)\s*\)$`,
-      },
-      {
-        enum: [
-          'transparent',
-          'currentcolor',
-          'inherit',
-          'black',
-          'white',
-          'red',
-          'green',
-          'blue',
-          'yellow',
-          'cyan',
-          'magenta',
-          'gray',
-          'grey',
-        ],
-      },
-    ],
-  }
+  // Reference the ColorValue definition from the imported theme schema
+  // Assumes themeSchema.definitions.ColorValue exists and matches the color validation requirements
+  const colorSchema = themeSchema.definitions?.ColorValue ||
+    // fallback to a basic string type if not defined
+    {type: 'string'}
+
+  colorSchema.oneOf = colorSchema.oneOf.map((item: any) => {
+    if (item.pattern && item.pattern.includes('hsl')) {
+      // Replace with stricter pattern for HSL/HSLA
+      return {
+        ...item,
+        pattern: String.raw`^hsl\(\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*\)$`,
+      }
+    }
+    if (item.pattern && item.pattern.includes('hsla')) {
+      return {
+        ...item,
+        pattern: String.raw`^hsla\(\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*,\s*(?:100|[1-9]?[0-9]|0)%\s*,\s*(?:0(?:\.[0-9]+)?|1(?:\.0+)?)\s*\)$`,
+      }
+    }
+    return item
+  })
 
   const validateColor = ajv.compile(colorSchema)
   return validateColor(color)
