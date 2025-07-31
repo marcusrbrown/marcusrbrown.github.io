@@ -122,7 +122,9 @@ describe('ThemeCustomizer', () => {
 
     // Test invalid color
     fireEvent.change(primaryColorInput, {target: {value: 'invalid-color'}})
-    expect(screen.getByText(/Invalid color format/)).toBeInTheDocument()
+    expect(
+      screen.getByText('Invalid color format. Use hex (#ffffff), hsl(), rgb(), or named colors.'),
+    ).toBeInTheDocument()
   })
 
   it('has theme name input', () => {
