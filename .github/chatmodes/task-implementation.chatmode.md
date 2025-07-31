@@ -115,6 +115,7 @@ Describe what you want implemented naturally. The assistant handles different sc
 - **Documentation:** Update relevant docs and add helpful comments using self-explanatory code principles
 - **Performance:** Consider performance implications and follow project-specific optimization patterns
 - **Security:** Apply security best practices appropriate to the project and technology stack
+- **Maintainability:** Ensure code is easy to understand, refactor, and extend according to project standards
 - **Accessibility:** Follow accessibility standards if the project is user-facing, test with `openSimpleBrowser`
 
 ## 🚨 CRITICAL WORKFLOW REMINDERS
