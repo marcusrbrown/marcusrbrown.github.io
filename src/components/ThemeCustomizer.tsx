@@ -12,6 +12,7 @@ import {useTheme} from '../hooks/UseTheme'
 import {copyThemeToClipboard, exportTheme, importTheme, validateThemeFile} from '../utils/theme-export'
 import {loadSavedThemes, removeThemeFromLibrary, saveThemeToLibrary} from '../utils/theme-storage'
 import {rgbToHsl, validateTheme} from '../utils/theme-validation'
+import ThemePreview from './ThemePreview'
 
 interface ParsedColor {
   type: 'hsl' | 'rgb' | 'hex' | 'other'
@@ -707,16 +708,23 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             </div>
           </section>
 
-          <div className="theme-customizer__sections">
-            {colorSections.map(section => (
-              <ColorSection
-                key={section.title}
-                title={section.title}
-                colors={section.colors}
-                themeColors={editingTheme.colors}
-                onColorChange={handleColorChange}
-              />
-            ))}
+          <div className="theme-customizer__editor-layout">
+            <div className="theme-customizer__sections">
+              {colorSections.map(section => (
+                <ColorSection
+                  key={section.title}
+                  title={section.title}
+                  colors={section.colors}
+                  themeColors={editingTheme.colors}
+                  onColorChange={handleColorChange}
+                />
+              ))}
+            </div>
+
+            <aside className="theme-customizer__preview-panel">
+              <h3 className="theme-customizer__preview-title">Live Preview</h3>
+              <ThemePreview theme={editingTheme} className="theme-customizer__preview" />
+            </aside>
           </div>
         </div>
       ) : (
