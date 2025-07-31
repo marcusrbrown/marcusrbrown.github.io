@@ -21,7 +21,6 @@ export const exportTheme = (theme: Theme, filename?: string): void => {
     version: '1.0',
     theme: {
       ...sanitized,
-      colors: sanitized.colors,
     },
     exportedAt: new Date().toISOString(),
     exportedBy: 'mrbro.dev Theme Customizer',
@@ -116,7 +115,6 @@ export const createThemeJSON = (theme: Theme): string => {
     version: '1.0',
     theme: {
       ...sanitized,
-      colors: sanitized.colors,
     },
     exportedAt: new Date().toISOString(),
     exportedBy: 'mrbro.dev Theme Customizer',
