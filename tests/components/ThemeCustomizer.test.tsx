@@ -35,7 +35,7 @@ describe('ThemeCustomizer', () => {
       </MockedThemeProvider>,
     )
 
-    const closeButton = screen.getByLabelText('Close theme customizer')
+    const closeButton = screen.getByLabelText('Close theme customizer (Escape)')
     expect(closeButton).toBeInTheDocument()
 
     fireEvent.click(closeButton)
