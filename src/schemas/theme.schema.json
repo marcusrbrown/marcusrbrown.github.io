@@ -32,52 +32,68 @@
       "type": "string",
       "description": "Valid CSS color value (hex, hsl, rgb, or safe named color)",
       "oneOf": [
-        {
-          "pattern": "^#[0-9a-fA-F]{3}$",
-          "description": "3-digit hex color"
-        },
-        {
-          "pattern": "^#[0-9a-fA-F]{6}$",
-          "description": "6-digit hex color"
-        },
-        {
-          "pattern": "^#[0-9a-fA-F]{8}$",
-          "description": "8-digit hex color with alpha"
-        },
-        {
-          "pattern": "^hsl\\(\\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*\\)$",
-          "description": "HSL color format"
-        },
-        {
-          "pattern": "^hsla\\(\\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*,\\s*(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)\\s*\\)$",
-          "description": "HSLA color format"
-        },
-        {
-          "pattern": "^rgb\\(\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*\\)$",
-          "description": "RGB color format"
-        },
-        {
-          "pattern": "^rgba\\(\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)\\s*\\)$",
-          "description": "RGBA color format"
-        },
-        {
-          "enum": [
-            "black",
-            "white",
-            "red",
-            "green",
-            "blue",
-            "yellow",
-            "cyan",
-            "magenta",
-            "gray",
-            "grey",
-            "transparent",
-            "currentcolor"
-          ],
-          "description": "Safe named CSS colors"
-        }
+        {"$ref": "#/definitions/HexColor3"},
+        {"$ref": "#/definitions/HexColor6"},
+        {"$ref": "#/definitions/HexColor8"},
+        {"$ref": "#/definitions/HslColor"},
+        {"$ref": "#/definitions/HslaColor"},
+        {"$ref": "#/definitions/RgbColor"},
+        {"$ref": "#/definitions/RgbaColor"},
+        {"$ref": "#/definitions/SafeNamedColor"}
       ]
+    },
+    "HexColor3": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{3}$",
+      "description": "3-digit hex color"
+    },
+    "HexColor6": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "6-digit hex color"
+    },
+    "HexColor8": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{8}$",
+      "description": "8-digit hex color with alpha"
+    },
+    "HslColor": {
+      "type": "string",
+      "pattern": "^hsl\\(\\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*\\)$",
+      "description": "HSL color format"
+    },
+    "HslaColor": {
+      "type": "string",
+      "pattern": "^hsla\\(\\s*(?:360|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9]|0)\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*,\\s*(?:100|[1-9]?[0-9]|0)%\\s*,\\s*(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)\\s*\\)$",
+      "description": "HSLA color format"
+    },
+    "RgbColor": {
+      "type": "string",
+      "pattern": "^rgb\\(\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*\\)$",
+      "description": "RGB color format"
+    },
+    "RgbaColor": {
+      "type": "string",
+      "pattern": "^rgba\\(\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\s*,\\s*(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)\\s*\\)$",
+      "description": "RGBA color format"
+    },
+    "SafeNamedColor": {
+      "type": "string",
+      "enum": [
+        "black",
+        "white",
+        "red",
+        "green",
+        "blue",
+        "yellow",
+        "cyan",
+        "magenta",
+        "gray",
+        "grey",
+        "transparent",
+        "currentcolor"
+      ],
+      "description": "Safe named CSS colors"
     },
     "ResolvedThemeMode": {
       "type": "string",

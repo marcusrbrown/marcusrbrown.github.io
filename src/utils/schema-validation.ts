@@ -35,59 +35,61 @@ const validateThemeExport = ajv.compile(themeSchema)
 /**
  * Formats Ajv validation errors into human-readable messages
  */
+const errorFormatters: Record<string, (error: ErrorObject, path: string) => string> = {
+  required: (error, path) => {
+    const missingProperty = error.params?.['missingProperty']
+    return `Missing required property: ${path}.${missingProperty}`
+  },
+  type: (error, path) => {
+    const expectedType = error.params?.['type']
+    return `Invalid type at ${path}: expected ${expectedType}, got ${typeof error.data}`
+  },
+  format: (error, path) => {
+    const format = error.params?.['format']
+    return `Invalid format at ${path}: expected ${format} format`
+  },
+  pattern: (error, path) => {
+    const pattern = error.params?.['pattern']
+    return `Invalid pattern at ${path}: must match pattern ${pattern}`
+  },
+  enum: (error, path) => {
+    const allowedValues = error.params?.['allowedValues']
+    return `Invalid value at ${path}: must be one of ${allowedValues?.join(', ')}`
+  },
+  minLength: (error, path) => {
+    const minLength = error.params?.['limit']
+    return `Value too short at ${path}: minimum length is ${minLength}`
+  },
+  maxLength: (error, path) => {
+    const maxLength = error.params?.['limit']
+    return `Value too long at ${path}: maximum length is ${maxLength}`
+  },
+  minimum: (error, path) => {
+    const minimum = error.params?.['limit']
+    return `Value too small at ${path}: minimum value is ${minimum}`
+  },
+  maximum: (error, path) => {
+    const maximum = error.params?.['limit']
+    return `Value too large at ${path}: maximum value is ${maximum}`
+  },
+  additionalProperties: (error, path) => {
+    const additionalProperty = error.params?.['additionalProperty']
+    return `Unexpected property at ${path}: ${additionalProperty} is not allowed`
+  },
+  oneOf: (_, path) => {
+    return `Invalid value at ${path}: must match exactly one of the allowed formats`
+  },
+}
+
 const formatValidationErrors = (errors: ErrorObject[]): string[] => {
   return errors.map(error => {
     const path = error.instancePath || 'root'
     const message = error.message || 'validation failed'
-
-    switch (error.keyword) {
-      case 'required': {
-        const missingProperty = error.params?.['missingProperty']
-        return `Missing required property: ${path}.${missingProperty}`
-      }
-      case 'type': {
-        const expectedType = error.params?.['type']
-        return `Invalid type at ${path}: expected ${expectedType}, got ${typeof error.data}`
-      }
-      case 'format': {
-        const format = error.params?.['format']
-        return `Invalid format at ${path}: expected ${format} format`
-      }
-      case 'pattern': {
-        const pattern = error.params?.['pattern']
-        return `Invalid pattern at ${path}: must match pattern ${pattern}`
-      }
-      case 'enum': {
-        const allowedValues = error.params?.['allowedValues']
-        return `Invalid value at ${path}: must be one of ${allowedValues?.join(', ')}`
-      }
-      case 'minLength': {
-        const minLength = error.params?.['limit']
-        return `Value too short at ${path}: minimum length is ${minLength}`
-      }
-      case 'maxLength': {
-        const maxLength = error.params?.['limit']
-        return `Value too long at ${path}: maximum length is ${maxLength}`
-      }
-      case 'minimum': {
-        const minimum = error.params?.['limit']
-        return `Value too small at ${path}: minimum value is ${minimum}`
-      }
-      case 'maximum': {
-        const maximum = error.params?.['limit']
-        return `Value too large at ${path}: maximum value is ${maximum}`
-      }
-      case 'additionalProperties': {
-        const additionalProperty = error.params?.['additionalProperty']
-        return `Unexpected property at ${path}: ${additionalProperty} is not allowed`
-      }
-      case 'oneOf': {
-        return `Invalid value at ${path}: must match exactly one of the allowed formats`
-      }
-      default: {
-        return `Validation error at ${path}: ${message}`
-      }
+    const formatter = errorFormatters[error.keyword]
+    if (formatter) {
+      return formatter(error, path)
     }
+    return `Validation error at ${path}: ${message}`
   })
 }
 
@@ -178,9 +180,12 @@ export const getValidationDetails = (
   warnings: string[]
   sanitizedData: ThemeExportData | null
 } => {
+  // Validate once and reuse results
   const isValid = validateThemeExport(data)
   const errors = validateThemeExport.errors || []
-  const sanitizedData = sanitizeThemeData(data)
+
+  // Only sanitize if valid
+  const sanitizedData = isValid ? (JSON.parse(JSON.stringify(data)) as ThemeExportData) : null
 
   const warnings: string[] = []
 
