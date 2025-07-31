@@ -37,6 +37,15 @@
   /* Shadow colors */
   --color-shadow: rgba(0, 0, 0, 0.1);
 
+  /* Code block colors */
+  --color-code-bg: var(--color-surface);
+  --color-code-text: var(--color-text);
+  --color-code-comment: var(--color-text-secondary);
+  --color-code-keyword: var(--color-primary);
+  --color-code-string: #22c55e;
+  --color-code-number: #f59e0b;
+  --color-code-function: #8b5cf6;
+
   /* Transition properties for smooth theme switching */
   /* Comprehensive theme transitions optimized for performance */
   --transition-theme: color 250ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -97,6 +106,15 @@
   --color-backdrop: rgba(255, 255, 255, 0.8);
   --color-focus-ring: rgba(37, 99, 235, 0.2);
   --color-shadow: rgba(0, 0, 0, 0.1);
+
+  /* Light theme code block colors */
+  --color-code-bg: #f8fafc;
+  --color-code-text: #0f172a;
+  --color-code-comment: #64748b;
+  --color-code-keyword: #2563eb;
+  --color-code-string: #16a34a;
+  --color-code-number: #d97706;
+  --color-code-function: #7c3aed;
 }
 
 /* Dark theme definitions */
@@ -129,6 +147,15 @@
   --color-backdrop: rgba(15, 23, 42, 0.8);
   --color-focus-ring: rgba(59, 130, 246, 0.3);
   --color-shadow: rgba(0, 0, 0, 0.25);
+
+  /* Dark theme code block colors */
+  --color-code-bg: #0f172a;
+  --color-code-text: #f1f5f9;
+  --color-code-comment: #64748b;
+  --color-code-keyword: #3b82f6;
+  --color-code-string: #22c55e;
+  --color-code-number: #f59e0b;
+  --color-code-function: #a855f7;
 }
 
 /* System preference media queries for fallback when JavaScript is disabled */
