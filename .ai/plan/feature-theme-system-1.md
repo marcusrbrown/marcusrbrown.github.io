@@ -86,7 +86,7 @@ This implementation plan outlines the development of a comprehensive dark/light 
 | --- | --- | --- | --- |
 | TASK-019 | Create ThemeCustomizer component in `src/components/ThemeCustomizer.tsx` with HSL controls | ✅ | 2025-07-30 |
 | TASK-020 | Implement custom theme creation and export functionality | ✅ | 2025-07-30 |
-| TASK-021 | Add syntax highlighting theme integration for code blocks using Prism.js or highlight.js |  |  |
+| TASK-021 | Add syntax highlighting theme integration for code blocks using Shiki: <https://shiki.style/> |  |  |
 | TASK-022 | Create theme preview functionality in customizer with real-time updates |  |  |
 | TASK-023 | Implement theme import/export functionality with JSON schema validation |  |  |
 | TASK-024 | Add preset theme gallery with popular color schemes |  |  |
@@ -114,7 +114,7 @@ This implementation plan outlines the development of a comprehensive dark/light 
 
 ## 4. Dependencies
 
-- **DEP-001**: Prism.js or highlight.js for syntax highlighting theme integration (development dependency)
+- **DEP-001**: Shiki for syntax highlighting theme integration (development dependency)
 - **DEP-002**: Color manipulation utilities (can be implemented natively with HSL)
 - **DEP-003**: WCAG color contrast validation library or native implementation
 - **DEP-004**: React 18+ Context API (already available)
