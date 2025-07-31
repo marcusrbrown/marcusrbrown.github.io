@@ -12,6 +12,7 @@ import {useTheme} from '../hooks/UseTheme'
 import {copyThemeToClipboard, exportTheme, importTheme, validateThemeFile} from '../utils/theme-export'
 import {loadSavedThemes, removeThemeFromLibrary, saveThemeToLibrary} from '../utils/theme-storage'
 import {rgbToHsl, validateTheme} from '../utils/theme-validation'
+import PresetThemeGallery from './PresetThemeGallery'
 import ThemePreview from './ThemePreview'
 
 interface ParsedColor {
@@ -394,7 +395,7 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
   const [themeMode, setThemeMode] = useState<ResolvedThemeMode>(currentTheme.mode)
   const [themeName, setThemeName] = useState(editingTheme.name)
   const [savedThemes, setSavedThemes] = useState<Theme[]>(() => loadSavedThemes())
-  const [activeTab, setActiveTab] = useState<'editor' | 'library'>('editor')
+  const [activeTab, setActiveTab] = useState<'editor' | 'presets' | 'library'>('editor')
   const [notification, setNotification] = useState<{type: 'success' | 'error'; message: string} | null>(null)
 
   // Show notification temporarily
@@ -641,6 +642,13 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
           </button>
           <button
             type="button"
+            className={`theme-customizer__tab ${activeTab === 'presets' ? 'theme-customizer__tab--active' : ''}`}
+            onClick={() => setActiveTab('presets')}
+          >
+            Presets
+          </button>
+          <button
+            type="button"
             className={`theme-customizer__tab ${activeTab === 'library' ? 'theme-customizer__tab--active' : ''}`}
             onClick={() => setActiveTab('library')}
           >
@@ -727,6 +735,15 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             </aside>
           </div>
         </div>
+      ) : activeTab === 'presets' ? (
+        <div className="theme-customizer__presets">
+          <PresetThemeGallery
+            onThemeApply={theme => {
+              setEditingTheme(theme)
+              showNotification('success', 'Theme loaded from presets! You can now customize it or apply it directly.')
+            }}
+          />
+        </div>
       ) : (
         <div className="theme-customizer__library">
           <div className="theme-library">
@@ -798,6 +815,14 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
               Apply Theme
             </button>
           </>
+        ) : activeTab === 'presets' ? (
+          <button
+            type="button"
+            className="theme-customizer__action theme-customizer__action--secondary"
+            onClick={() => setActiveTab('editor')}
+          >
+            Customize Selected Theme
+          </button>
         ) : (
           <button
             type="button"
