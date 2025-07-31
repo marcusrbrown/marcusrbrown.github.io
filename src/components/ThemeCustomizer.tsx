@@ -328,6 +328,13 @@ const SavedThemeCard: React.FC<SavedThemeCardProps> = ({theme, onLoad, onDelete,
           type="button"
           className="saved-theme-card__action saved-theme-card__action--primary"
           onClick={() => onLoad(theme)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onLoad(theme)
+            }
+          }}
+          aria-label={`Load ${theme.name} theme`}
         >
           Load
         </button>
@@ -335,6 +342,13 @@ const SavedThemeCard: React.FC<SavedThemeCardProps> = ({theme, onLoad, onDelete,
           type="button"
           className="saved-theme-card__action saved-theme-card__action--secondary"
           onClick={() => onExport(theme)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onExport(theme)
+            }
+          }}
+          aria-label={`Export ${theme.name} theme as JSON`}
         >
           Export
         </button>
@@ -342,6 +356,13 @@ const SavedThemeCard: React.FC<SavedThemeCardProps> = ({theme, onLoad, onDelete,
           type="button"
           className="saved-theme-card__action saved-theme-card__action--danger"
           onClick={() => onDelete(theme.id)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onDelete(theme.id)
+            }
+          }}
+          aria-label={`Delete ${theme.name} theme from library`}
         >
           Delete
         </button>
@@ -383,6 +404,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
 }) => {
   const {currentTheme, setCustomTheme} = useTheme()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const customizerRef = useRef<HTMLDivElement>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
 
   // Local theme state for editing
   const [editingTheme, setEditingTheme] = useState<Theme>(() => ({
@@ -633,29 +656,134 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
     [],
   )
 
+  // Handle keyboard navigation for the entire customizer
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      // Global keyboard shortcuts
+      if (event.key === 'Escape' && onClose) {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      // Tab navigation with arrow keys (only when focused on tabs)
+      if (event.target === tabsRef.current || tabsRef.current?.contains(event.target as Node)) {
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault()
+          const tabs = ['editor', 'presets', 'library'] as const
+          const currentIndex = tabs.indexOf(activeTab)
+          let newIndex: number
+
+          if (event.key === 'ArrowLeft') {
+            newIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1
+          } else {
+            newIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1
+          }
+
+          const newTab = tabs[newIndex]
+          if (newTab) {
+            setActiveTab(newTab)
+            // Focus the new tab button
+            const tabButtons = tabsRef.current?.querySelectorAll('.theme-customizer__tab')
+            if (tabButtons?.[newIndex]) {
+              ;(tabButtons[newIndex] as HTMLElement).focus()
+            }
+          }
+        }
+        return
+      }
+
+      // Keyboard shortcuts for actions (when in editor mode)
+      if (activeTab === 'editor' && (event.ctrlKey || event.metaKey)) {
+        switch (event.key) {
+          case 's': {
+            event.preventDefault()
+            handleSaveTheme()
+            break
+          }
+          case 'e': {
+            event.preventDefault()
+            handleExportTheme()
+            break
+          }
+          case 'Enter': {
+            event.preventDefault()
+            handleApplyTheme()
+            break
+          }
+        }
+      }
+    },
+    [activeTab, onClose, handleSaveTheme, handleExportTheme, handleApplyTheme],
+  )
+
+  // Handle button keyboard events
+  const handleButtonKeyDown = useCallback((event: React.KeyboardEvent, action: () => void) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      action()
+    }
+  }, [])
+
+  // Handle tab button keyboard events
+  const handleTabKeyDown = useCallback((event: React.KeyboardEvent, tab: 'editor' | 'presets' | 'library') => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      setActiveTab(tab)
+    }
+  }, [])
+
   return (
-    <div className={`theme-customizer ${className}`}>
+    <div
+      ref={customizerRef}
+      className={`theme-customizer ${className}`}
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="theme-customizer-title"
+    >
       <header className="theme-customizer__header">
-        <h2 className="theme-customizer__title">Theme Customizer</h2>
-        <div className="theme-customizer__tabs">
+        <h2 id="theme-customizer-title" className="theme-customizer__title">
+          Theme Customizer
+        </h2>
+        <div ref={tabsRef} className="theme-customizer__tabs" role="tablist">
           <button
+            id="theme-customizer-editor-tab"
             type="button"
             className={`theme-customizer__tab ${activeTab === 'editor' ? 'theme-customizer__tab--active' : ''}`}
             onClick={() => setActiveTab('editor')}
+            onKeyDown={e => handleTabKeyDown(e, 'editor')}
+            role="tab"
+            aria-selected={activeTab === 'editor'}
+            aria-controls="theme-customizer-editor"
+            tabIndex={activeTab === 'editor' ? 0 : -1}
           >
             Editor
           </button>
           <button
+            id="theme-customizer-presets-tab"
             type="button"
             className={`theme-customizer__tab ${activeTab === 'presets' ? 'theme-customizer__tab--active' : ''}`}
             onClick={() => setActiveTab('presets')}
+            onKeyDown={e => handleTabKeyDown(e, 'presets')}
+            role="tab"
+            aria-selected={activeTab === 'presets'}
+            aria-controls="theme-customizer-presets"
+            tabIndex={activeTab === 'presets' ? 0 : -1}
           >
             Presets
           </button>
           <button
+            id="theme-customizer-library-tab"
             type="button"
             className={`theme-customizer__tab ${activeTab === 'library' ? 'theme-customizer__tab--active' : ''}`}
             onClick={() => setActiveTab('library')}
+            onKeyDown={e => handleTabKeyDown(e, 'library')}
+            role="tab"
+            aria-selected={activeTab === 'library'}
+            aria-controls="theme-customizer-library"
+            tabIndex={activeTab === 'library' ? 0 : -1}
           >
             Library ({savedThemes.length})
           </button>
@@ -665,7 +793,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             type="button"
             className="theme-customizer__close"
             onClick={onClose}
-            aria-label="Close theme customizer"
+            onKeyDown={e => handleButtonKeyDown(e, onClose)}
+            aria-label="Close theme customizer (Escape)"
           >
             ×
           </button>
@@ -681,7 +810,12 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
       <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportTheme} style={{display: 'none'}} />
 
       {activeTab === 'editor' ? (
-        <div className="theme-customizer__content">
+        <div
+          id="theme-customizer-editor"
+          className="theme-customizer__content"
+          role="tabpanel"
+          aria-labelledby="theme-customizer-editor-tab"
+        >
           <section className="theme-customizer__metadata">
             <div className="theme-metadata">
               <label className="theme-metadata__label">
@@ -780,7 +914,12 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
           </div>
         </div>
       ) : activeTab === 'presets' ? (
-        <div className="theme-customizer__presets">
+        <div
+          id="theme-customizer-presets"
+          className="theme-customizer__presets"
+          role="tabpanel"
+          aria-labelledby="theme-customizer-presets-tab"
+        >
           <PresetThemeGallery
             onThemeApply={theme => {
               setEditingTheme(theme)
@@ -789,7 +928,12 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
           />
         </div>
       ) : (
-        <div className="theme-customizer__library">
+        <div
+          id="theme-customizer-library"
+          className="theme-customizer__library"
+          role="tabpanel"
+          aria-labelledby="theme-customizer-library-tab"
+        >
           <div className="theme-library">
             <div className="theme-library__header">
               <h3 className="theme-library__title">Saved Themes</h3>
@@ -827,6 +971,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
               type="button"
               className="theme-customizer__action theme-customizer__action--secondary"
               onClick={handleReset}
+              onKeyDown={e => handleButtonKeyDown(e, handleReset)}
+              aria-label="Reset to current theme"
             >
               Reset
             </button>
@@ -834,6 +980,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
               type="button"
               className="theme-customizer__action theme-customizer__action--secondary"
               onClick={handleSaveTheme}
+              onKeyDown={e => handleButtonKeyDown(e, handleSaveTheme)}
+              aria-label="Save theme to library (Ctrl+S)"
             >
               Save Theme
             </button>
@@ -841,6 +989,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
               type="button"
               className="theme-customizer__action theme-customizer__action--secondary"
               onClick={() => handleExportTheme()}
+              onKeyDown={e => handleButtonKeyDown(e, () => handleExportTheme())}
+              aria-label="Export theme as JSON file (Ctrl+E)"
             >
               Export
             </button>
@@ -848,6 +998,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
               type="button"
               className="theme-customizer__action theme-customizer__action--secondary"
               onClick={handleCopyTheme}
+              onKeyDown={e => handleButtonKeyDown(e, handleCopyTheme)}
+              aria-label="Copy theme JSON to clipboard"
             >
               Copy JSON
             </button>
@@ -855,6 +1007,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
               type="button"
               className="theme-customizer__action theme-customizer__action--primary"
               onClick={handleApplyTheme}
+              onKeyDown={e => handleButtonKeyDown(e, handleApplyTheme)}
+              aria-label="Apply theme and close (Ctrl+Enter)"
             >
               Apply Theme
             </button>
@@ -864,6 +1018,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             type="button"
             className="theme-customizer__action theme-customizer__action--secondary"
             onClick={() => setActiveTab('editor')}
+            onKeyDown={e => handleButtonKeyDown(e, () => setActiveTab('editor'))}
+            aria-label="Switch to editor tab to customize selected theme"
           >
             Customize Selected Theme
           </button>
@@ -872,6 +1028,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
             type="button"
             className="theme-customizer__action theme-customizer__action--secondary"
             onClick={() => setActiveTab('editor')}
+            onKeyDown={e => handleButtonKeyDown(e, () => setActiveTab('editor'))}
+            aria-label="Return to theme editor"
           >
             Back to Editor
           </button>
