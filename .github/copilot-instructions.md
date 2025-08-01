@@ -33,12 +33,14 @@ This is a developer portfolio website built with modern web technologies and dep
 - **IMPORTANT**: Uses flat config (`eslint.config.ts`) not legacy `.eslintrc.*`
 - Extends `@bfra.me/eslint-config` which includes Prettier
 - Separate Prettier config: `"prettier": "@bfra.me/prettier-config/120-proof"` in package.json
-- Ignores: `dist/`, `node_modules/`, `**/*.d.ts`, `coverage/`, `.github/`, `public/`
+- Project-specific ignores: `.ai/`, `.github/copilot-instructions.md`, `public/`
+- **Pattern**: `defineConfig({ name: 'project-name', ignores: [...], typescript: { tsconfigPath: './tsconfig.json' } })`
 
 ### File Naming Conventions
 
 - Use `.yaml` extension for YAML files (not `.yml`)
 - Use `eslint.config.ts` for ESLint (not `.eslintrc.*`)
+- **Hook files use PascalCase**: `UseTheme.ts`, `UseGitHub.ts`
 
 ## Project Structure
 
@@ -159,9 +161,12 @@ The project uses a comprehensive CI/CD pipeline with modern GitHub Actions:
 ### Testing Strategy
 
 - Unit tests with Vitest and happy-dom
-- Component testing for React components
+- Component testing for React components with `@testing-library/react`
 - Coverage thresholds: 80% minimum
 - Test files: `*.test.{ts,tsx}` or `*.spec.{ts,tsx}`
+- **Mock Pattern**: Use `vi.mock('../../src/hooks/UseTheme')` for hook mocking
+- **Wrapper Pattern**: Create provider wrappers for context-dependent components
+- **Setup Pattern**: Use `beforeEach()` to reset mocks and state between tests
 
 ### Performance
 
@@ -305,7 +310,7 @@ export const fetchBlogPosts = async (repo: string) => {
 
 ```typescript
 // src/hooks/UseTheme.ts (Note: Uses PascalCase naming convention)
-import type { UseThemeReturn } from '../types'
+import type {UseThemeReturn} from '../types'
 
 export const useTheme = (): UseThemeReturn => {
   // Comprehensive interface with state, actions, and utilities
@@ -317,6 +322,20 @@ export const useTheme = (): UseThemeReturn => {
     // ... full interface
   }
 }
+```
+
+**Hook Testing Pattern**:
+```typescript
+// Mock hook in tests
+const mockUseTheme = {
+  themeMode: 'light' as const,
+  isDarkMode: false,
+  setThemeMode: vi.fn(),
+}
+
+vi.mock('../../src/hooks/UseTheme', () => ({
+  useTheme: () => mockUseTheme,
+}))
 ```
 
 ### CSS Architecture
@@ -334,6 +353,11 @@ export const useTheme = (): UseThemeReturn => {
 ```
 
 **Dynamic Theme Updates**: ThemeContext automatically updates these properties when theme changes, providing instant visual feedback.
+
+**Performance Optimizations**: Theme system includes:
+- Reduced motion detection and respecting user preferences
+- Performance level optimization for theme switches
+- CSS custom property cleanup to prevent memory leaks
 
 ### Component Structure
 
@@ -422,6 +446,32 @@ When working on this project:
 - **Use the build analysis script** (`scripts/analyze-build.mjs`) when optimizing
 - **GitHub job summaries** provide rich markdown reports for build metrics
 - **Performance status** is automatically tracked and reported in CI
+
+#### Build Analysis Workflow
+
+The `scripts/analyze-build.mjs` script provides comprehensive build analysis:
+
+```javascript
+// Key metrics tracked:
+{
+  totalSize: 0,      // Total bundle size
+  jsSize: 0,         // JavaScript files
+  cssSize: 0,        // CSS files
+  fileCount: 0,      // Number of files
+  assets: [...],     // Sorted by size (largest first)
+}
+
+// Automatic warnings:
+// - JavaScript > 500KB
+// - Total bundle > 2MB
+// - Optimal indicators < 100KB JS
+```
+
+**GitHub Actions Integration**: Automatically generates job summaries with:
+- Bundle size breakdown by file type
+- Top 10 largest assets
+- Performance warnings and recommendations
+- Historical size comparison (when available)
 
 ## Future Enhancements
 
