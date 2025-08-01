@@ -171,3 +171,113 @@ export const trapFocus = (event: React.KeyboardEvent, containerRef: React.RefObj
     }
   }
 }
+
+/**
+ * Detects if the user prefers reduced motion
+ * Checks the prefers-reduced-motion media query
+ *
+ * @returns true if user prefers reduced motion, false otherwise
+ */
+export const prefersReducedMotion = (): boolean => {
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return false
+  }
+
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Creates a listener for reduced motion preference changes
+ * Useful for responding to system settings changes
+ *
+ * @param callback - Function to call when preference changes
+ * @returns Cleanup function to remove the listener
+ */
+export const onReducedMotionChange = (callback: (prefersReduced: boolean) => void): (() => void) => {
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return () => {} // No-op cleanup for SSR
+  }
+
+  try {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      callback(event.matches)
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange)
+    }
+  } catch {
+    return () => {} // No-op cleanup if matchMedia fails
+  }
+}
+
+/**
+ * Applies or removes reduced motion styles to an element
+ * Useful for dynamically controlling animations based on user preference
+ *
+ * @param element - DOM element to modify
+ * @param reduce - Whether to reduce motion (defaults to user preference)
+ */
+export const applyReducedMotion = (element: HTMLElement, reduce?: boolean): void => {
+  const shouldReduce = reduce ?? prefersReducedMotion()
+
+  if (shouldReduce) {
+    element.style.animationDuration = '0.01ms'
+    element.style.animationIterationCount = '1'
+    element.style.transitionDuration = '0.01ms'
+    element.style.transitionDelay = '0ms'
+    element.classList.add('reduce-motion')
+  } else {
+    element.style.removeProperty('animation-duration')
+    element.style.removeProperty('animation-iteration-count')
+    element.style.removeProperty('transition-duration')
+    element.style.removeProperty('transition-delay')
+    element.classList.remove('reduce-motion')
+  }
+}
+
+/**
+ * Gets safe animation duration based on reduced motion preference
+ * Returns minimal duration for reduced motion, normal duration otherwise
+ *
+ * @param normalDuration - Normal animation duration in milliseconds
+ * @param reducedDuration - Reduced animation duration in milliseconds (defaults to 0.01ms)
+ * @returns Safe duration to use for animations
+ */
+export const getSafeAnimationDuration = (normalDuration: number, reducedDuration = 0.01): number => {
+  return prefersReducedMotion() ? reducedDuration : normalDuration
+}
+
+/**
+ * Creates CSS transition property string that respects reduced motion
+ * Automatically adjusts transitions based on user preference
+ *
+ * @param transitions - Array of transition definitions
+ * @returns CSS transition string that respects reduced motion preference
+ */
+export const createAccessibleTransition = (
+  transitions: {
+    property: string
+    duration: number
+    timingFunction?: string
+    delay?: number
+  }[],
+): string => {
+  if (prefersReducedMotion()) {
+    // Return minimal transitions for reduced motion
+    return transitions.map(t => `${t.property} 0.01ms linear 0ms`).join(', ')
+  }
+
+  // Return normal transitions
+  return transitions
+    .map(t => `${t.property} ${t.duration}ms ${t.timingFunction || 'ease'} ${t.delay || 0}ms`)
+    .join(', ')
+}

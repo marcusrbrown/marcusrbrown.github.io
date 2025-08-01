@@ -191,7 +191,7 @@
   }
 }
 
-/* Reduced motion preferences */
+/* Reduced motion preferences - comprehensive animation control */
 @media (prefers-reduced-motion: reduce) {
   :root {
     /* Disable all theme transitions for users who prefer reduced motion */
@@ -203,7 +203,7 @@
     --transition-border: none;
   }
 
-  /* Override all transitions for reduced motion */
+  /* Override all transitions and animations for reduced motion */
   *,
   *::before,
   *::after {
@@ -211,7 +211,46 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
+    /* Disable hardware acceleration for reduced motion */
+    transform: none !important;
+    will-change: auto !important;
   }
+
+  /* Specifically target theme-related animations */
+  .theme-switching,
+  .theme-switch-complete,
+  .theme-customizer,
+  .theme-toggle,
+  .preset-theme-gallery,
+  button,
+  input,
+  select,
+  textarea {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* Additional class-based control for reduced motion */
+.reduce-motion,
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* Disable GPU acceleration for reduced motion */
+.disable-gpu-acceleration,
+.disable-gpu-acceleration * {
+  transform: none !important;
+  will-change: auto !important;
+  backface-visibility: visible !important;
 }
 
 /* High contrast support */
@@ -407,18 +446,28 @@ code,
   will-change: background-color, color;
 }
 
-/* Performance optimizations for reduced motion */
+/* Performance optimizations for reduced motion - respect user preferences */
 @media (prefers-reduced-motion: reduce) {
-  /* Disable GPU acceleration if reduced motion is preferred */
+  /* Disable GPU acceleration and performance optimizations for reduced motion */
   * {
     transform: none !important;
     will-change: auto !important;
+    backface-visibility: visible !important;
+    contain: none !important;
+    content-visibility: visible !important;
   }
 
-  /* Keep minimal optimizations for theme switching */
+  /* Minimal optimizations only for theme switching state management */
   .theme-switching {
-    contain: paint;
-    will-change: color, background-color;
+    contain: paint; /* Keep minimal paint containment only */
+    will-change: color, background-color; /* Only essential properties */
+  }
+
+  /* No performance optimizations for theme switching complete state */
+  .theme-switch-complete,
+  .theme-switch-complete * {
+    will-change: auto !important;
+    transform: none !important;
   }
 }
 
