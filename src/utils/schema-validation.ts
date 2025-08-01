@@ -122,7 +122,7 @@ export const validateThemeExportData = (data: unknown): ThemeValidationResult =>
 export const validateThemeSchema = (theme: unknown): ThemeValidationResult => {
   // Create a mock export data structure for validation
   const exportData = {
-    version: '1.0',
+    version: THEME_EXPORT_VERSION,
     theme,
     exportedAt: new Date().toISOString(),
     exportedBy: SCHEMA_VALIDATOR_EXPORTER,
