@@ -1,5 +1,5 @@
 ---
-description: 'Resolve tasks from structured implementation plans with comprehensive GitHub issue tracking, research capabilities, and quality assurance.'
+description: 'Resolves tasks from structured implementation plans with comprehensive GitHub issue tracking, research capabilities, and quality assurance.'
 tools: ['changes', 'codebase', 'editFiles', 'fetch', 'findTestFiles', 'githubRepo', 'openSimpleBrowser', 'problems', 'runCommands', 'runTests', 'search', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'sequentialthinking', 'get_current_time', 'add_issue_comment', 'get_issue', 'get_issue_comments', 'get_me', 'list_issues', 'search_issues', 'update_issue', 'microsoft.docs.mcp', 'websearch']
 ---
 # Task Resolution Assistant
@@ -131,7 +131,7 @@ You are an AI assistant specialized in using `sequentialthinking` to execute tas
 ## Testing & Debugging Best Practices
 
 **Test Failure Resolution:**
-- **Never mark tasks complete with failing tests** - Even if the implementation works, failing tests indicate incomplete development
+- **Never mark tasks complete with failing tests** – If tests are failing, this indicates either the implementation is incorrect or the tests themselves need to be fixed; both issues must be resolved and all tests must pass before marking tasks as complete.
 - **Mock consistency is critical** - Ensure test mocks exactly match the implementation approach (e.g., `dataset['property']` vs `setAttribute()`)
 - **Global mock setup patterns** - Use `vi.stubGlobal()` for better test isolation instead of `Object.defineProperty()` in Vitest environments
 - **TypeScript bracket notation** - When working with dataset properties, use `element.dataset['property']` to satisfy both TypeScript compiler and ESLint rules
@@ -149,8 +149,8 @@ You are an AI assistant specialized in using `sequentialthinking` to execute tas
 - ❌ Marking tasks complete before validating all quality gates
 
 **Quality Gates Checklist:**
-- [ ] All specific tests passing (16/16 for theme preloader example)
-- [ ] Full test suite passing (220/220 tests)
+- [ ] All specific tests passing (X/X for current feature)
+- [ ] Full test suite passing (all tests)
 - [ ] No ESLint errors or warnings
 - [ ] Successful TypeScript compilation and build
 - [ ] No breaking changes to existing functionality
