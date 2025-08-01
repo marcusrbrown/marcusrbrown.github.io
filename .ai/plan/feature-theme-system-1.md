@@ -5,7 +5,7 @@ date_created: 2025-07-28
 last_updated: 2025-08-01
 owner: Marcus R. Brown
 status: 'Completed'
-tags: feature,theme,accessibility,ui,user-experience
+tags: [feature, theme, accessibility, ui, user-experience]
 ---
 
 # Introduction
