@@ -6,7 +6,7 @@
  */
 
 import type {Theme, ThemeExportData} from '../types'
-import {sanitizeThemeData, validateThemeExportData} from './schema-validation'
+import {sanitizeThemeData, THEME_EXPORT_VERSION, validateThemeExportData} from './schema-validation'
 import {sanitizeTheme, validateTheme} from './theme-validation'
 
 /**
@@ -19,10 +19,8 @@ export const exportTheme = (theme: Theme, filename?: string): void => {
   }
 
   const exportData: ThemeExportData = {
-    version: '1.0',
-    theme: {
-      ...sanitized,
-    },
+    version: THEME_EXPORT_VERSION,
+    theme: sanitized,
     exportedAt: new Date().toISOString(),
     exportedBy: 'mrbro.dev Theme Customizer',
   }
@@ -149,10 +147,8 @@ export const createThemeJSON = (theme: Theme): string => {
   }
 
   const exportData: ThemeExportData = {
-    version: '1.0',
-    theme: {
-      ...sanitized,
-    },
+    version: THEME_EXPORT_VERSION,
+    theme: sanitized,
     exportedAt: new Date().toISOString(),
     exportedBy: 'mrbro.dev Theme Customizer',
   }
