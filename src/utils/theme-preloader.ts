@@ -285,25 +285,25 @@ export const generateMinimalThemePreloaderScript = (): string => {
   const script = `
 (function(){
   try {
-    var m = localStorage.getItem('mrbro-dev-theme-mode') || 'system';
-    var d = m === 'system' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) : m === 'dark';
-    var r = document.documentElement;
-    if (d) {
-      r.style.setProperty('--color-primary', '#3b82f6');
-      r.style.setProperty('--color-background', '#0f172a');
-      r.style.setProperty('--color-surface', '#1e293b');
-      r.style.setProperty('--color-text', '#f1f5f9');
-      r.style.setProperty('--color-text-secondary', '#94a3b8');
-      r.style.setProperty('--color-border', '#334155');
-      r.setAttribute('data-theme', 'dark');
+    var mode = localStorage.getItem('mrbro-dev-theme-mode') || 'system';
+    var isDark = mode === 'system' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) : mode === 'dark';
+    var root = document.documentElement;
+    if (isDark) {
+      root.style.setProperty('--color-primary', '#3b82f6');
+      root.style.setProperty('--color-background', '#0f172a');
+      root.style.setProperty('--color-surface', '#1e293b');
+      root.style.setProperty('--color-text', '#f1f5f9');
+      root.style.setProperty('--color-text-secondary', '#94a3b8');
+      root.style.setProperty('--color-border', '#334155');
+      root.setAttribute('data-theme', 'dark');
     } else {
-      r.style.setProperty('--color-primary', '#2563eb');
-      r.style.setProperty('--color-background', '#ffffff');
-      r.style.setProperty('--color-surface', '#f8fafc');
-      r.style.setProperty('--color-text', '#0f172a');
-      r.style.setProperty('--color-text-secondary', '#64748b');
-      r.style.setProperty('--color-border', '#e2e8f0');
-      r.setAttribute('data-theme', 'light');
+      root.style.setProperty('--color-primary', '#2563eb');
+      root.style.setProperty('--color-background', '#ffffff');
+      root.style.setProperty('--color-surface', '#f8fafc');
+      root.style.setProperty('--color-text', '#0f172a');
+      root.style.setProperty('--color-text-secondary', '#64748b');
+      root.style.setProperty('--color-border', '#e2e8f0');
+      root.setAttribute('data-theme', 'light');
     }
   } catch(e) {}
 })();
