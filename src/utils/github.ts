@@ -24,7 +24,13 @@ export const fetchBlogPosts = async (repo: string) => {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     const data = await response.json()
-    return data.filter((post: any) => post.labels.some((label: any) => label.name === 'blog'))
+    return data.filter((post: any) => {
+      // Handle malformed issue data - ensure labels exists and is an array
+      if (!post.labels || !Array.isArray(post.labels)) {
+        return false
+      }
+      return post.labels.some((label: any) => label && label.name === 'blog')
+    })
   } catch (error) {
     console.error('Error fetching blog posts:', error)
     throw error
