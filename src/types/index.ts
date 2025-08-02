@@ -8,6 +8,7 @@ export interface Project {
   homepage?: string | null
   topics?: string[]
   lastUpdated?: string
+  imageUrl?: string
 }
 
 export interface BlogPost {

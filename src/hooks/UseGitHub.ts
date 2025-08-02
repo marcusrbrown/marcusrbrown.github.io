@@ -49,6 +49,8 @@ export const useGitHub = (username = 'marcusrbrown') => {
           homepage: repo.homepage,
           topics: repo.topics || [],
           lastUpdated: repo.updated_at,
+          // For now, use a placeholder. This can be enhanced to fetch actual repo images
+          imageUrl: undefined,
         }))
 
         setRepos(reposData)
