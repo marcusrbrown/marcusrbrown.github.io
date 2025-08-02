@@ -1,5 +1,6 @@
 import type {Project} from '../types'
 import React from 'react'
+import {useProgressiveImage} from '../hooks/UseProgressiveImage'
 
 interface ProjectCardProps extends Project {
   onPreview?: (project: Project) => void
@@ -15,12 +16,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   homepage,
   topics = [],
   lastUpdated,
+  imageUrl,
   onPreview,
 }) => {
+  const {imgRef, isLoaded, isError} = useProgressiveImage(imageUrl)
   const handlePreviewClick = (e: React.MouseEvent) => {
     e.preventDefault()
     if (onPreview) {
-      onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated})
+      onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated, imageUrl})
     }
   }
 
@@ -28,7 +31,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
       if (onPreview) {
-        onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated})
+        onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated, imageUrl})
       }
     }
   }
@@ -45,6 +48,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       {/* Project Image/Thumbnail Area */}
       <div className="project-card__image">
         <div className="project-card__image-placeholder">
+          {imageUrl && (
+            <img
+              ref={imgRef}
+              src={imageUrl}
+              alt={`${title} project screenshot`}
+              className={`project-card__image-img ${isLoaded ? 'project-card__image-img--loaded' : ''} ${isError ? 'project-card__image-img--error' : ''}`}
+              loading="lazy"
+            />
+          )}
           <div className="project-card__language-badge">
             <span className={`language-badge language-badge--${language.toLowerCase().replaceAll(' ', '-')}`}>
               {language}
