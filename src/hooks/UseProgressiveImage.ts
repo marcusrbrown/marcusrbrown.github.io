@@ -1,11 +1,24 @@
 import {useEffect, useRef, useState} from 'react'
 
+/**
+ * Options for the useProgressiveImage hook.
+ * @property {string} [lowQualityPlaceholder] - Optional URL for a low-quality placeholder image to display before the main image loads.
+ * @property {number} [threshold=0.1] - Intersection Observer threshold; determines how much of the image must be visible before loading.
+ * @property {string} [rootMargin='50px'] - Intersection Observer root margin; controls when the image starts loading relative to the viewport.
+ */
 interface UseProgressiveImageOptions {
   lowQualityPlaceholder?: string
   threshold?: number
   rootMargin?: string
 }
 
+/**
+ * The return type for useProgressiveImage hook.
+ * @property imgRef - Ref to the image element, used for intersection observer.
+ * @property isLoaded - True when the high-quality image has finished loading.
+ * @property isError - True if the image fails to load.
+ * @property isInView - True when the image element enters the viewport (as detected by Intersection Observer).
+ */
 interface UseProgressiveImageReturn {
   imgRef: React.RefObject<HTMLImageElement | null>
   isLoaded: boolean
