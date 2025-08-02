@@ -3,7 +3,7 @@ import ProjectCard from '../components/ProjectCard'
 import {useGitHub} from '../hooks/UseGitHub'
 
 const Projects: React.FC = () => {
-  const {repos, loading, error} = useGitHub()
+  const {projects, loading, error} = useGitHub()
 
   if (loading) {
     return <div>Loading projects...</div>
@@ -17,8 +17,8 @@ const Projects: React.FC = () => {
     <div>
       <h1>My Projects</h1>
       <div className="project-list">
-        {repos.map((repo: {id: number; name: string; description: string; html_url: string}) => (
-          <ProjectCard key={repo.id} title={repo.name} description={repo.description} url={repo.html_url} />
+        {projects.map(project => (
+          <ProjectCard key={project.id} {...project} />
         ))}
       </div>
     </div>
