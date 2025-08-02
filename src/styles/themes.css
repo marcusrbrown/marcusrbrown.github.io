@@ -299,6 +299,30 @@ small,
   transition: var(--transition-theme-instant);
 }
 
+/* Icon styles using emoji/text symbols for lightweight implementation */
+.icon-code::before { content: '💻'; }
+.icon-react::before { content: '⚛️'; }
+.icon-typescript::before { content: '🔷'; }
+.icon-css::before { content: '🎨'; }
+.icon-html::before { content: '📄'; }
+.icon-mobile::before { content: '📱'; }
+.icon-server::before { content: '🖥️'; }
+.icon-nodejs::before { content: '🟢'; }
+.icon-api::before { content: '🔗'; }
+.icon-database::before { content: '🗄️'; }
+.icon-architecture::before { content: '🏗️'; }
+.icon-tools::before { content: '🛠️'; }
+.icon-git::before { content: '📚'; }
+.icon-github::before { content: '🐙'; }
+.icon-vscode::before { content: '📝'; }
+.icon-build::before { content: '⚙️'; }
+.icon-test::before { content: '🧪'; }
+.icon-people::before { content: '👥'; }
+.icon-puzzle::before { content: '🧩'; }
+.icon-chat::before { content: '💬'; }
+.icon-mentor::before { content: '🎓'; }
+.icon-doc::before { content: '📖'; }
+
 /* Elements that need slower, more deliberate transitions */
 .header,
 .footer,
