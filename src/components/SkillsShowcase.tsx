@@ -5,6 +5,9 @@ import {animateProficiency, createStaggeredDelays, getSafeAnimationDuration} fro
 /** Animation duration for skill proficiency bar (ms) */
 const SKILL_PROFICIENCY_ANIMATION_DURATION = 1200
 
+/** Minimal timeout for animation completion (ms) */
+const MIN_ANIMATION_COMPLETION_TIMEOUT = 100
+
 // Animation timing configuration for skill proficiency bars
 const SKILL_ANIMATION_BASE_DELAY = 150
 const SKILL_ANIMATION_INCREMENT = 100
@@ -84,7 +87,7 @@ const SkillItem: React.FC<SkillItemProps> = ({skill, index, isVisible, onFocus, 
     )
 
     // For reduced motion, the animation completes immediately, so set a minimal timeout
-    const completionTimeout = Math.max(delay + duration, 100)
+    const completionTimeout = Math.max(delay + duration, MIN_ANIMATION_COMPLETION_TIMEOUT)
     const timer = setTimeout(() => setIsAnimationComplete(true), completionTimeout)
 
     return () => {
