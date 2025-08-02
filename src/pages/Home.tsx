@@ -2,6 +2,7 @@ import React from 'react'
 import BlogPost from '../components/BlogPost'
 import HeroSection from '../components/HeroSection'
 import ProjectCard from '../components/ProjectCard'
+import SkillsShowcase from '../components/SkillsShowcase'
 import {useGitHub} from '../hooks/UseGitHub'
 import '../styles/landing-page.css'
 
@@ -12,6 +13,9 @@ const Home: React.FC = () => {
     <div className="home-page">
       {/* Hero Section */}
       <HeroSection />
+
+      {/* Skills & Expertise Showcase */}
+      <SkillsShowcase />
 
       {/* Featured Projects Section */}
       <section id="projects" className="projects-section">
