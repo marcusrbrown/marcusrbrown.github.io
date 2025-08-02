@@ -34,7 +34,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   }
 
   return (
-    <article
+    <div
       className="project-card"
       tabIndex={0}
       role="button"
@@ -58,7 +58,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
         <div className="project-card__overlay">
           <div className="project-card__overlay-content">
-            <button className="project-card__preview-btn" onClick={handlePreviewClick} aria-label={`Preview ${title}`}>
+            <button
+              className="project-card__preview-btn"
+              onClick={e => {
+                e.stopPropagation()
+                handlePreviewClick(e)
+              }}
+              aria-label={`Preview ${title}`}
+            >
               👁️ Preview
             </button>
             <div className="project-card__links">
@@ -119,7 +126,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
           </time>
         )}
       </div>
-    </article>
+    </div>
   )
 }
 
