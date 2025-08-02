@@ -2,6 +2,13 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react'
 import {useScrollAnimation} from '../hooks/UseScrollAnimation'
 import {animateProficiency, createStaggeredDelays, getSafeAnimationDuration} from '../utils/animation-utils'
 
+/** Animation duration for skill proficiency bar (ms) */
+const SKILL_PROFICIENCY_ANIMATION_DURATION = 1200
+
+// Animation timing configuration for skill proficiency bars
+const SKILL_ANIMATION_BASE_DELAY = 150
+const SKILL_ANIMATION_INCREMENT = 100
+
 /**
  * Skill proficiency level (0-100)
  */
@@ -61,8 +68,8 @@ const SkillItem: React.FC<SkillItemProps> = ({skill, index, isVisible, onFocus, 
   useEffect(() => {
     if (!isVisible || isAnimationComplete) return
 
-    const delay = getSafeAnimationDuration(150 + index * 100)
-    const duration = getSafeAnimationDuration(1200)
+    const delay = getSafeAnimationDuration(SKILL_ANIMATION_BASE_DELAY + index * SKILL_ANIMATION_INCREMENT)
+    const duration = getSafeAnimationDuration(SKILL_PROFICIENCY_ANIMATION_DURATION)
 
     const cleanup = animateProficiency(
       skill.proficiency,
