@@ -5,6 +5,9 @@ export interface Project {
   url: string
   language: string
   stars: number
+  homepage?: string | null
+  topics?: string[]
+  lastUpdated?: string
 }
 
 export interface BlogPost {
