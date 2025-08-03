@@ -1223,23 +1223,53 @@
   margin-bottom: 2rem;
 }
 
-.project-gallery__item {
+/* Project grid animation states */
+.project-grid--idle .project-gallery__item,
+.project-grid--entering .project-gallery__item {
   opacity: 0;
-  transform: translateY(20px);
-  animation: projectFadeIn 0.6s ease forwards;
+  transform: translateY(30px) scale(0.95);
 }
 
-.project-gallery__item:nth-child(1) { animation-delay: 0.1s; }
-.project-gallery__item:nth-child(2) { animation-delay: 0.2s; }
-.project-gallery__item:nth-child(3) { animation-delay: 0.3s; }
-.project-gallery__item:nth-child(4) { animation-delay: 0.4s; }
-.project-gallery__item:nth-child(5) { animation-delay: 0.5s; }
-.project-gallery__item:nth-child(6) { animation-delay: 0.6s; }
+.project-grid--visible .project-gallery__item,
+.project-grid--exiting .project-gallery__item {
+  animation: projectGridReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
-@keyframes projectFadeIn {
-  to {
+.project-gallery__item {
+  transform-origin: center bottom;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Smooth grid reveal animation */
+@keyframes projectGridReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Hover effect enhancement for revealed items */
+.project-grid--visible .project-gallery__item:hover,
+.project-grid--exiting .project-gallery__item:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .project-gallery__item {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .project-grid--idle .project-gallery__item,
+  .project-grid--entering .project-gallery__item {
+    opacity: 1;
+    transform: none;
   }
 }
 

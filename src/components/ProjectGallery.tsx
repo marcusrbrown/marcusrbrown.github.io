@@ -1,6 +1,7 @@
 import type {Project} from '../types'
 import React from 'react'
 import {useProjectFilter} from '../hooks/UseProjectFilter'
+import {getAnimationClasses, getStaggerDelay, useScrollAnimation} from '../hooks/UseScrollAnimation'
 import ProjectCard from './ProjectCard'
 import ProjectFilter from './ProjectFilter'
 
@@ -35,6 +36,13 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
 
   // Apply maxProjects limit if specified
   const displayProjects = maxProjects ? filteredProjects.slice(0, maxProjects) : filteredProjects
+
+  // Use scroll animation for the gallery grid
+  const {ref: gridRef, animationState} = useScrollAnimation<HTMLDivElement>({
+    threshold: 0.1,
+    rootMargin: '0px 0px -100px 0px',
+    triggerOnce: true,
+  })
 
   return (
     <div className="project-gallery">
@@ -73,10 +81,16 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
       )}
 
       {/* Project Grid */}
-      <div className="project-gallery__grid">
+      <div ref={gridRef} className={`project-gallery__grid ${getAnimationClasses(animationState, 'project-grid')}`}>
         {displayProjects.length > 0 ? (
-          displayProjects.map(project => (
-            <div key={project.id} className="project-gallery__item">
+          displayProjects.map((project, index) => (
+            <div
+              key={project.id}
+              className="project-gallery__item"
+              style={{
+                animationDelay: `${getStaggerDelay(index, 0, 150)}ms`,
+              }}
+            >
               <ProjectCard {...project} onPreview={onProjectPreview} />
             </div>
           ))
