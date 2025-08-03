@@ -8,8 +8,8 @@ test.describe('Theme Switching Tests', () => {
       const homePage = new HomePage(page)
       await homePage.goto()
 
-      expect(await homePage.themeToggle.count()).toBeGreaterThan(0)
-      expect(await homePage.themeToggle.isVisible()).toBe(true)
+      expect(await homePage.themeToggleElement.count()).toBeGreaterThan(0)
+      expect(await homePage.themeToggleElement.isVisible()).toBe(true)
     })
 
     test('should start with a default theme', async ({page}) => {
@@ -216,7 +216,7 @@ test.describe('Theme Switching Tests', () => {
       await homePage.goto()
 
       // Check for aria attributes or text content
-      const themeToggle = homePage.themeToggle
+      const themeToggle = homePage.themeToggleElement
 
       const ariaLabel = await themeToggle.getAttribute('aria-label')
       const title = await themeToggle.getAttribute('title')

@@ -43,6 +43,13 @@ export class BasePage {
   }
 
   /**
+   * Get the theme toggle locator for direct access in tests
+   */
+  get themeToggleElement(): Locator {
+    return this.themeToggle
+  }
+
+  /**
    * Toggle between light and dark themes
    */
   async toggleTheme() {
