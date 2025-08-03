@@ -70,8 +70,8 @@ This implementation plan transforms the existing basic Home.tsx component into a
 |------|-------------|-----------|------|
 | TASK-014 | Enhance ProjectCard component with hover effects and image overlays | ✅ | 2025-08-02 |
 | TASK-015 | Implement progressive image loading with placeholder blur effect | ✅ | 2025-08-02 |
-| TASK-016 | Add project filtering by technology/category | |  |
-| TASK-017 | Create smooth grid animations for project reveal | |  |
+| TASK-016 | Add project filtering by technology/category | ✅ | 2025-08-02 |
+| TASK-017 | Create smooth grid animations for project reveal | ✅ | 2025-08-02 |
 | TASK-018 | Add "View More Projects" expandable section with smooth transitions | |  |
 | TASK-019 | Implement project preview modal with keyboard navigation | |  |
 
