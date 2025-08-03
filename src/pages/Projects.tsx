@@ -1,9 +1,27 @@
-import React from 'react'
+import type {Project} from '../types'
+import React, {useState} from 'react'
 import ProjectGallery from '../components/ProjectGallery'
+import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import {useGitHub} from '../hooks/UseGitHub'
 
 const Projects: React.FC = () => {
   const {projects, loading, error} = useGitHub()
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const handleProjectPreview = (project: Project) => {
+    setSelectedProject(project)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedProject(null)
+  }
+
+  const handleNavigateProject = (project: Project) => {
+    setSelectedProject(project)
+  }
 
   if (loading) {
     return (
@@ -36,8 +54,18 @@ const Projects: React.FC = () => {
           title="All Projects"
           subtitle="A comprehensive collection of my development work, open source contributions, and personal projects"
           showFilter={true}
+          onProjectPreview={handleProjectPreview}
         />
       </div>
+
+      {/* Project Preview Modal */}
+      <ProjectPreviewModal
+        project={selectedProject}
+        projects={projects}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onNavigate={handleNavigateProject}
+      />
     </div>
   )
 }

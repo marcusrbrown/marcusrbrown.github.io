@@ -1,13 +1,31 @@
-import React from 'react'
+import type {Project} from '../types'
+import React, {useState} from 'react'
 import BlogPost from '../components/BlogPost'
 import HeroSection from '../components/HeroSection'
 import ProjectGallery from '../components/ProjectGallery'
+import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import SkillsShowcase from '../components/SkillsShowcase'
 import {useGitHub} from '../hooks/UseGitHub'
 import '../styles/landing-page.css'
 
 const Home: React.FC = () => {
   const {projects, blogPosts} = useGitHub()
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  const handleProjectPreview = (project: Project) => {
+    setSelectedProject(project)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedProject(null)
+  }
+
+  const handleNavigateProject = (project: Project) => {
+    setSelectedProject(project)
+  }
 
   return (
     <div className="home-page">
@@ -26,6 +44,7 @@ const Home: React.FC = () => {
             subtitle="A selection of my recent work showcasing modern web development practices"
             maxProjects={6}
             showFilter={false}
+            onProjectPreview={handleProjectPreview}
           />
         </div>
       </section>
@@ -44,6 +63,15 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Project Preview Modal */}
+      <ProjectPreviewModal
+        project={selectedProject}
+        projects={projects}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onNavigate={handleNavigateProject}
+      />
     </div>
   )
 }
