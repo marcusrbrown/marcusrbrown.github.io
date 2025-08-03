@@ -28,7 +28,12 @@
     "prepare": "simple-git-hooks",
     "preview": "vite preview",
     "setup-hooks": "simple-git-hooks",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:codegen": "playwright codegen",
+    "test:all": "vitest run && playwright test"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"
@@ -50,6 +55,7 @@
     "@bfra.me/eslint-config": "^0.25.0",
     "@bfra.me/prettier-config": "^0.16.0",
     "@bfra.me/tsconfig": "^0.11.0",
+    "@playwright/test": "^1.54.2",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^22.8.7",
@@ -64,6 +70,7 @@
     "happy-dom": "^18.0.1",
     "jiti": "^2.5.1",
     "lint-staged": "^16.1.2",
+    "playwright": "^1.54.2",
     "prettier": "^3.3.3",
     "shiki": "^3.8.1",
     "simple-git-hooks": "^2.13.0",

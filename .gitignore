@@ -89,3 +89,7 @@ temp/
 
 # TernJS port file
 .tern-port
+
+# Playwright test artifacts
+playwright-report/
+test-results/
