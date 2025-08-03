@@ -1,5 +1,5 @@
 import type {Project} from '../types'
-import React from 'react'
+import React, {useState} from 'react'
 import {useProjectFilter} from '../hooks/UseProjectFilter'
 import {getAnimationClasses, getStaggerDelay, useScrollAnimation} from '../hooks/UseScrollAnimation'
 import ProjectCard from './ProjectCard'
@@ -22,6 +22,9 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
   maxProjects,
   onProjectPreview,
 }) => {
+  // State for expandable "View More" functionality
+  const [isExpanded, setIsExpanded] = useState(false)
+
   const {
     filteredProjects,
     activeFilters,
@@ -34,8 +37,12 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
     hasActiveFilters,
   } = useProjectFilter(projects)
 
-  // Apply maxProjects limit if specified
-  const displayProjects = maxProjects ? filteredProjects.slice(0, maxProjects) : filteredProjects
+  // Calculate projects to display based on maxProjects limit and expanded state
+  const shouldLimitProjects = maxProjects && !isExpanded
+  const displayProjects = shouldLimitProjects ? filteredProjects.slice(0, maxProjects) : filteredProjects
+
+  // Additional projects shown when expanded (for animation purposes)
+  const additionalProjects = maxProjects && isExpanded ? filteredProjects.slice(maxProjects) : []
 
   // Use scroll animation for the gallery grid
   const {ref: gridRef, animationState} = useScrollAnimation<HTMLDivElement>({
@@ -43,6 +50,17 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
     rootMargin: '0px 0px -100px 0px',
     triggerOnce: true,
   })
+
+  // Use separate scroll animation for additional projects
+  const {ref: additionalGridRef, animationState: additionalAnimationState} = useScrollAnimation<HTMLDivElement>({
+    threshold: 0.1,
+    rootMargin: '0px 0px -50px 0px',
+    triggerOnce: true,
+  })
+
+  const handleExpandToggle = () => {
+    setIsExpanded(!isExpanded)
+  }
 
   return (
     <div className="project-gallery">
@@ -115,12 +133,44 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
         )}
       </div>
 
-      {/* View More Link (if limited) */}
+      {/* Additional Projects Grid (expanded state) */}
+      {maxProjects && isExpanded && additionalProjects.length > 0 && (
+        <div
+          ref={additionalGridRef}
+          className={`project-gallery__grid project-gallery__grid--additional ${getAnimationClasses(additionalAnimationState, 'project-grid-additional')}`}
+        >
+          {additionalProjects.map((project, index) => (
+            <div
+              key={project.id}
+              className="project-gallery__item project-gallery__item--additional"
+              style={{
+                animationDelay: `${getStaggerDelay(index, 100, 100)}ms`,
+              }}
+            >
+              <ProjectCard {...project} onPreview={onProjectPreview} />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* View More/Less Button (if limited) */}
       {maxProjects && filteredProjects.length > maxProjects && (
         <div className="project-gallery__view-more">
-          <a href="/projects" className="project-gallery__view-more-link">
-            View All {filteredProjects.length} Projects →
-          </a>
+          <button
+            className={`project-gallery__view-more-button ${isExpanded ? 'project-gallery__view-more-button--expanded' : ''}`}
+            onClick={handleExpandToggle}
+            aria-expanded={isExpanded}
+            aria-controls="additional-projects"
+          >
+            <span className="project-gallery__view-more-text">
+              {isExpanded ? `Show Less Projects` : `View ${filteredProjects.length - maxProjects} More Projects`}
+            </span>
+            <span
+              className={`project-gallery__view-more-icon ${isExpanded ? 'project-gallery__view-more-icon--expanded' : ''}`}
+            >
+              {isExpanded ? '↑' : '↓'}
+            </span>
+          </button>
         </div>
       )}
     </div>
