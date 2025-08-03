@@ -1,7 +1,7 @@
 import React from 'react'
 import BlogPost from '../components/BlogPost'
 import HeroSection from '../components/HeroSection'
-import ProjectCard from '../components/ProjectCard'
+import ProjectGallery from '../components/ProjectGallery'
 import SkillsShowcase from '../components/SkillsShowcase'
 import {useGitHub} from '../hooks/UseGitHub'
 import '../styles/landing-page.css'
@@ -20,17 +20,13 @@ const Home: React.FC = () => {
       {/* Featured Projects Section */}
       <section id="projects" className="projects-section">
         <div className="container">
-          <header className="section-header">
-            <h2 className="section-title">Featured Projects</h2>
-            <p className="section-subtitle">
-              A selection of my recent work showcasing modern web development practices
-            </p>
-          </header>
-          <div className="project-list">
-            {projects.map(project => (
-              <ProjectCard key={project.id} {...project} />
-            ))}
-          </div>
+          <ProjectGallery
+            projects={projects}
+            title="Featured Projects"
+            subtitle="A selection of my recent work showcasing modern web development practices"
+            maxProjects={6}
+            showFilter={false}
+          />
         </div>
       </section>
 
