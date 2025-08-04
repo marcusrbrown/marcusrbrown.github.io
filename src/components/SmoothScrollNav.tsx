@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react'
+import {useNavigationTracking} from '../hooks/UseAnalytics'
 
 /**
  * Navigation item configuration
@@ -67,6 +68,9 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
   const [isVisible, setIsVisible] = useState<boolean>(!autoHide)
   const [isScrolling, setIsScrolling] = useState<boolean>(false)
 
+  // Analytics tracking hook
+  const {trackNavigation} = useNavigationTracking()
+
   /**
    * Calculate scroll progress as percentage
    */
@@ -85,21 +89,27 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
   /**
    * Handle smooth scroll to section
    */
-  const scrollToSection = useCallback((sectionId: string) => {
-    const element = document.querySelector(`#${sectionId}`)
-    if (!element) return
+  const scrollToSection = useCallback(
+    (sectionId: string) => {
+      // Track navigation event
+      trackNavigation(sectionId, 'smooth_scroll')
 
-    setIsScrolling(true)
+      const element = document.querySelector(`#${sectionId}`)
+      if (!element) return
 
-    // Use CSS scroll-behavior for smooth scrolling
-    element.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    })
+      setIsScrolling(true)
 
-    // Reset scrolling state after animation
-    setTimeout(() => setIsScrolling(false), 1000)
-  }, [])
+      // Use CSS scroll-behavior for smooth scrolling
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+
+      // Reset scrolling state after animation
+      setTimeout(() => setIsScrolling(false), 1000)
+    },
+    [trackNavigation],
+  )
 
   /**
    * Handle keyboard navigation

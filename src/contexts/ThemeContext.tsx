@@ -1,6 +1,7 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
 import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
 import {prefersReducedMotion} from '../utils/accessibility'
+import {analytics} from '../utils/analytics'
 import {
   cleanupThemeOptimizations,
   getOptimalPerformanceLevel,
@@ -95,6 +96,11 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
 
   // Enhanced setThemeMode that persists to localStorage and optimizes performance
   const setThemeMode = (mode: ThemeMode) => {
+    const previousMode = themeMode
+
+    // Track theme change analytics
+    analytics.trackThemeChange(previousMode, mode)
+
     // Skip animations entirely if user prefers reduced motion
     if (prefersReducedMotion()) {
       setThemeModeState(mode)

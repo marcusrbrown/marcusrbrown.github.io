@@ -1,4 +1,5 @@
 import React from 'react'
+import {useContactTracking, useDownloadTracking} from '../hooks/UseAnalytics'
 import {getAnimationClasses, getStaggerDelay, useScrollAnimation} from '../hooks/UseScrollAnimation'
 
 /**
@@ -49,8 +50,21 @@ interface ContactMethodCardProps {
 }
 
 const ContactMethodCard: React.FC<ContactMethodCardProps> = ({method, index, variant}) => {
+  const {trackContactClick, trackExternalLink} = useContactTracking()
+  const {trackDownload} = useDownloadTracking()
+
   const handleClick = () => {
-    // Analytics tracking will be implemented in TASK-030
+    // Track the contact method click based on type
+    if (method.type === 'email') {
+      trackContactClick('email', method.label)
+    } else if (method.type === 'download') {
+      trackDownload(method.href.split('/').pop() || 'unknown', 'contact_section')
+    } else if (method.type === 'social' || method.type === 'calendar') {
+      trackExternalLink(method.href, 'contact_section')
+      trackContactClick(method.type, method.label)
+    } else {
+      trackContactClick(method.type, method.label)
+    }
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
