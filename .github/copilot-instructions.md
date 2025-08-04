@@ -168,6 +168,36 @@ The project uses a comprehensive CI/CD pipeline with modern GitHub Actions:
 - **Wrapper Pattern**: Create provider wrappers for context-dependent components
 - **Setup Pattern**: Use `beforeEach()` to reset mocks and state between tests
 
+**Landing Page Testing Patterns**:
+```typescript
+// Animation testing with UseScrollAnimation hook
+const { result } = renderHook(() => useScrollAnimation({ threshold: 0.5 }))
+await waitFor(() => expect(result.current.isInView).toBe(true))
+
+// Interactive component testing with user events
+const user = userEvent.setup()
+await user.hover(screen.getByRole('button', { name: /skill item/i }))
+expect(screen.getByText(/proficiency/i)).toBeVisible()
+
+// Modal accessibility testing
+await user.keyboard('{Escape}')
+expect(mockOnClose).toHaveBeenCalled()
+```
+
+**Visual Testing**: Playwright tests cover component variations across themes:
+```typescript
+// tests/visual/components.spec.ts - Theme-aware visual testing
+THEMES.forEach(theme => {
+  test(`Skills showcase - ${theme} theme`, async ({page}) => {
+    await preparePageForVisualTest(page, {theme})
+    await skillsComponent.screenshot({
+      path: `tests/visual/screenshots/skills-showcase-${theme}-theme.png`,
+      animations: 'disabled',
+    })
+  })
+})
+```
+
 ### Performance
 
 - Code splitting with manual chunks for vendors
@@ -176,6 +206,42 @@ The project uses a comprehensive CI/CD pipeline with modern GitHub Actions:
 - Modern ES2020+ target for smaller bundles
 
 ## Architecture Patterns
+
+### Landing Page Architecture
+
+The project features a modern, accessible landing page with sophisticated animation system and component patterns:
+
+```typescript
+// src/pages/Home.tsx - Main landing page orchestrator
+const Home: React.FC = () => {
+  return (
+    <div className="home-page">
+      <HeroSection />
+      <SkillsShowcase />
+      <ProjectGallery />
+      <ProjectPreviewModal />
+    </div>
+  )
+}
+
+// src/hooks/UseScrollAnimation.ts - Intersection Observer based animations
+export const useScrollAnimation = <T extends HTMLElement>(options: ScrollAnimationOptions) => {
+  // Provides smooth scroll-triggered animations with reduced motion support
+  return { ref, isInView, animationState }
+}
+```
+
+**Key Landing Page Components**:
+- **HeroSection**: Animated hero with staggered typography and accessible CTAs
+- **SkillsShowcase**: Interactive skills display with proficiency indicators and animations
+- **ProjectGallery**: Enhanced project cards with hover effects and filtering
+- **ProjectPreviewModal**: Keyboard-accessible modal with smooth transitions
+
+**Animation System Features**:
+- **Intersection Observer**: Performant scroll-triggered animations via `UseScrollAnimation.ts`
+- **Staggered Entrances**: Progressive reveal animations with customizable delays
+- **Reduced Motion**: Automatic fallbacks respecting `prefers-reduced-motion`
+- **CSS Custom Properties**: Theme-aware animations using CSS variables
 
 ### Theme System Architecture
 
@@ -254,6 +320,74 @@ export const highlightCode = async (code: string, language: BundledLanguage, opt
 
 ### Compound Component Pattern
 
+Used extensively in the landing page system for modular, reusable components:
+
+```typescript
+// src/components/SkillsShowcase.tsx - Compound component architecture
+const SkillsShowcase: React.FC<SkillsShowcaseProps> = ({ title, subtitle }) => {
+  return (
+    <section className="skills-showcase">
+      <div className="skills-grid">
+        {skillCategories.map(category => (
+          <SkillCategorySection key={category.id} category={category} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// Individual compound components
+const SkillCategorySection = ({ category, isVisible }) => { /* ... */ }
+const SkillItem = ({ skill, index, isVisible }) => { /* ... */ }
+```
+
+**Animation Hook Pattern**:
+```typescript
+// src/hooks/UseScrollAnimation.ts - Intersection Observer integration
+export const useScrollAnimation = <T extends HTMLElement>(options: {
+  threshold?: number
+  rootMargin?: string
+  triggerOnce?: boolean
+  delay?: number
+}) => {
+  // Returns ref, isInView state, and animation classes
+  return { ref, isInView, animationState }
+}
+
+// Usage in components with staggered animations
+const { ref, isInView } = useScrollAnimation({
+  threshold: 0.2,
+  delay: getStaggerDelay(index, 200, 150), // Staggered entrance
+  triggerOnce: true
+})
+```
+
+### Progressive Enhancement Pattern
+
+Landing page implements progressive enhancement for animations and interactions:
+
+```css
+/* src/styles/landing-page.css - Progressive animation classes */
+.animate--idle {
+  opacity: 0;
+  transform: translateY(2rem);
+}
+
+.animate--visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Reduced motion fallbacks */
+@media (prefers-reduced-motion: reduce) {
+  .animate--idle { opacity: 1; transform: none; }
+  .animate--visible { transition: none; }
+}
+```
+
+### Compound Component Pattern
+
 Used extensively in the theme system for modular, reusable components:
 
 ```typescript
@@ -324,6 +458,28 @@ export const useTheme = (): UseThemeReturn => {
 }
 ```
 
+**Landing Page Hook Examples**:
+```typescript
+// src/hooks/UseScrollAnimation.ts - Animation with Intersection Observer
+export const useScrollAnimation = <T extends HTMLElement>(options) => {
+  const [isInView, setIsInView] = useState(false)
+  const [animationState, setAnimationState] = useState<AnimationState>('idle')
+  // Returns ref, visibility state, and CSS class helpers
+}
+
+// src/hooks/UseProgressiveImage.ts - Progressive image loading
+export const useProgressiveImage = (src: string) => {
+  // Provides blur-up effect for project gallery images
+  return { imageSrc, isLoaded, isError }
+}
+
+// src/hooks/UseProjectFilter.ts - Interactive project filtering
+export const useProjectFilter = (projects: Project[]) => {
+  // Manages filter state and animated project grid updates
+  return { filteredProjects, activeFilter, setFilter, filters }
+}
+```
+
 **Hook Testing Pattern**:
 ```typescript
 // Mock hook in tests
@@ -349,6 +505,30 @@ vi.mock('../../src/hooks/UseTheme', () => ({
   /* Component-specific derived colors */
   --color-header-bg: var(--color-surface);
   --color-card-bg: var(--color-background);
+}
+```
+
+**Landing Page CSS Structure**: `src/styles/landing-page.css` follows systematic organization:
+
+```css
+/* Landing Page Styles - Modern Developer Portfolio */
+
+/* Hero Section Styles */
+.hero-section { /* ... */ }
+.hero-title-highlight {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animation Classes for UseScrollAnimation Hook */
+.animate--idle { opacity: 0; transform: translateY(2rem); }
+.animate--visible { opacity: 1; transform: translateY(0); }
+
+/* Accessibility and Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .animate--idle { opacity: 1 !important; transform: none !important; }
+  .animate--visible { transition: none !important; }
 }
 ```
 
@@ -438,11 +618,16 @@ When working on this project:
 10. **Mobile-first responsive design** - Modern web standards
 11. **Leverage CI/CD pipeline** - Use GitHub Actions job summaries for build analysis
 12. **Monitor bundle performance** - The build analysis script tracks size metrics automatically
+13. **Respect reduced motion preferences** - All animations must have fallbacks
+14. **Use progressive enhancement** - Components should work without JavaScript
+15. **Follow landing page patterns** - Use compound components and animation hooks as established
 
 ### Build Performance Guidelines
 
 - **JavaScript bundles** should stay under 500KB (warnings generated above this)
 - **Total bundle size** should stay under 1MB (optimal) or 2MB (maximum)
+- **Animation performance** considerations: Use `will-change` sparingly, prefer `transform` and `opacity`
+- **Landing page performance**: Intersection Observer provides performant scroll animations
 - **Use the build analysis script** (`scripts/analyze-build.mjs`) when optimizing
 - **GitHub job summaries** provide rich markdown reports for build metrics
 - **Performance status** is automatically tracked and reported in CI
