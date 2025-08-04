@@ -33,6 +33,14 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:codegen": "playwright codegen",
+    "test:visual": "playwright test --project=visual-tests",
+    "test:visual:headed": "playwright test --project=visual-tests --headed",
+    "test:visual:update": "UPDATE_SNAPSHOTS=1 playwright test --project=visual-tests",
+    "test:visual:config": "playwright test --config=tests/visual/playwright.config.ts",
+    "test:visual:artifacts": "node scripts/visual-artifact-manager.mjs",
+    "test:visual:artifacts:clean": "node scripts/visual-artifact-manager.mjs clean",
+    "test:visual:artifacts:analyze": "node scripts/visual-artifact-manager.mjs analyze",
+    "test:visual:artifacts:report": "node scripts/visual-artifact-manager.mjs report",
     "test:all": "vitest run && playwright test"
   },
   "simple-git-hooks": {
