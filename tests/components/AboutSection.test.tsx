@@ -127,26 +127,15 @@ describe('AboutSection', () => {
       // Should call useScrollAnimation multiple times for different sections
       expect(useScrollAnimation).toHaveBeenCalledTimes(4)
 
-      // Check specific animation configurations
+      // Check specific animation configurations - updated to match new implementation
       expect(useScrollAnimation).toHaveBeenCalledWith({
-        threshold: 0.3,
-        delay: 200,
-      })
-      expect(useScrollAnimation).toHaveBeenCalledWith({
-        threshold: 0.2,
-        delay: 400,
-      })
-      expect(useScrollAnimation).toHaveBeenCalledWith({
-        threshold: 0.4,
-        delay: 300,
-      })
-      expect(useScrollAnimation).toHaveBeenCalledWith({
-        threshold: 0.2,
-        delay: 500,
+        threshold: 0.1,
+        rootMargin: '100px 0px',
+        triggerOnce: true,
       })
     })
 
-    it('should apply animation classes based on animation state', async () => {
+    it('should apply inline styles based on animation state', async () => {
       const {useScrollAnimation} = await import('../../src/hooks/UseScrollAnimation')
 
       // Mock animation state as visible
@@ -160,10 +149,30 @@ describe('AboutSection', () => {
 
       render(<AboutSection />)
 
-      // Check that animation classes are applied
-      expect(screen.getByRole('region', {name: 'About Me'}).querySelector('.section-header')).toHaveClass(
-        'animate--visible',
-      )
+      // Check that inline styles are applied for visible state
+      const header = screen.getByRole('region', {name: 'About Me'}).querySelector('.section-header')
+      expect(header).toHaveStyle('opacity: 1')
+      expect(header).toHaveStyle('transform: translateY(0)')
+    })
+
+    it('should apply hidden styles when not in view', async () => {
+      const {useScrollAnimation} = await import('../../src/hooks/UseScrollAnimation')
+
+      // Mock animation state as not visible
+      vi.mocked(useScrollAnimation).mockReturnValue({
+        ref: {current: null},
+        animationState: 'idle',
+        isInView: false,
+        triggerAnimation: vi.fn(),
+        resetAnimation: vi.fn(),
+      })
+
+      render(<AboutSection />)
+
+      // Check that inline styles are applied for hidden state
+      const header = screen.getByRole('region', {name: 'About Me'}).querySelector('.section-header')
+      expect(header).toHaveStyle('opacity: 0')
+      expect(header).toHaveStyle('transform: translateY(2rem)')
     })
   })
 
