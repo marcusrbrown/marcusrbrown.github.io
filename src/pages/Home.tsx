@@ -2,6 +2,7 @@ import type {Project} from '../types'
 import React, {useState} from 'react'
 import AboutSection from '../components/AboutSection'
 import BlogPost from '../components/BlogPost'
+import ContactCta from '../components/ContactCta'
 import HeroSection from '../components/HeroSection'
 import ProjectGallery from '../components/ProjectGallery'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
@@ -67,6 +68,9 @@ const Home: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Contact CTA Section */}
+      <ContactCta />
 
       {/* Project Preview Modal */}
       <ProjectPreviewModal
