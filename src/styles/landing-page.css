@@ -2921,3 +2921,540 @@
     height: 40px;
   }
 }
+
+/* ===================================
+   CONTACT CTA SECTION STYLES
+   =================================== */
+
+/* Contact CTA Section Layout */
+.contact-cta {
+  padding: 8rem 0;
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    var(--color-surface) 0%,
+    var(--color-background) 50%,
+    var(--color-surface) 100%
+  );
+  overflow: hidden;
+}
+
+.contact-cta .container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  position: relative;
+  z-index: 2;
+}
+
+/* Contact CTA Header */
+.contact-cta-header {
+  text-align: center;
+  margin-bottom: 4rem;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.contact-cta-title {
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  font-weight: 800;
+  color: var(--color-text);
+  margin-bottom: 1.5rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.contact-cta-subtitle {
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+/* Availability Status */
+.contact-availability {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 3rem;
+  padding: 1rem 2rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 50px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: var(--transition-theme-fast);
+}
+
+.contact-availability:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.contact-availability-indicator {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.availability-dot {
+  width: 12px;
+  height: 12px;
+  background: var(--color-success, #22c55e);
+  border-radius: 50%;
+  position: relative;
+}
+
+.availability-dot::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: var(--color-success, #22c55e);
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: availability-pulse 2s ease-in-out infinite;
+}
+
+@keyframes availability-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.1;
+  }
+}
+
+.contact-availability-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+/* Contact Methods Layout */
+.contact-methods {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.contact-methods-primary,
+.contact-methods-secondary {
+  margin-bottom: 3rem;
+}
+
+.contact-methods-secondary {
+  margin-bottom: 0;
+}
+
+.contact-methods-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.contact-methods-title::after {
+  content: '';
+  position: absolute;
+  bottom: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  border-radius: 1px;
+}
+
+/* Contact Methods Grid */
+.contact-methods-grid {
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.contact-methods-grid--primary {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.contact-methods-grid--secondary {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+/* Contact Method Card */
+.contact-method-card {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(30px);
+  animation: contactMethodReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--method-index, 0) * 0.1s);
+}
+
+.contact-method-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  border-color: var(--color-primary);
+}
+
+.contact-method-card:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@keyframes contactMethodReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Contact Method Card Variants */
+.contact-method-card--primary {
+  background: linear-gradient(135deg, var(--color-surface) 0%, var(--color-background) 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.contact-method-card--secondary {
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Contact Method Card Types */
+.contact-method-card--email {
+  border-left: 4px solid var(--color-primary);
+}
+
+.contact-method-card--social {
+  border-left: 4px solid var(--color-accent);
+}
+
+.contact-method-card--calendar {
+  border-left: 4px solid var(--color-success, #22c55e);
+}
+
+.contact-method-card--download {
+  border-left: 4px solid var(--color-warning, #f59e0b);
+}
+
+/* Contact Method Link */
+.contact-method-link {
+  display: block;
+  padding: 2rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+  position: relative;
+  transition: var(--transition-theme-fast);
+}
+
+.contact-method-link:hover {
+  text-decoration: none;
+}
+
+.contact-method-link:focus {
+  outline: none;
+}
+
+/* Contact Method Content Layout */
+.contact-method-card .contact-method-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.contact-method-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: white;
+  font-size: 1.5rem;
+  transition: var(--transition-theme-fast);
+}
+
+.contact-method-card:hover .contact-method-icon {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.contact-method-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-method-label {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 0.5rem 0;
+  line-height: 1.3;
+}
+
+.contact-method-description {
+  font-size: 0.9375rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.contact-method-arrow {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 0.25rem;
+}
+
+.contact-method-card:hover .contact-method-arrow {
+  color: var(--color-primary);
+  transform: translateX(4px);
+}
+
+/* Icon Variants for Different Contact Methods */
+.contact-method-card--email .contact-method-icon {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.contact-method-card--social .contact-method-icon {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.contact-method-card--calendar .contact-method-icon {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.contact-method-card--download .contact-method-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+/* Background Decorative Elements */
+.contact-cta-bg-elements {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.contact-bg-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(circle at 1px 1px, var(--color-border) 1px, transparent 0);
+  background-size: 30px 30px;
+  opacity: 0.3;
+  animation: gridFloat 20s ease-in-out infinite;
+}
+
+.contact-bg-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  opacity: 0.04;
+  filter: blur(60px);
+}
+
+.contact-bg-circle--1 {
+  width: 400px;
+  height: 400px;
+  top: 20%;
+  right: -200px;
+  animation: float 25s ease-in-out infinite;
+}
+
+.contact-bg-circle--2 {
+  width: 300px;
+  height: 300px;
+  bottom: 20%;
+  left: -150px;
+  animation: float 30s ease-in-out infinite reverse;
+}
+
+@keyframes gridFloat {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate(10px, -10px) rotate(0.5deg);
+    opacity: 0.2;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .contact-cta {
+    padding: 4rem 0;
+  }
+
+  .contact-cta .container {
+    padding: 0 1rem;
+  }
+
+  .contact-cta-header {
+    margin-bottom: 3rem;
+  }
+
+  .contact-availability {
+    padding: 0.75rem 1.5rem;
+    gap: 0.5rem;
+  }
+
+  .contact-availability-text {
+    font-size: 0.875rem;
+  }
+
+  .contact-methods-grid--primary,
+  .contact-methods-grid--secondary {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .contact-method-link {
+    padding: 1.5rem;
+    gap: 1rem;
+  }
+
+  .contact-method-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+
+  .contact-method-label {
+    font-size: 1.125rem;
+  }
+
+  .contact-method-description {
+    font-size: 0.875rem;
+  }
+
+  .contact-bg-circle--1 {
+    width: 250px;
+    height: 250px;
+    right: -125px;
+  }
+
+  .contact-bg-circle--2 {
+    width: 200px;
+    height: 200px;
+    left: -100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .contact-methods-title {
+    font-size: 1.25rem;
+  }
+
+  .contact-method-link {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+
+  .contact-method-arrow {
+    align-self: center;
+    margin-top: 0;
+  }
+}
+
+/* Accessibility and Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .contact-method-card,
+  .contact-method-icon,
+  .contact-method-arrow,
+  .contact-availability,
+  .availability-dot::after,
+  .contact-bg-grid,
+  .contact-bg-circle--1,
+  .contact-bg-circle--2 {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .contact-method-card {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .contact-method-card:hover,
+  .contact-availability:hover {
+    transform: none !important;
+  }
+
+  .contact-method-card:hover .contact-method-icon,
+  .contact-method-card:hover .contact-method-arrow {
+    transform: none !important;
+  }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .contact-method-card {
+    border-width: 2px;
+  }
+
+  .contact-method-card:focus {
+    outline-width: 3px;
+  }
+
+  .contact-availability {
+    border-width: 2px;
+  }
+
+  .availability-dot {
+    border: 2px solid var(--color-text);
+  }
+}
+
+/* Dark Theme Adjustments */
+[data-theme="dark"] .contact-cta {
+  background: linear-gradient(
+    135deg,
+    var(--color-background) 0%,
+    var(--color-surface) 50%,
+    var(--color-background) 100%
+  );
+}
+
+[data-theme="dark"] .contact-bg-circle {
+  opacity: 0.02;
+}
+
+[data-theme="dark"] .contact-bg-grid {
+  opacity: 0.15;
+}
