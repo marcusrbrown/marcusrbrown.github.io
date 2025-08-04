@@ -92,4 +92,5 @@ temp/
 
 # Playwright test artifacts
 playwright-report/
+playwright-report-visual/
 test-results/
