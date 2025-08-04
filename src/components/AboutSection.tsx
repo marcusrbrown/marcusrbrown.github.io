@@ -1,7 +1,9 @@
 import React from 'react'
+import {useParallax} from '../hooks/UseParallax'
 import {useScrollAnimation} from '../hooks/UseScrollAnimation'
 import AnimatedCounters from './AnimatedCounters'
 import CareerTimeline from './CareerTimeline'
+import TestimonialsCarousel from './TestimonialsCarousel'
 
 interface AboutSectionProps {
   className?: string
@@ -30,6 +32,22 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
     threshold: 0.1,
     rootMargin: '100px 0px',
     triggerOnce: true,
+  })
+
+  // Parallax effects for background elements
+  const {ref: circle1Ref, transform: circle1Transform} = useParallax<HTMLDivElement>({
+    speed: 0.3,
+    direction: 'up',
+  })
+
+  const {ref: circle2Ref, transform: circle2Transform} = useParallax<HTMLDivElement>({
+    speed: 0.2,
+    direction: 'down',
+  })
+
+  const {ref: gridRef, transform: gridTransform} = useParallax<HTMLDivElement>({
+    speed: 0.1,
+    direction: 'up',
   })
 
   return (
@@ -114,6 +132,11 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
           <CareerTimeline />
         </div>
 
+        {/* Testimonials */}
+        <div className="about-testimonials">
+          <TestimonialsCarousel />
+        </div>
+
         {/* Call to Action */}
         <div className="about-cta">
           <p className="about-cta-text">Interested in working together or discussing opportunities?</p>
@@ -140,9 +163,17 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
 
       {/* Background Decorative Elements */}
       <div className="about-bg-elements" aria-hidden="true">
-        <div className="about-bg-circle about-bg-circle--1"></div>
-        <div className="about-bg-circle about-bg-circle--2"></div>
-        <div className="about-bg-grid"></div>
+        <div
+          ref={circle1Ref}
+          className="about-bg-circle about-bg-circle--1"
+          style={{transform: circle1Transform}}
+        ></div>
+        <div
+          ref={circle2Ref}
+          className="about-bg-circle about-bg-circle--2"
+          style={{transform: circle2Transform}}
+        ></div>
+        <div ref={gridRef} className="about-bg-grid" style={{transform: gridTransform}}></div>
       </div>
     </section>
   )

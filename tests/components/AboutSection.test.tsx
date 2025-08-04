@@ -13,6 +13,14 @@ vi.mock('../../src/hooks/UseScrollAnimation', () => ({
   })),
 }))
 
+// Mock the UseParallax hook
+vi.mock('../../src/hooks/UseParallax', () => ({
+  useParallax: vi.fn(() => ({
+    ref: {current: null},
+    transform: 'translate3d(0, 0, 0)',
+  })),
+}))
+
 // Mock the sub-components
 vi.mock('../../src/components/AnimatedCounters', () => ({
   default: () => <div data-testid="animated-counters">Animated Counters</div>,
@@ -20,6 +28,10 @@ vi.mock('../../src/components/AnimatedCounters', () => ({
 
 vi.mock('../../src/components/CareerTimeline', () => ({
   default: () => <div data-testid="career-timeline">Career Timeline</div>,
+}))
+
+vi.mock('../../src/components/TestimonialsCarousel', () => ({
+  default: () => <div data-testid="testimonials-carousel">Testimonials Carousel</div>,
 }))
 
 describe('AboutSection', () => {
@@ -66,6 +78,12 @@ describe('AboutSection', () => {
 
       expect(screen.getByTestId('career-timeline')).toBeInTheDocument()
       expect(screen.getByRole('heading', {name: 'Professional Journey'})).toBeInTheDocument()
+    })
+
+    it('should render testimonials carousel component', () => {
+      render(<AboutSection />)
+
+      expect(screen.getByTestId('testimonials-carousel')).toBeInTheDocument()
     })
 
     it('should render call-to-action section', () => {
@@ -124,10 +142,8 @@ describe('AboutSection', () => {
 
       render(<AboutSection />)
 
-      // Should call useScrollAnimation multiple times for different sections
-      expect(useScrollAnimation).toHaveBeenCalledTimes(4)
-
-      // Check specific animation configurations - updated to match new implementation
+      // Should call useScrollAnimation for header, story, counters, timeline sections
+      // Plus additional calls from testimonials carousel
       expect(useScrollAnimation).toHaveBeenCalledWith({
         threshold: 0.1,
         rootMargin: '100px 0px',
@@ -202,13 +218,14 @@ describe('AboutSection', () => {
       expect(container).toBeDefined()
       const children = Array.from(container?.children || [])
 
-      // Should have header, story, counters, timeline, and CTA
-      expect(children).toHaveLength(5)
+      // Should have header, story, counters, timeline, testimonials, and CTA
+      expect(children).toHaveLength(6)
       expect(children[0]).toHaveClass('section-header')
       expect(children[1]).toHaveClass('about-story')
       expect(children[2]).toHaveClass('about-counters')
       expect(children[3]).toHaveClass('about-timeline')
-      expect(children[4]).toHaveClass('about-cta')
+      expect(children[4]).toHaveClass('about-testimonials')
+      expect(children[5]).toHaveClass('about-cta')
     })
 
     it('should have proper container structure', () => {
