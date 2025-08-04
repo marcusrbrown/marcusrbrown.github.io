@@ -7,6 +7,7 @@ import HeroSection from '../components/HeroSection'
 import ProjectGallery from '../components/ProjectGallery'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import SkillsShowcase from '../components/SkillsShowcase'
+import SmoothScrollNav from '../components/SmoothScrollNav'
 import {useGitHub} from '../hooks/UseGitHub'
 import '../styles/landing-page.css'
 
@@ -80,6 +81,9 @@ const Home: React.FC = () => {
         onClose={handleCloseModal}
         onNavigate={handleNavigateProject}
       />
+
+      {/* Smooth Scroll Navigation */}
+      <SmoothScrollNav />
     </div>
   )
 }

@@ -111,7 +111,12 @@ const HeroSection: React.FC<HeroSectionProps> = ({
   }
 
   return (
-    <section className={`hero-section ${className}`} aria-label="Introduction and main call-to-action" role="banner">
+    <section
+      id="hero"
+      className={`hero-section ${className}`}
+      aria-label="Introduction and main call-to-action"
+      role="banner"
+    >
       {/* Background Elements */}
       <div className="hero-background" aria-hidden="true" />
 
