@@ -1,5 +1,6 @@
 import type {Project} from '../types'
 import React, {useState} from 'react'
+import AboutSection from '../components/AboutSection'
 import BlogPost from '../components/BlogPost'
 import HeroSection from '../components/HeroSection'
 import ProjectGallery from '../components/ProjectGallery'
@@ -34,6 +35,9 @@ const Home: React.FC = () => {
 
       {/* Skills & Expertise Showcase */}
       <SkillsShowcase />
+
+      {/* About Section with Professional Story */}
+      <AboutSection />
 
       {/* Featured Projects Section */}
       <section id="projects" className="projects-section">

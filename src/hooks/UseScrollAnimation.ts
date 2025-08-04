@@ -182,6 +182,40 @@ export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
     // Start observing
     observerRef.current.observe(element)
 
+    // IMPORTANT: Check if element is already in view when observer starts
+    // IntersectionObserver only triggers on threshold crossings, not initial state
+    requestAnimationFrame(() => {
+      if (observerRef.current) {
+        const rect = element.getBoundingClientRect()
+        const windowHeight = window.innerHeight || document.documentElement.clientHeight
+
+        // Parse rootMargin to get top margin (simplified - assumes format like "100px 0px")
+        const rootMarginStr = config.rootMargin || '0px'
+        const topMargin = Number.parseInt(rootMarginStr.split(' ')[0] || '0') || 0
+
+        // Check if element is already in view considering threshold and rootMargin
+        const elementTop = rect.top
+        const elementBottom = rect.bottom
+        const effectiveViewportTop = -topMargin
+        const effectiveViewportBottom = windowHeight + topMargin
+
+        // Calculate if enough of the element is visible based on threshold
+        const elementHeight = rect.height
+        const visibleHeight =
+          Math.min(elementBottom, effectiveViewportBottom) - Math.max(elementTop, effectiveViewportTop)
+        const visibleRatio = Math.max(0, visibleHeight) / elementHeight
+
+        if (visibleRatio >= config.threshold) {
+          // Element is already in view, trigger animation
+          setIsInView(true)
+          if (!hasTriggered || !config.triggerOnce) {
+            triggerAnimation()
+            setHasTriggered(true)
+          }
+        }
+      }
+    })
+
     // Cleanup function
     return () => {
       if (observerRef.current) {
