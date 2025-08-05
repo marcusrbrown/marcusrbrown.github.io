@@ -59,7 +59,7 @@ jobs:
           NODE_ENV: production
 
       - name: Analyze bundle size
-        run: tsx scripts/analyze-build.ts
+        run: pnpm run analyze-build
         continue-on-error: true
 
       - name: Setup Lighthouse CI
