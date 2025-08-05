@@ -93,7 +93,7 @@ jobs:
         run: pnpm run build
 
       - name: Analyze build output
-        run: tsx scripts/analyze-build.ts
+        run: pnpm run analyze-build
 
       - name: Check build output
         run: |
