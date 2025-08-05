@@ -75,8 +75,11 @@ test.describe('Screen Reader Compatibility Tests', () => {
             const prevLevel = headingLevels[i - 1]
             const currentLevel = headingLevels[i]
 
-            // Current level should not skip more than one level
-            expect(currentLevel - prevLevel).toBeLessThanOrEqual(1)
+            // Ensure both levels are defined before comparison
+            if (prevLevel !== undefined && currentLevel !== undefined) {
+              // Current level should not skip more than one level
+              expect(currentLevel - prevLevel).toBeLessThanOrEqual(1)
+            }
           }
         }
       }
