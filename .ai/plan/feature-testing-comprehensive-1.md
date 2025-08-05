@@ -265,5 +265,5 @@ This implementation plan establishes a comprehensive testing infrastructure for 
 
 - Current testing setup: `vitest.config.ts`, `tests/setup.ts`
 - CI/CD pipeline: `.github/workflows/ci.yaml`, `.github/actions/setup`
-- Build analysis: `scripts/analyze-build.mjs`
+- Build analysis: `scripts/analyze-build.ts`
 - Project configuration: `package.json`, `tsconfig.json`, `vite.config.ts`

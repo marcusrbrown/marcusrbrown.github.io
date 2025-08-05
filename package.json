@@ -28,6 +28,7 @@
     "prepare": "simple-git-hooks",
     "preview": "vite preview",
     "setup-hooks": "simple-git-hooks",
+    "analyze-build": "tsx scripts/analyze-build.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
@@ -41,6 +42,14 @@
     "test:visual:artifacts:clean": "node scripts/visual-artifact-manager.mjs clean",
     "test:visual:artifacts:analyze": "node scripts/visual-artifact-manager.mjs analyze",
     "test:visual:artifacts:report": "node scripts/visual-artifact-manager.mjs report",
+    "test:performance": "lhci autorun",
+    "test:performance:mobile": "lhci autorun --config=lhci-mobile.config.js",
+    "test:performance:desktop": "lhci autorun --config=lhci-desktop.config.js",
+    "test:performance:budgets": "tsx scripts/performance-budgets.ts",
+    "test:performance:regression": "tsx scripts/performance-regression.ts",
+    "test:performance:dashboard": "tsx scripts/performance-dashboard.ts",
+    "test:performance:artifacts": "tsx scripts/performance-artifacts.ts",
+    "test:performance:full": "npm run test:performance && npm run test:performance:budgets && npm run test:performance:dashboard && npm run test:performance:artifacts",
     "test:all": "vitest run && playwright test"
   },
   "simple-git-hooks": {
@@ -63,6 +72,7 @@
     "@bfra.me/eslint-config": "^0.25.0",
     "@bfra.me/prettier-config": "^0.16.0",
     "@bfra.me/tsconfig": "^0.11.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.54.2",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
@@ -83,6 +93,7 @@
     "prettier": "^3.3.3",
     "shiki": "^3.8.1",
     "simple-git-hooks": "^2.13.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.6.3",
     "vite": "^7.0.6",
     "vitest": "^3.2.4"

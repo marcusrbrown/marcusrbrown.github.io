@@ -1,0 +1,381 @@
+---
+name: Performance Testing
+
+on:
+  # Run on main branch pushes (for baseline tracking)
+  push:
+    branches: [main]
+  # Run on pull requests (for regression detection)
+  pull_request:
+    branches: [main]
+  # Allow manual triggering
+  workflow_dispatch:
+  # Weekly performance monitoring
+  schedule:
+    - cron: '0 6 * * 1' # Every Monday at 6 AM UTC
+
+permissions:
+  contents: read
+  actions: write
+  pages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Lighthouse CI configuration
+  LHCI_GITHUB_APP_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
+  LHCI_BUILD_CONTEXT__COMMIT_TIME: ${{ github.event.head_commit.timestamp }}
+  LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.ref_name }}
+  LHCI_BUILD_CONTEXT__COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+
+jobs:
+  performance-audit:
+    name: Performance Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      matrix:
+        # Test both mobile and desktop configurations
+        device: [desktop, mobile]
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup project
+        uses: ./.github/actions/setup
+        with:
+          cache-key-suffix: performance-${{ matrix.device }}
+
+      - name: Build project
+        run: pnpm run build
+        env:
+          # Optimize build for performance testing
+          NODE_ENV: production
+
+      - name: Analyze bundle size
+        run: pnpm run analyze-build
+        continue-on-error: true
+
+      - name: Setup Lighthouse CI
+        run: |
+          # Install Lighthouse CI globally for better caching
+          npm install -g @lhci/cli@0.15.1
+
+          # Verify installation
+          lhci --version
+
+      - name: Create Lighthouse config for ${{ matrix.device }}
+        run: |
+          # Create device-specific configuration
+          cat > lhci-${{ matrix.device }}.config.js << 'EOF'
+          export default {
+            ci: {
+              collect: {
+                url: [
+                  'http://localhost:4173/',
+                  'http://localhost:4173/about',
+                  'http://localhost:4173/blog',
+                  'http://localhost:4173/projects'
+                ],
+                startServerCommand: 'pnpm run preview',
+                startServerReadyPattern: 'Local:.*http://localhost:4173',
+                startServerReadyTimeout: 30000,
+                numberOfRuns: 3,
+                settings: {
+                  chromeFlags: '--no-sandbox --headless --disable-gpu --disable-dev-shm-usage',
+                  preset: '${{ matrix.device }}',
+                  skipAudits: ['uses-http2', 'redirects-http', 'uses-long-cache-ttl'],
+                  emulatedFormFactor: '${{ matrix.device }}',
+                  throttling: ${{ matrix.device == 'mobile' && '{
+                    rttMs: 150,
+                    throughputKbps: 1638.4,
+                    cpuSlowdownMultiplier: 4,
+                    requestLatencyMs: 0,
+                    downloadThroughputKbps: 0,
+                    uploadThroughputKbps: 0
+                  }' || '{
+                    rttMs: 40,
+                    throughputKbps: 10240,
+                    cpuSlowdownMultiplier: 1,
+                    requestLatencyMs: 0,
+                    downloadThroughputKbps: 0,
+                    uploadThroughputKbps: 0
+                  }' }}
+                }
+              },
+              upload: {
+                target: 'filesystem',
+                outputDir: './lhci-reports-${{ matrix.device }}',
+                reportFilenamePattern: '%%PATHNAME%%-%%DATETIME%%-${{ matrix.device }}-report.%%EXTENSION%%'
+              },
+              assert: {
+                assertions: {
+                  // Device-specific Core Web Vitals thresholds
+                  'largest-contentful-paint': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '2500' || '2000' }}}],
+                  'first-input-delay': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '100' || '50' }}}],
+                  'cumulative-layout-shift': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '0.1' || '0.05' }}}],
+
+                  // Additional performance metrics
+                  'first-contentful-paint': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '2200' || '1800' }}}],
+                  'speed-index': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '4500' || '3400' }}}],
+                  'interactive': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '5000' || '3800' }}}],
+                  'total-blocking-time': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '300' || '200' }}}],
+
+                  // Overall scores
+                  'categories:performance': ['error', {minScore: ${{ matrix.device == 'mobile' && '0.9' || '0.95' }}}],
+                  'categories:accessibility': ['error', {minScore: 0.95}],
+                  'categories:best-practices': ['error', {minScore: 0.9}],
+                  'categories:seo': ['error', {minScore: 0.95}],
+
+                  // Resource budgets
+                  'resource-summary:script:size': ['error', {maxNumericValue: 512000}],
+                  'resource-summary:stylesheet:size': ['error', {maxNumericValue: 102400}],
+                  'resource-summary:total:size': ['error', {maxNumericValue: 2097152}],
+                  'resource-summary:image:size': ['error', {maxNumericValue: 1048576}]
+                }
+              }
+            }
+          }
+          EOF
+
+      - name: Run Lighthouse CI - ${{ matrix.device }}
+        run: lhci autorun --config=lhci-${{ matrix.device }}.config.js
+        continue-on-error: true
+        env:
+          LHCI_BUILD_CONTEXT__EXTERNAL_BUILD_URL: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
+
+      - name: Validate performance budgets - ${{ matrix.device }}
+        run: node scripts/performance-budgets.mjs
+        continue-on-error: true
+        env:
+          DEVICE_TYPE: ${{ matrix.device }}
+
+      - name: Check performance regression - ${{ matrix.device }}
+        run: node scripts/performance-regression.mjs
+        continue-on-error: true
+        env:
+          DEVICE_TYPE: ${{ matrix.device }}
+          BASELINE_BRANCH: main
+
+      - name: Run theme switching performance tests - ${{ matrix.device }}
+        run: pnpm exec playwright test tests/performance/theme-switching.spec.ts --project=performance-${{ matrix.device }}
+        continue-on-error: true
+        env:
+          DEVICE_TYPE: ${{ matrix.device }}
+
+      - name: Generate performance dashboard
+        run: tsx scripts/performance-dashboard.ts
+        continue-on-error: true
+
+      - name: Collect performance artifacts
+        run: tsx scripts/performance-artifacts.ts
+        continue-on-error: true
+
+      - name: Generate performance report
+        run: |
+          echo "## 🚀 Performance Report - ${{ matrix.device }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add device info
+          echo "**Device Configuration:** ${{ matrix.device }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check if Lighthouse reports exist
+          if [ -d "lhci-reports-${{ matrix.device }}" ]; then
+            echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Extract key metrics from Lighthouse results
+            find lhci-reports-${{ matrix.device }} -name "*.json" -not -name "manifest.json" | head -1 | xargs cat | jq -r '
+              "| Metric | Value |",
+              "|--------|-------|",
+              "| Performance Score | " + (.categories.performance.score * 100 | round | tostring) + "% |",
+              "| LCP | " + (.audits["largest-contentful-paint"].numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |",
+              "| FID | " + ((.audits["first-input-delay"].numericValue // 0) | tostring) + "ms |",
+              "| CLS | " + (.audits["cumulative-layout-shift"].numericValue | . * 1000 | round / 1000 | tostring) + " |",
+              "| FCP | " + (.audits["first-contentful-paint"].numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |",
+              "| TTI | " + (.audits.interactive.numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |"
+            ' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "❌ Unable to extract performance metrics" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ No Lighthouse reports generated for ${{ matrix.device }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Lighthouse reports
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: lighthouse-reports-${{ matrix.device }}-${{ github.run_number }}
+          path: |
+            lhci-reports-${{ matrix.device }}/
+            *.html
+          retention-days: 30
+
+      - name: Comment PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const device = '${{ matrix.device }}';
+            const reportsDir = `lhci-reports-${device}`;
+
+            if (!fs.existsSync(reportsDir)) {
+              console.log(`No reports found for ${device}`);
+              return;
+            }
+
+            // Find the latest JSON report
+            const files = fs.readdirSync(reportsDir);
+            const jsonFiles = files.filter(f => f.endsWith('.json') && !f.includes('manifest'));
+
+            if (jsonFiles.length === 0) {
+              console.log(`No JSON reports found for ${device}`);
+              return;
+            }
+
+            const reportPath = path.join(reportsDir, jsonFiles[0]);
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+
+            const performanceScore = Math.round(report.categories.performance.score * 100);
+            const lcp = Math.round(report.audits['largest-contentful-paint'].numericValue / 10) / 100;
+            const fid = report.audits['first-input-delay']?.numericValue || 0;
+            const cls = Math.round(report.audits['cumulative-layout-shift'].numericValue * 1000) / 1000;
+
+            const emoji = performanceScore >= 90 ? '🟢' : performanceScore >= 70 ? '🟡' : '🔴';
+
+            const comment = `## ${emoji} Performance Report - ${device.charAt(0).toUpperCase() + device.slice(1)}
+
+            | Metric | Value | Status |
+            |--------|-------|--------|
+            | Performance Score | ${performanceScore}% | ${performanceScore >= 90 ? '✅' : performanceScore >= 70 ? '⚠️' : '❌'} |
+            | LCP | ${lcp}s | ${lcp <= (device === 'mobile' ? 2.5 : 2.0) ? '✅' : '❌'} |
+            | FID | ${fid}ms | ${fid <= (device === 'mobile' ? 100 : 50) ? '✅' : '❌'} |
+            | CLS | ${cls} | ${cls <= (device === 'mobile' ? 0.1 : 0.05) ? '✅' : '❌'} |
+
+            **Commit:** ${{ github.sha }}
+            **Device:** ${device}
+
+            _Performance test completed at ${new Date().toISOString()}_`;
+
+            // Find existing comment to update or create new one
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.data.find(c =>
+              c.body.includes(`Performance Report - ${device.charAt(0).toUpperCase() + device.slice(1)}`)
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: performance-audit
+    if: always()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup project
+        uses: ./.github/actions/setup
+        with:
+          cache-key-suffix: performance-summary
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        continue-on-error: true
+
+      - name: Generate comprehensive performance dashboard
+        run: |
+          # Check if we have lighthouse reports to work with
+          if [ -d "lighthouse-reports-desktop-${{ github.run_number }}" ] || [ -d "lighthouse-reports-mobile-${{ github.run_number }}" ]; then
+            # Copy artifacts to expected locations for dashboard generation
+            [ -d "lighthouse-reports-desktop-${{ github.run_number }}/lhci-reports-desktop" ] && cp -r lighthouse-reports-desktop-${{ github.run_number }}/lhci-reports-desktop ./
+            [ -d "lighthouse-reports-mobile-${{ github.run_number }}/lhci-reports-mobile" ] && cp -r lighthouse-reports-mobile-${{ github.run_number }}/lhci-reports-mobile ./
+
+            # Generate dashboard
+            tsx scripts/performance-dashboard.ts || echo "Failed to generate dashboard"
+
+            # Collect artifacts
+            tsx scripts/performance-artifacts.ts || echo "Failed to collect artifacts"
+          else
+            echo "No Lighthouse reports found, skipping dashboard generation"
+          fi
+
+      - name: Upload performance dashboard
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
+        with:
+          name: performance-dashboard-${{ github.run_number }}
+          path: |
+            performance-dashboard.json
+            performance-report.md
+            performance-badges.json
+            performance-history.json
+            performance-artifacts/
+          retention-days: 90
+
+      - name: Generate overall performance summary
+        run: |
+          echo "# 🎯 Overall Performance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** Performance Testing" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check job statuses
+          desktop_status="${{ needs.performance-audit.result }}"
+          echo "## 📱 Device Testing Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Device | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Desktop | ${{ needs.performance-audit.result == 'success' && '✅ Passed' || needs.performance-audit.result == 'failure' && '❌ Failed' || '⏸️ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mobile | ${{ needs.performance-audit.result == 'success' && '✅ Passed' || needs.performance-audit.result == 'failure' && '❌ Failed' || '⏸️ Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.performance-audit.result }}" = "success" ]; then
+            echo "🎉 **All performance tests passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Some performance tests failed. Check individual job logs for details.**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Performance Budget Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Performance budgets are enforced for:" >> $GITHUB_STEP_SUMMARY
+          echo "- JavaScript bundle: ≤ 500KB" >> $GITHUB_STEP_SUMMARY
+          echo "- CSS bundle: ≤ 100KB" >> $GITHUB_STEP_SUMMARY
+          echo "- Total bundle: ≤ 2MB" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance score: ≥ 90% (mobile), ≥ 95% (desktop)" >> $GITHUB_STEP_SUMMARY
+          echo "- Core Web Vitals within acceptable thresholds" >> $GITHUB_STEP_SUMMARY

@@ -5,8 +5,8 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: './tests/setup.ts',
-    // Exclude E2E and visual tests - they should only run through Playwright
-    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**', '**/tests/visual/**'],
+    // Exclude E2E, visual, and performance tests - they should only run through Playwright
+    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**', '**/tests/visual/**', '**/tests/performance/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
