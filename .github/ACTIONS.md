@@ -128,7 +128,7 @@ The CI pipeline includes automated build analysis with rich markdown reporting:
 - **GitHub Job Summaries**: Rich markdown reports visible in the Actions UI
 - **Performance Status**: Color-coded indicators for bundle health
 
-The build analysis script (`scripts/analyze-build.mjs`) generates:
+The build analysis script (`scripts/analyze-build.ts`) generates:
 
 - Console output for immediate feedback
 - GitHub Actions notices for quick status

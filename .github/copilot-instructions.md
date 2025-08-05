@@ -628,13 +628,13 @@ When working on this project:
 - **Total bundle size** should stay under 1MB (optimal) or 2MB (maximum)
 - **Animation performance** considerations: Use `will-change` sparingly, prefer `transform` and `opacity`
 - **Landing page performance**: Intersection Observer provides performant scroll animations
-- **Use the build analysis script** (`scripts/analyze-build.mjs`) when optimizing
+- **Use the build analysis script** (`scripts/analyze-build.ts`) when optimizing
 - **GitHub job summaries** provide rich markdown reports for build metrics
 - **Performance status** is automatically tracked and reported in CI
 
 #### Build Analysis Workflow
 
-The `scripts/analyze-build.mjs` script provides comprehensive build analysis:
+The `scripts/analyze-build.ts` script provides comprehensive build analysis:
 
 ```javascript
 // Key metrics tracked:

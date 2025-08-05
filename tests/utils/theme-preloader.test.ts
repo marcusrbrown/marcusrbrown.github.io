@@ -47,6 +47,19 @@ describe('Theme Preloader', () => {
 
     // Setup global mocks with stubGlobal for better isolation
     vi.stubGlobal('localStorage', mockLocalStorage)
+
+    // Ensure matchMedia returns a proper mock object
+    mockMatchMedia.mockReturnValue({
+      matches: false,
+      media: '',
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })
+
     vi.stubGlobal('window', {
       localStorage: mockLocalStorage,
       matchMedia: mockMatchMedia,

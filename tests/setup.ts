@@ -74,12 +74,42 @@ beforeEach(() => {
     }))
   }
 
-  // Mock navigator.clipboard for theme export/import
-  Object.defineProperty(navigator, 'clipboard', {
-    writable: true,
-    value: {
-      writeText: vi.fn().mockResolvedValue(undefined),
-      readText: vi.fn().mockResolvedValue(''),
-    },
-  })
+  // Mock navigator.clipboard for theme export/import (only if not already defined)
+  if (!navigator.clipboard) {
+    Object.defineProperty(navigator, 'clipboard', {
+      writable: true,
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+        readText: vi.fn().mockResolvedValue(''),
+      },
+    })
+  }
+
+  // Mock fetch for CSS and other resource loading
+  if (!globalThis.fetch || typeof globalThis.fetch !== 'function') {
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string | URL | Request) => {
+      const urlString = typeof url === 'string' ? url : url.toString()
+
+      // Mock CSS file requests
+      if (urlString.includes('.css')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () => '/* mocked CSS */',
+          json: async () => ({}),
+          headers: new Headers({'content-type': 'text/css'}),
+        } as Response)
+      }
+
+      // Default mock response
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: async () => '',
+        json: async () => ({}),
+        headers: new Headers(),
+      } as Response)
+    })
+  }
 })

@@ -84,7 +84,13 @@ const getSystemPreference = (): 'light' | 'dark' => {
   if (typeof window === 'undefined' || !window.matchMedia) {
     return 'light'
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+
+  try {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    return mediaQuery?.matches ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
 }
 
 /**
