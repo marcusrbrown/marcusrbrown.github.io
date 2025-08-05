@@ -1,4 +1,5 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, render, screen, waitFor} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import SkillsShowcase from '../../src/components/SkillsShowcase'
 
@@ -135,7 +136,8 @@ describe('SkillsShowcase', () => {
     expect(skillItems.length).toBeGreaterThan(0)
   })
 
-  it('supports keyboard navigation', () => {
+  it('supports keyboard navigation', async () => {
+    const user = userEvent.setup()
     render(<SkillsShowcase />)
 
     const skillItems = screen.getAllByRole('listitem')
@@ -144,27 +146,33 @@ describe('SkillsShowcase', () => {
     expect(skillItems[0]).toHaveAttribute('tabIndex', '0')
 
     // Focus the first skill item
-    if (skillItems[0]) {
-      skillItems[0].focus()
-      expect(skillItems[0]).toHaveFocus()
+    const firstSkill = skillItems[0]
+    if (firstSkill) {
+      await act(async () => {
+        await user.click(firstSkill)
+      })
+      expect(firstSkill).toHaveFocus()
     }
   })
 
-  it('handles keyboard interactions', () => {
+  it('handles keyboard interactions', async () => {
+    const user = userEvent.setup()
     render(<SkillsShowcase />)
 
     const skillItems = screen.getAllByRole('listitem')
     const firstSkill = skillItems[0]
 
     if (firstSkill) {
-      // Focus and press Enter
-      firstSkill.focus()
-      fireEvent.keyDown(firstSkill, {key: 'Enter'})
+      await act(async () => {
+        // Focus and press Enter
+        await user.click(firstSkill)
+        await user.keyboard('{Enter}')
 
-      // Press Space
-      fireEvent.keyDown(firstSkill, {key: ' '})
+        // Press Space
+        await user.keyboard(' ')
+      })
 
-      // Should prevent default behavior
+      // Should still have focus
       expect(firstSkill).toHaveFocus()
     }
   })
@@ -180,7 +188,8 @@ describe('SkillsShowcase', () => {
     })
   })
 
-  it('handles focus and blur events', () => {
+  it('handles focus and blur events', async () => {
+    const user = userEvent.setup()
     render(<SkillsShowcase />)
 
     const skillItems = screen.getAllByRole('listitem')
@@ -190,8 +199,10 @@ describe('SkillsShowcase', () => {
       // Check that element is focusable
       expect(firstSkill).toHaveAttribute('tabIndex', '0')
 
-      // Simulate focus event
-      fireEvent.focus(firstSkill)
+      await act(async () => {
+        // Simulate focus event
+        await user.click(firstSkill)
+      })
 
       // Should have received focus (this is limited in jsdom but we can check events)
       expect(firstSkill).toHaveAttribute('tabIndex', '0')
@@ -277,15 +288,18 @@ describe('SkillsShowcase', () => {
     expect(() => unmount()).not.toThrow()
   })
 
-  it('maintains focus visibility for accessibility', () => {
+  it('maintains focus visibility for accessibility', async () => {
+    const user = userEvent.setup()
     render(<SkillsShowcase />)
 
     const skillItems = screen.getAllByRole('listitem')
     const firstSkill = skillItems[0]
 
     if (firstSkill) {
-      // Focus should be visible
-      firstSkill.focus()
+      await act(async () => {
+        // Focus should be visible
+        await user.click(firstSkill)
+      })
 
       // The element should have focus styles (this would be tested in e2e tests)
       expect(firstSkill).toHaveFocus()

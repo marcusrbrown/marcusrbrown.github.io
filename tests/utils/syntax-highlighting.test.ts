@@ -55,13 +55,14 @@ describe('syntax-highlighting utilities', () => {
       expect(result).toContain('<code')
     })
 
-    it('should fall back to TypeScript for unsupported languages', async () => {
+    it('should fall back to plain code block for unsupported languages', async () => {
       const code = 'console.log("test")'
       const result = await highlightCode(code, 'unsupported-language' as any)
 
-      expect(result).toContain('<pre')
-      expect(result).toContain('<code')
-      expect(result).toContain('console')
+      // Should fall back to plain code block
+      expect(result).toContain('<pre><code>')
+      expect(result).toContain('console.log("test")')
+      expect(result).toContain('</code></pre>')
     })
 
     it('should respect theme parameter', async () => {

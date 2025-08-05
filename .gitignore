@@ -94,3 +94,13 @@ temp/
 playwright-report/
 playwright-report-visual/
 test-results/
+
+# Performance monitoring outputs
+performance-dashboard.json
+performance-report.md
+performance-badges.json
+performance-history.json
+performance-artifacts/
+build-history.json
+lhci-reports-*/
+.lighthouseci/
