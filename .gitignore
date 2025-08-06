@@ -104,3 +104,7 @@ performance-artifacts/
 build-history.json
 lhci-reports-*/
 .lighthouseci/
+
+# Test dashboard and badge generation outputs
+badges/
+test-dashboard/
