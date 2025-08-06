@@ -52,7 +52,11 @@
     "test:performance:dashboard": "tsx scripts/performance-dashboard.ts",
     "test:performance:artifacts": "tsx scripts/performance-artifacts.ts",
     "test:performance:full": "npm run test:performance && npm run test:performance:budgets && npm run test:performance:dashboard && npm run test:performance:artifacts",
-    "test:all": "vitest run && playwright test"
+    "test:all": "vitest run && playwright test",
+    "badges": "node scripts/generate-test-badges.mjs",
+    "badges:update": "npm run test -- --coverage && npm run badges",
+    "dashboard": "node scripts/test-dashboard.mjs",
+    "dashboard:update": "npm run test:all && npm run dashboard"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"
