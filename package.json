@@ -56,7 +56,12 @@
     "badges": "node scripts/generate-test-badges.mjs",
     "badges:update": "npm run test -- --coverage && npm run badges",
     "dashboard": "node scripts/test-dashboard.mjs",
-    "dashboard:update": "npm run test:all && npm run dashboard"
+    "dashboard:update": "npm run test:all && npm run dashboard",
+    "configure:branch-protection": "node scripts/configure-branch-protection.mjs",
+    "artifacts": "node scripts/artifact-management.mjs",
+    "artifacts:cleanup": "node scripts/artifact-management.mjs cleanup",
+    "artifacts:optimize": "node scripts/artifact-management.mjs optimize",
+    "artifacts:full": "node scripts/artifact-management.mjs full"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"

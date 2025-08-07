@@ -76,7 +76,7 @@ jobs:
         with:
           name: coverage-report
           path: coverage/
-          retention-days: 7
+          retention-days: 30
 
   build:
     name: Build Project
@@ -116,7 +116,7 @@ jobs:
         with:
           name: build-artifacts
           path: dist/
-          retention-days: 7
+          retention-days: 30
 
   type-check:
     name: Type Check
