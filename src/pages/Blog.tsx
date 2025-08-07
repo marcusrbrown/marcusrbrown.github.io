@@ -1,8 +1,10 @@
 import React from 'react'
 import BlogPost from '../components/BlogPost'
 import {useGitHub} from '../hooks/UseGitHub'
+import {usePageTitle} from '../hooks/UsePageTitle'
 
 const Blog: React.FC = () => {
+  usePageTitle('Blog')
   const {blogPosts, loading, error} = useGitHub()
 
   if (loading) {

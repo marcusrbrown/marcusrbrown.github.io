@@ -3,8 +3,10 @@ import React, {useState} from 'react'
 import ProjectGallery from '../components/ProjectGallery'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import {useGitHub} from '../hooks/UseGitHub'
+import {usePageTitle} from '../hooks/UsePageTitle'
 
 const Projects: React.FC = () => {
+  usePageTitle('Projects')
   const {projects, loading, error} = useGitHub()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)

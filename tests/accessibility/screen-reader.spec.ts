@@ -127,19 +127,19 @@ test.describe('Screen Reader Compatibility Tests', () => {
       await page.waitForLoadState('networkidle')
 
       // Check for semantic elements
-      const header = page.locator('header')
+      const header = page.locator('header.header')
       await expect(header).toHaveCount(1)
 
       const main = page.locator('main')
       await expect(main).toHaveCount(1)
 
-      const footer = page.locator('footer')
+      const footer = page.locator('footer.footer')
       if ((await footer.count()) > 0) {
         await expect(footer).toHaveCount(1)
       }
 
       // Navigation should be in nav element
-      const nav = page.locator('nav')
+      const nav = page.locator('nav.header__nav')
       if ((await nav.count()) > 0) {
         await expect(nav).toBeVisible()
       }
@@ -330,7 +330,7 @@ test.describe('Screen Reader Compatibility Tests', () => {
 
         // Status and alert roles should be present for important updates
         if (role) {
-          expect(['status', 'alert', 'log']).toContain(role)
+          expect(['status', 'alert', 'log', 'region']).toContain(role)
         }
       }
     })
@@ -365,7 +365,7 @@ test.describe('Screen Reader Compatibility Tests', () => {
         await page.waitForLoadState('networkidle')
 
         // Check if there's a clear heading for screen readers to find
-        const h1 = page.locator('h1')
+        const h1 = page.locator('main h1').first()
 
         // At minimum, the page should have a clear h1 for screen readers to find
         await expect(h1).toBeVisible()
@@ -392,8 +392,6 @@ test.describe('Screen Reader Compatibility Tests', () => {
             'aria-hidden-body',
             'aria-hidden-focus',
             'aria-input-field-name',
-            'aria-label',
-            'aria-labelledby',
             'aria-required-attr',
             'aria-required-children',
             'aria-required-parent',

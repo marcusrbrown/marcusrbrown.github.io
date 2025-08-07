@@ -6,7 +6,7 @@ const Footer: React.FC = () => {
   return (
     <footer className="footer">
       <p>&copy; {currentYear} Marcus R. Brown. All rights reserved.</p>
-      <nav>
+      <nav aria-label="Social media links">
         <a href="https://github.com/marcusrbrown" target="_blank" rel="noopener noreferrer">
           GitHub
         </a>

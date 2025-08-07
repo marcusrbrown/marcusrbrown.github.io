@@ -128,6 +128,12 @@ export default defineConfig({
       },
     },
 
+    // Accessibility testing project
+    {
+      name: 'accessibility',
+      testDir: './tests/accessibility',
+    },
+
     // Visual regression testing project
     {
       name: 'visual-tests',

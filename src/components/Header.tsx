@@ -11,7 +11,7 @@ const Header: React.FC = () => {
             mrbro.dev
           </Link>
         </h1>
-        <nav className="header__nav">
+        <nav className="header__nav" aria-label="Main navigation">
           <ul className="header__nav-list">
             <li className="header__nav-item">
               <Link to="/" className="header__nav-link">

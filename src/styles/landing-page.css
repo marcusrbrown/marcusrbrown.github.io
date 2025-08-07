@@ -1348,6 +1348,11 @@ html {
   font-family: inherit;
 }
 
+/* Dark theme override for better contrast */
+html[data-theme="dark"] .project-gallery__view-more-button {
+  color: white;
+}
+
 .project-gallery__view-more-button:hover {
   background: var(--color-primary);
   color: white;

@@ -20,32 +20,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   onPreview,
 }) => {
   const {imgRef, isLoaded, isError} = useProgressiveImage(imageUrl)
-  const handlePreviewClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (onPreview) {
-      onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated, imageUrl})
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      if (onPreview) {
-        onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated, imageUrl})
-      }
-    }
-  }
 
   return (
-    <div
-      className="project-card"
-      data-testid="project-card"
-      tabIndex={0}
-      role="button"
-      aria-label={`View details for ${title}`}
-      onClick={handlePreviewClick}
-      onKeyDown={handleKeyDown}
-    >
+    <div className="project-card" data-testid="project-card">
       {/* Project Image/Thumbnail Area */}
       <div className="project-card__image">
         <div className="project-card__image-placeholder">
@@ -75,7 +52,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               className="project-card__preview-btn"
               onClick={e => {
                 e.stopPropagation()
-                handlePreviewClick(e)
+                if (onPreview) {
+                  onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated, imageUrl})
+                }
               }}
               aria-label={`Preview ${title}`}
             >

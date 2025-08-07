@@ -301,7 +301,7 @@ a:hover {
 
 .theme-toggle:hover {
     background-color: var(--color-primary);
-    color: var(--color-background);
+    color: white;
     border-color: var(--color-primary);
 }
 
@@ -1250,6 +1250,101 @@ a:hover {
     border-radius: 0;
     font-family: inherit;
     font-size: inherit;
+}
+
+/* Override Shiki syntax highlighting colors for accessibility */
+/* Force all elements within code blocks to inherit theme colors - most aggressive approach */
+.code-block__content *,
+.code-block__content .shiki span,
+.code-block__content span[style],
+.code-block__content .line span,
+.code-block__content span[style*="color:"] {
+    color: var(--color-code-text) !important;
+}
+
+/* Ultra-specific overrides for Shiki inline styles that are failing in tests */
+.code-block__content span[style*="color:#E36209"],
+.code-block__content span[style*="color:#e36209"],
+.code-block__content span[style*="color:#D97706"],
+.code-block__content span[style*="color:#d97706"] {
+    color: var(--color-code-number) !important;
+}
+
+.code-block__content span[style*="color:#032F62"],
+.code-block__content span[style*="color:#032f62"] {
+    color: var(--color-code-string) !important;
+}
+
+.code-block__content span[style*="color:#16A34A"],
+.code-block__content span[style*="color:#16a34a"] {
+    color: var(--color-code-string) !important;
+}
+
+.code-block__content span[style*="color:#D73A49"],
+.code-block__content span[style*="color:#d73a49"] {
+    color: var(--color-code-keyword) !important;
+}
+
+/* Specific syntax highlighting overrides using WCAG compliant colors */
+.code-block__content .shiki .token.keyword,
+.code-block__content span[style*="color:#D73A49"],
+.code-block__content span[style*="color:#d73a49"],
+.code-block__content span[style*="color:#cf222e"] {
+    color: var(--color-code-keyword) !important;
+}
+
+.code-block__content .shiki .token.string,
+.code-block__content span[style*="color:#032F62"],
+.code-block__content span[style*="color:#032f62"],
+.code-block__content span[style*="color:#0a3069"] {
+    color: var(--color-code-string) !important;
+}
+
+.code-block__content .shiki .token.comment,
+.code-block__content span[style*="color:#6A737D"],
+.code-block__content span[style*="color:#6a737d"],
+.code-block__content span[style*="color:#6e7781"] {
+    color: var(--color-code-comment) !important;
+}
+
+.code-block__content .shiki .token.number,
+.code-block__content span[style*="color:#E36209"],
+.code-block__content span[style*="color:#e36209"],
+.code-block__content span[style*="color:#bf8700"] {
+    color: var(--color-code-number) !important;
+}
+
+.code-block__content .shiki .token.function,
+.code-block__content span[style*="color:#6F42C1"],
+.code-block__content span[style*="color:#6f42c1"],
+.code-block__content span[style*="color:#8250df"] {
+    color: var(--color-code-function) !important;
+}
+
+/* Re-apply specific colors on top with maximum specificity */
+.code-block__content .token.keyword,
+.code-block__content .pl-k {
+    color: var(--color-code-keyword) !important;
+}
+
+.code-block__content .token.string,
+.code-block__content .pl-s {
+    color: var(--color-code-string) !important;
+}
+
+.code-block__content .token.comment,
+.code-block__content .pl-c {
+    color: var(--color-code-comment) !important;
+}
+
+.code-block__content .token.number,
+.code-block__content .pl-c1 {
+    color: var(--color-code-number) !important;
+}
+
+.code-block__content .token.function,
+.code-block__content .pl-en {
+    color: var(--color-code-function) !important;
 }
 
 /* Loading state */

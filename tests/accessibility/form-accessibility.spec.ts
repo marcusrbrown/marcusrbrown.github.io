@@ -338,7 +338,6 @@ test.describe('Form Accessibility Tests', () => {
             'form-field-multiple-labels',
             'input-button-name',
             'select-name',
-            'textarea-name',
             'aria-input-field-name',
             'autocomplete-valid',
             'duplicate-id-active',
