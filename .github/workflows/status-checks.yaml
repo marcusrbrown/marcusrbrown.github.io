@@ -263,15 +263,20 @@ jobs:
           # Post comment on PR if applicable
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Check if we already commented
-            existing_comment=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | select(.body | contains("## Test Suite Status Report")) | .id' || echo "")
+            existing_comment=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | select(.body | contains("## Test Suite Status Report")) | .id' 2>/dev/null | head -1 || echo "")
 
             if [[ -n "$existing_comment" ]]; then
               # Update existing comment
+              echo "Updating existing comment ID: $existing_comment"
               gh api repos/${{ github.repository }}/issues/comments/$existing_comment \
                 --method PATCH \
-                --field body="$(cat status_report.md)"
+                --field body="$(cat status_report.md)" || {
+                echo "Failed to update comment, creating new one instead"
+                gh pr comment ${{ github.event.pull_request.number }} --body-file status_report.md
+              }
             else
               # Create new comment
+              echo "Creating new PR comment"
               gh pr comment ${{ github.event.pull_request.number }} --body-file status_report.md
             fi
           fi
