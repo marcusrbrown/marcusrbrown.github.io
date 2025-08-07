@@ -6,7 +6,14 @@ export default defineConfig({
     globals: true,
     setupFiles: './tests/setup.ts',
     // Exclude E2E, visual, and performance tests - they should only run through Playwright
-    exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**', '**/tests/visual/**', '**/tests/performance/**'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/tests/e2e/**',
+      '**/tests/visual/**',
+      '**/tests/performance/**',
+      '**/tests/accessibility/**',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'html'],
