@@ -44,6 +44,18 @@ jobs:
       - name: Setup project
         uses: ./.github/actions/setup
 
+      - name: Get app token for API access
+        id: get-app-token
+        uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        with:
+          app-id: ${{ secrets.APPLICATION_ID }}
+          permission-contents: read
+          permission-actions: read
+          permission-checks: write
+          permission-statuses: write
+          permission-pull-requests: write
+          private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
+
       - name: Wait for workflows to be indexed
         run: |
           # Brief delay to ensure workflow runs are indexed by GitHub API
@@ -53,7 +65,7 @@ jobs:
       - name: Check CI workflow status
         id: check-ci
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
           # Get the actual current status of CI workflow for this commit
           ci_status=$(gh api repos/${{ github.repository }}/actions/runs \
@@ -79,7 +91,7 @@ jobs:
       - name: Check E2E Tests workflow status
         id: check-e2e
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
           # Get the actual current status of E2E Tests workflow for this commit
           e2e_status=$(gh api repos/${{ github.repository }}/actions/runs \
@@ -105,7 +117,7 @@ jobs:
       - name: Check Performance Testing workflow status
         id: check-performance
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
           # Get the actual current status of Performance Testing workflow for this commit
           perf_status=$(gh api repos/${{ github.repository }}/actions/runs \
