@@ -150,11 +150,9 @@ export default defineConfig({
   ],
 
   // Run local dev server before starting the tests
-  webServer: process.env['CI']
-    ? undefined
-    : {
-        command: 'pnpm preview',
-        port: 4173,
-        reuseExistingServer: !process.env['CI'],
-      },
+  webServer: {
+    command: 'pnpm preview',
+    port: 4173,
+    reuseExistingServer: !process.env['CI'],
+  },
 })
