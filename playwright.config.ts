@@ -33,7 +33,7 @@ export default defineConfig({
   // Shared settings for all the projects below
   use: {
     // Base URL to use in actions like `await page.goto('/')`
-    baseURL: process.env['CI'] ? 'https://mrbro.dev' : 'http://localhost:4173',
+    baseURL: process.env['CI'] ? process.env['PLAYWRIGHT_BASE_URL'] : 'http://localhost:4173',
 
     // Take screenshot on failure
     screenshot: 'only-on-failure',

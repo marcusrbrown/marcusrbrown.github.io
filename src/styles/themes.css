@@ -3,13 +3,13 @@
 /* Root-level CSS custom properties for the theme system */
 :root {
   /* Default theme values (light theme) */
-  --color-primary: #1d4ed8;
-  --color-secondary: #4b5563;
+  --color-primary: #2563eb;
+  --color-secondary: #64748b;
   --color-accent: #0ea5e9;
   --color-background: #ffffff;
   --color-surface: #f8fafc;
-  --color-text: #111827;
-  --color-text-secondary: #4b5563;
+  --color-text: #0f172a;
+  --color-text-secondary: #64748b;
   --color-border: #e2e8f0;
   --color-error: #dc2626;
   --color-warning: #d97706;
@@ -77,14 +77,14 @@
 }
 
 /* Light theme explicit definitions (matches default) */
-html[data-theme="light"] {
-  --color-primary: #1d4ed8;
-  --color-secondary: #4b5563;
+[data-theme="light"] {
+  --color-primary: #2563eb;
+  --color-secondary: #64748b;
   --color-accent: #0ea5e9;
   --color-background: #ffffff;
   --color-surface: #f8fafc;
   --color-text: #0f172a;
-  --color-text-secondary: #4b5563;
+  --color-text-secondary: #64748b;
   --color-border: #e2e8f0;
   --color-error: #dc2626;
   --color-warning: #d97706;
@@ -98,65 +98,64 @@ html[data-theme="light"] {
   --color-card-bg: #ffffff;
   --color-card-border: #e2e8f0;
   --color-card-text: #0f172a;
-  --color-link: #1d4ed8;
+  --color-link: #2563eb;
   --color-link-hover: #0ea5e9;
 
   /* Light theme overlays */
   --color-overlay: rgba(0, 0, 0, 0.5);
   --color-backdrop: rgba(255, 255, 255, 0.8);
-  --color-focus-ring: rgba(29, 78, 216, 0.2);
+  --color-focus-ring: rgba(37, 99, 235, 0.2);
   --color-shadow: rgba(0, 0, 0, 0.1);
 
   /* Light theme code block colors */
   --color-code-bg: #f8fafc;
   --color-code-text: #0f172a;
-  --color-code-comment: #4b5563;
-  --color-code-keyword: #1d4ed8;
-  --color-code-string: #15803d;
-  --color-code-number: #b45309;
+  --color-code-comment: #64748b;
+  --color-code-keyword: #2563eb;
+  --color-code-string: #16a34a;
+  --color-code-number: #d97706;
   --color-code-function: #7c3aed;
 }
 
 /* Dark theme definitions */
-html[data-theme="dark"] {
-  --color-primary: #2563eb !important;
-  --color-secondary: #cbd5e1 !important;
-  --color-accent: #0ea5e9 !important;
-  --color-background: #0f172a !important;
-  --color-surface: #1e293b !important;
-  --color-text: #f8fafc !important;
-  --color-text-secondary: #cbd5e1 !important;
-  --color-border: #334155 !important;
-  --color-error: #ef4444 !important;
-  --color-warning: #f59e0b !important;
-  --color-success: #22c55e !important;
+[data-theme="dark"] {
+  --color-primary: #3b82f6;
+  --color-secondary: #94a3b8;
+  --color-accent: #0ea5e9;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-text: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-border: #334155;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
 
   /* Dark theme component colors */
-  --color-header-bg: #1e293b !important;
-  --color-header-text: #f8fafc !important;
-  --color-footer-bg: #1e293b !important;
-  --color-footer-text: #f8fafc !important;
-  --color-card-bg: #1e293b !important;
-  --color-card-border: #334155 !important;
-  --color-card-text: #f8fafc !important;
-  --color-link: #60a5fa !important;
-  --color-link-hover: #93c5fd !important;
+  --color-header-bg: #1e293b;
+  --color-header-text: #f1f5f9;
+  --color-footer-bg: #1e293b;
+  --color-footer-text: #f1f5f9;
+  --color-card-bg: #1e293b;
+  --color-card-border: #334155;
+  --color-card-text: #f1f5f9;
+  --color-link: #3b82f6;
+  --color-link-hover: #0ea5e9;
 
   /* Dark theme overlays */
-  --color-overlay: rgba(0, 0, 0, 0.7) !important;
-  --color-backdrop: rgba(15, 23, 42, 0.8) !important;
-  --color-focus-ring: rgba(59, 130, 246, 0.3) !important;
-  --color-shadow: rgba(0, 0, 0, 0.25) !important;
+  --color-overlay: rgba(0, 0, 0, 0.7);
+  --color-backdrop: rgba(15, 23, 42, 0.8);
+  --color-focus-ring: rgba(59, 130, 246, 0.3);
+  --color-shadow: rgba(0, 0, 0, 0.25);
 
   /* Dark theme code block colors */
-  --color-code-bg: #0f172a !important;
-  --color-code-text: #f8fafc !important;
-  --color-code-comment: #cbd5e1 !important;
-    /* Code syntax highlighting colors */
-  --color-code-keyword: #60a5fa !important;
-  --color-code-string: #34d399 !important;
-  --color-code-number: #fbbf24 !important;
-  --color-code-function: #c084fc !important;
+  --color-code-bg: #0f172a;
+  --color-code-text: #f1f5f9;
+  --color-code-comment: #64748b;
+  --color-code-keyword: #3b82f6;
+  --color-code-string: #22c55e;
+  --color-code-number: #f59e0b;
+  --color-code-function: #a855f7;
 }
 
 /* System preference media queries for fallback when JavaScript is disabled */
