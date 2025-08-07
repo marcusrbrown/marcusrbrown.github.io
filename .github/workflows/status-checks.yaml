@@ -11,6 +11,7 @@ on:
       - Performance Testing
     types:
       - completed
+    branches-ignore: [main] # Don't run on main branch pushes
   workflow_dispatch:
 
 permissions:
@@ -31,7 +32,7 @@ jobs:
     if: |
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled')
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled' && github.ref != 'refs/heads/main')
     outputs:
       ci-status: ${{ steps.check-ci.outputs.status }}
       e2e-status: ${{ steps.check-e2e.outputs.status }}
