@@ -31,9 +31,13 @@ jobs:
     if: |
       github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && 
-       github.event.workflow_run.conclusion != 'cancelled' && 
-       !(github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'))
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion != 'cancelled' &&
+        !(
+          github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+        )
+      )
     outputs:
       ci-status: ${{ steps.check-ci.outputs.status }}
       e2e-status: ${{ steps.check-e2e.outputs.status }}
