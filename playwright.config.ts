@@ -27,7 +27,7 @@ export default defineConfig({
     ['html'],
     ['json', {outputFile: 'test-results/results.json'}],
     // Add GitHub Actions reporter on CI
-    ...(process.env['CI'] ? [['github'] as const] : []),
+    process.env['CI'] ? ['github'] : ['list'],
   ],
 
   // Shared settings for all the projects below
@@ -145,6 +145,20 @@ export default defineConfig({
         screenshot: 'on',
         video: 'off',
         trace: 'retain-on-failure',
+      },
+      // Visual comparison settings
+      expect: {
+        // Optimized timeout for CI performance
+        timeout: process.env['CI'] ? 7500 : 5000,
+
+        // Visual comparison settings optimized for cross-platform consistency
+        toMatchSnapshot: {
+          // Higher threshold for visual tests to handle cross-platform rendering differences
+          threshold: 0.25,
+
+          // Maximum different pixels allowed (helps with font rendering differences)
+          maxDiffPixels: 2000,
+        },
       },
     },
   ],

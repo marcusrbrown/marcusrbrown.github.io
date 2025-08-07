@@ -56,7 +56,7 @@ Visual tests run on multiple browser projects:
 
 ```bash
 # Run all visual tests with current configuration
-pnpm test:visual:config
+pnpm test:visual
 
 # Run visual tests in headed mode (see browser)
 pnpm test:visual:headed
@@ -65,7 +65,7 @@ pnpm test:visual:headed
 pnpm test:visual:update
 
 # Run specific visual test file
-playwright test tests/visual/components.spec.ts --config=tests/visual/playwright.config.ts
+playwright test:visual tests/visual/components.spec.ts
 ```
 
 ### Artifact Management
