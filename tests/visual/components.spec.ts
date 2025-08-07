@@ -17,13 +17,11 @@ test.describe('UI Components Visual Regression', () => {
         await preparePageForVisualTest(page, {theme})
 
         // Wait for main page header to be stable (more specific selector)
-        await waitForComponentStable(page, 'header.header, header[role="banner"], nav + header, header:first-of-type')
+        await waitForComponentStable(page, 'header.header')
 
         // Take screenshot of just the main page header
         // Note: Use getThreshold('components') for toHaveScreenshot assertions
-        const headerElement = page
-          .locator('header.header, header[role="banner"], nav + header, header:first-of-type')
-          .first()
+        const headerElement = page.locator('header.header')
         await headerElement.screenshot({
           path: `tests/visual/screenshots/header-${theme}-theme.png`,
           animations: 'disabled',
@@ -37,11 +35,9 @@ test.describe('UI Components Visual Regression', () => {
 
       // Test desktop navigation
       await page.setViewportSize({width: 1440, height: 900})
-      await waitForComponentStable(page, 'header.header, header[role="banner"], nav + header, header:first-of-type')
+      await waitForComponentStable(page, 'header.header')
 
-      const headerElement = page
-        .locator('header.header, header[role="banner"], nav + header, header:first-of-type')
-        .first()
+      const headerElement = page.locator('header.header')
       await headerElement.screenshot({
         path: 'tests/visual/screenshots/header-desktop-navigation.png',
         animations: 'disabled',
@@ -62,8 +58,8 @@ test.describe('UI Components Visual Regression', () => {
       await preparePageForVisualTest(page, {theme: 'light'})
 
       // Capture light theme toggle state
-      const themeToggle = page.locator('[data-testid="theme-toggle"]')
-      await waitForComponentStable(page, '[data-testid="theme-toggle"]')
+      const themeToggle = page.locator('.theme-toggle')
+      await waitForComponentStable(page, '.theme-toggle')
 
       await themeToggle.screenshot({
         path: 'tests/visual/screenshots/theme-toggle-light.png',
@@ -88,10 +84,10 @@ test.describe('UI Components Visual Regression', () => {
         await preparePageForVisualTest(page, {theme})
 
         // Scroll to main page footer
-        await page.locator('footer.footer, footer[role="contentinfo"], footer:last-of-type').scrollIntoViewIfNeeded()
-        await waitForComponentStable(page, 'footer.footer, footer[role="contentinfo"], footer:last-of-type')
+        await page.locator('footer.footer').scrollIntoViewIfNeeded()
+        await waitForComponentStable(page, 'footer.footer')
 
-        const footerElement = page.locator('footer.footer, footer[role="contentinfo"], footer:last-of-type').first()
+        const footerElement = page.locator('footer.footer')
         await footerElement.screenshot({
           path: `tests/visual/screenshots/footer-${theme}-theme.png`,
           animations: 'disabled',
@@ -103,11 +99,11 @@ test.describe('UI Components Visual Regression', () => {
       await page.goto('/')
       await preparePageForVisualTest(page, {theme: 'light'})
 
-      await page.locator('footer.footer, footer[role="contentinfo"], footer:last-of-type').scrollIntoViewIfNeeded()
-      await waitForComponentStable(page, 'footer.footer, footer[role="contentinfo"], footer:last-of-type')
+      await page.locator('footer.footer').scrollIntoViewIfNeeded()
+      await waitForComponentStable(page, 'footer.footer')
 
       // Test normal state
-      const footerElement = page.locator('footer.footer, footer[role="contentinfo"], footer:last-of-type').first()
+      const footerElement = page.locator('footer.footer')
       await footerElement.screenshot({
         path: 'tests/visual/screenshots/footer-social-links-normal.png',
         animations: 'disabled',
@@ -137,13 +133,13 @@ test.describe('UI Components Visual Regression', () => {
         await preparePageForVisualTest(page, {theme})
 
         // Wait for project cards to load
-        await waitForComponentStable(page, '[data-testid="project-card"]')
+        await waitForComponentStable(page, '.project-card')
 
         // Take screenshot of project gallery
-        const projectGallery = page.locator('[data-testid="project-gallery"]')
+        const projectGallery = page.locator('.project-gallery')
         if ((await projectGallery.count()) === 0) {
           // Fallback to any project container
-          const projectContainer = page.locator('.project-card, [class*="project"], [data-testid*="project"]').first()
+          const projectContainer = page.locator('.project-card').first()
           if ((await projectContainer.count()) > 0) {
             await projectContainer.screenshot({
               path: `tests/visual/screenshots/project-cards-${theme}-theme.png`,
@@ -163,29 +159,21 @@ test.describe('UI Components Visual Regression', () => {
       await preparePageForVisualTest(page, {theme: 'light'})
 
       // Find first project card
-      const projectCard = page.locator('[data-testid="project-card"]').first()
+      const projectCard = page.locator('.project-card').first()
 
       if ((await projectCard.count()) === 0) {
-        // Fallback selector
-        const fallbackCard = page.locator('.project-card, [class*="project"]').first()
-        if ((await fallbackCard.count()) > 0) {
-          await fallbackCard.hover()
-          await page.waitForTimeout(200)
-
-          await fallbackCard.screenshot({
-            path: 'tests/visual/screenshots/project-card-hover.png',
-            animations: 'disabled',
-          })
-        }
-      } else {
-        await projectCard.hover()
-        await page.waitForTimeout(200)
-
-        await projectCard.screenshot({
-          path: 'tests/visual/screenshots/project-card-hover.png',
-          animations: 'disabled',
-        })
+        // Skip if no project cards found
+        test.skip(true, 'No project cards found on projects page')
+        return
       }
+
+      await projectCard.hover()
+      await page.waitForTimeout(200)
+
+      await projectCard.screenshot({
+        path: 'tests/visual/screenshots/project-card-hover.png',
+        animations: 'disabled',
+      })
     })
   })
 
@@ -289,13 +277,13 @@ test.describe('UI Components Visual Regression', () => {
         await preparePageForVisualTest(page, {theme})
 
         // Look for skills component
-        const skillsComponent = page.locator('[data-testid="skills-showcase"], .skills-showcase, [class*="skills"]')
+        const skillsComponent = page.locator('#skills.skills-showcase')
 
         if ((await skillsComponent.count()) > 0) {
           await skillsComponent.scrollIntoViewIfNeeded()
-          await waitForComponentStable(page, '[data-testid="skills-showcase"], .skills-showcase, [class*="skills"]')
+          await waitForComponentStable(page, '#skills.skills-showcase')
 
-          await skillsComponent.first().screenshot({
+          await skillsComponent.screenshot({
             path: `tests/visual/screenshots/skills-showcase-${theme}-theme.png`,
             animations: 'disabled',
           })
@@ -311,12 +299,12 @@ test.describe('UI Components Visual Regression', () => {
         await preparePageForVisualTest(page, {theme})
 
         // Look for hero section
-        const heroSection = page.locator('[data-testid="hero-section"], .hero-section, [class*="hero"]')
+        const heroSection = page.locator('#hero.hero-section')
 
         if ((await heroSection.count()) > 0) {
-          await waitForComponentStable(page, '[data-testid="hero-section"], .hero-section, [class*="hero"]')
+          await waitForComponentStable(page, '#hero.hero-section')
 
-          await heroSection.first().screenshot({
+          await heroSection.screenshot({
             path: `tests/visual/screenshots/hero-section-${theme}-theme.png`,
             animations: 'disabled',
           })

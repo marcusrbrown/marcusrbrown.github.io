@@ -73,6 +73,7 @@ const ThemeToggle: React.FC = () => {
       onClick={handleToggle}
       onKeyDown={handleKeyDown}
       className="theme-toggle"
+      data-testid="theme-toggle"
       aria-label={getAriaLabel()}
       aria-describedby="theme-toggle-description"
       tabIndex={0}

@@ -114,6 +114,7 @@ const HeroSection: React.FC<HeroSectionProps> = ({
     <section
       id="hero"
       className={`hero-section ${className}`}
+      data-testid="hero-section"
       aria-label="Introduction and main call-to-action"
       role="banner"
     >

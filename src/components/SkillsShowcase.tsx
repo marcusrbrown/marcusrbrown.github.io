@@ -294,7 +294,13 @@ const SkillsShowcase: React.FC<SkillsShowcaseProps> = ({
   }, [])
 
   return (
-    <section id="skills" ref={ref} className={`skills-showcase ${className}`.trim()} aria-labelledby="skills-title">
+    <section
+      id="skills"
+      ref={ref}
+      className={`skills-showcase ${className}`.trim()}
+      data-testid="skills-showcase"
+      aria-labelledby="skills-title"
+    >
       <div className="container">
         <header className="section-header">
           <h2 id="skills-title" className="section-title">

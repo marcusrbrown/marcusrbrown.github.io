@@ -39,6 +39,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   return (
     <div
       className="project-card"
+      data-testid="project-card"
       tabIndex={0}
       role="button"
       aria-label={`View details for ${title}`}
