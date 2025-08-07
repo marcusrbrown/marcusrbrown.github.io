@@ -133,20 +133,6 @@ export default defineConfig({
       name: 'accessibility',
       testDir: './tests/accessibility',
     },
-
-    // Visual regression testing project
-    {
-      name: 'visual-tests',
-      testDir: './tests/visual',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: {width: 1440, height: 900},
-        // Visual tests need consistent rendering
-        screenshot: 'on',
-        video: 'off',
-        trace: 'retain-on-failure',
-      },
-    },
   ],
 
   // Run local dev server before starting the tests

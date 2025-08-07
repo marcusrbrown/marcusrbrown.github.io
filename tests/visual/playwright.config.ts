@@ -13,11 +13,11 @@ export default defineConfig({
   // Enable parallel execution for faster visual testing
   fullyParallel: true,
 
-  // Higher retry count for visual tests due to potential rendering variations
-  retries: process.env['CI'] ? 3 : 1,
+  // Reduced retry count for faster feedback while maintaining reliability
+  retries: process.env['CI'] ? 1 : 0,
 
-  // Single worker for consistent rendering
-  workers: 1,
+  // Increased workers for parallel execution within the same project
+  workers: process.env['CI'] ? 4 : 2,
 
   // Optimized timeout for faster feedback (20s is sufficient for visual tests)
   timeout: 20000,
@@ -122,12 +122,9 @@ export default defineConfig({
     },
   ],
 
-  // Web server configuration (inherit from main config)
-  webServer: process.env['CI']
-    ? undefined
-    : {
-        command: 'pnpm preview',
-        port: 4173,
-        reuseExistingServer: true,
-      },
+  webServer: {
+    command: 'pnpm preview',
+    port: 4173,
+    reuseExistingServer: true,
+  },
 })
