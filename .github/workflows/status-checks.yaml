@@ -56,6 +56,61 @@ jobs:
           permission-pull-requests: write
           private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
 
+      - name: Determine which workflows should run
+        id: should-run
+        run: |
+          # Determine which workflows should run based on event and branch
+          echo "Event: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Base ref: ${{ github.base_ref }}"
+
+          # For workflow_run events, get the original trigger details
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            original_event="${{ github.event.workflow_run.event }}"
+            head_branch="${{ github.event.workflow_run.head_branch }}"
+            echo "Original event: $original_event"
+            echo "Head branch: $head_branch"
+
+            # Use the original event context
+            event_name="$original_event"
+            ref_name="$head_branch"
+          else
+            event_name="${{ github.event_name }}"
+            ref_name="${{ github.ref_name }}"
+          fi
+
+          # CI and E2E: pull_request to main OR push to non-main branches
+          should_run_ci=false
+          should_run_e2e=false
+          if [[ "$event_name" == "pull_request" ]]; then
+            should_run_ci=true
+            should_run_e2e=true
+          elif [[ "$event_name" == "push" && "$ref_name" != "main" ]]; then
+            should_run_ci=true
+            should_run_e2e=true
+          elif [[ "$event_name" == "workflow_dispatch" ]]; then
+            should_run_ci=true
+            should_run_e2e=true
+          fi
+
+          # Performance: pull_request to main OR push to main
+          should_run_perf=false
+          if [[ "$event_name" == "pull_request" ]]; then
+            should_run_perf=true
+          elif [[ "$event_name" == "push" && "$ref_name" == "main" ]]; then
+            should_run_perf=true
+          elif [[ "$event_name" == "workflow_dispatch" ]]; then
+            should_run_perf=true
+          fi
+
+          echo "should_run_ci=$should_run_ci" >> $GITHUB_OUTPUT
+          echo "should_run_e2e=$should_run_e2e" >> $GITHUB_OUTPUT
+          echo "should_run_perf=$should_run_perf" >> $GITHUB_OUTPUT
+
+          echo "CI should run: $should_run_ci"
+          echo "E2E should run: $should_run_e2e"
+          echo "Performance should run: $should_run_perf"
+
       - name: Wait for workflows to be indexed
         run: |
           # Brief delay to ensure workflow runs are indexed by GitHub API
@@ -67,14 +122,31 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
+          # Debug: List all workflow runs for this commit
+          echo "=== All workflow runs for commit ${{ github.sha }} ==="
+          gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select(.head_sha=="${{ github.sha }}") | {name: .name, status: .status, conclusion: .conclusion}' \
+            || echo "No workflow runs found"
+
           # Get the actual current status of CI workflow for this commit
           ci_status=$(gh api repos/${{ github.repository }}/actions/runs \
             --jq '.workflow_runs[] | select(.name=="CI" and .head_sha=="${{ github.sha }}") | .conclusion // .status' \
             | head -1)
 
-          # Default to pending if no workflow found
+          echo "Raw CI status from API: '$ci_status'"
+
+          # Check if CI workflow should run for this event/branch
+          should_run_ci="${{ steps.should-run.outputs.should_run_ci }}"
+
+          # Default logic with better handling
           if [[ -z "$ci_status" || "$ci_status" == "null" ]]; then
-            ci_status="pending"
+            if [[ "$should_run_ci" == "true" ]]; then
+              ci_status="pending"
+              echo "No CI workflow found but should run - marking as pending"
+            else
+              ci_status="skipped"
+              echo "No CI workflow found and not expected to run - marking as skipped"
+            fi
           fi
 
           # Map GitHub status to our status
@@ -83,10 +155,11 @@ jobs:
             "failure") echo "status=failure" >> $GITHUB_OUTPUT ;;
             "cancelled") echo "status=failure" >> $GITHUB_OUTPUT ;;
             "skipped") echo "status=success" >> $GITHUB_OUTPUT ;;
+            "in_progress"|"queued"|"requested"|"waiting") echo "status=pending" >> $GITHUB_OUTPUT ;;
             *) echo "status=pending" >> $GITHUB_OUTPUT ;;
           esac
 
-          echo "CI workflow status: $ci_status"
+          echo "Final CI workflow status: $ci_status -> $(cat $GITHUB_OUTPUT | grep status= | tail -1)"
 
       - name: Check E2E Tests workflow status
         id: check-e2e
@@ -98,9 +171,20 @@ jobs:
             --jq '.workflow_runs[] | select(.name=="E2E Tests" and .head_sha=="${{ github.sha }}") | .conclusion // .status' \
             | head -1)
 
-          # Default to pending if no workflow found
+          echo "Raw E2E status from API: '$e2e_status'"
+
+          # Check if E2E workflow should run for this event/branch
+          should_run_e2e="${{ steps.should-run.outputs.should_run_e2e }}"
+
+          # Default logic with better handling
           if [[ -z "$e2e_status" || "$e2e_status" == "null" ]]; then
-            e2e_status="pending"
+            if [[ "$should_run_e2e" == "true" ]]; then
+              e2e_status="pending"
+              echo "No E2E workflow found but should run - marking as pending"
+            else
+              e2e_status="skipped"
+              echo "No E2E workflow found and not expected to run - marking as skipped"
+            fi
           fi
 
           # Map GitHub status to our status
@@ -109,10 +193,11 @@ jobs:
             "failure") echo "status=failure" >> $GITHUB_OUTPUT ;;
             "cancelled") echo "status=failure" >> $GITHUB_OUTPUT ;;
             "skipped") echo "status=success" >> $GITHUB_OUTPUT ;;
+            "in_progress"|"queued"|"requested"|"waiting") echo "status=pending" >> $GITHUB_OUTPUT ;;
             *) echo "status=pending" >> $GITHUB_OUTPUT ;;
           esac
 
-          echo "E2E Tests workflow status: $e2e_status"
+          echo "Final E2E workflow status: $e2e_status -> $(cat $GITHUB_OUTPUT | grep status= | tail -1)"
 
       - name: Check Performance Testing workflow status
         id: check-performance
@@ -124,9 +209,20 @@ jobs:
             --jq '.workflow_runs[] | select(.name=="Performance Testing" and .head_sha=="${{ github.sha }}") | .conclusion // .status' \
             | head -1)
 
-          # Default to pending if no workflow found
+          echo "Raw Performance status from API: '$perf_status'"
+
+          # Check if Performance workflow should run for this event/branch
+          should_run_perf="${{ steps.should-run.outputs.should_run_perf }}"
+
+          # Default logic with better handling
           if [[ -z "$perf_status" || "$perf_status" == "null" ]]; then
-            perf_status="pending"
+            if [[ "$should_run_perf" == "true" ]]; then
+              perf_status="pending"
+              echo "No Performance workflow found but should run - marking as pending"
+            else
+              perf_status="skipped"
+              echo "No Performance workflow found and not expected to run - marking as skipped"
+            fi
           fi
 
           # Map GitHub status to our status
@@ -135,10 +231,11 @@ jobs:
             "failure") echo "status=failure" >> $GITHUB_OUTPUT ;;
             "cancelled") echo "status=failure" >> $GITHUB_OUTPUT ;;
             "skipped") echo "status=success" >> $GITHUB_OUTPUT ;;
+            "in_progress"|"queued"|"requested"|"waiting") echo "status=pending" >> $GITHUB_OUTPUT ;;
             *) echo "status=pending" >> $GITHUB_OUTPUT ;;
           esac
 
-          echo "Performance Testing workflow status: $perf_status"
+          echo "Final Performance workflow status: $perf_status -> $(cat $GITHUB_OUTPUT | grep status= | tail -1)"
 
       - name: Calculate overall status
         id: overall
