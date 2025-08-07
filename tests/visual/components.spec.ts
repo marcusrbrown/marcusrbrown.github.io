@@ -5,7 +5,13 @@
 
 import {test} from '@playwright/test'
 
-import {preparePageForVisualTest, setThemeMode, waitForComponentStable, type ThemeMode} from './utils'
+import {
+  preparePageForVisualTest,
+  setThemeMode,
+  setupGitHubAPIMocking,
+  waitForComponentStable,
+  type ThemeMode,
+} from './utils'
 
 const THEMES: ThemeMode[] = ['light', 'dark']
 
@@ -125,12 +131,14 @@ test.describe('UI Components Visual Regression', () => {
 
   test.describe('Project Cards', () => {
     test.beforeEach(async ({page}) => {
+      // Set up mocking before any navigation
+      await setupGitHubAPIMocking(page)
       await page.goto('/projects')
     })
 
     THEMES.forEach(theme => {
       test(`Project cards - ${theme} theme`, async ({page}) => {
-        await preparePageForVisualTest(page, {theme})
+        await preparePageForVisualTest(page, {theme, skipMocking: true})
 
         // Wait for project cards to load
         await waitForComponentStable(page, '.project-card')
@@ -179,12 +187,14 @@ test.describe('UI Components Visual Regression', () => {
 
   test.describe('Blog Post Components', () => {
     test.beforeEach(async ({page}) => {
+      // Set up mocking before any navigation
+      await setupGitHubAPIMocking(page)
       await page.goto('/blog')
     })
 
     THEMES.forEach(theme => {
       test(`Blog posts - ${theme} theme`, async ({page}) => {
-        await preparePageForVisualTest(page, {theme})
+        await preparePageForVisualTest(page, {theme, skipMocking: true})
 
         // Wait for blog posts to load
         await page
@@ -242,8 +252,10 @@ test.describe('UI Components Visual Regression', () => {
     })
 
     test('Project preview modal', async ({page}) => {
+      // Set up mocking before any navigation
+      await setupGitHubAPIMocking(page)
       await page.goto('/projects')
-      await preparePageForVisualTest(page, {theme: 'light'})
+      await preparePageForVisualTest(page, {theme: 'light', skipMocking: true})
 
       // Look for project preview trigger
       const projectPreviewTrigger = page

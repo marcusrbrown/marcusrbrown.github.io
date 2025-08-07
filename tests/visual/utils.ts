@@ -11,6 +11,150 @@ export const VISUAL_THRESHOLDS = {
 } as const
 
 /**
+ * Mock GitHub API data for visual tests
+ */
+export const MOCK_GITHUB_DATA = {
+  repositories: [
+    {
+      id: 1,
+      name: 'awesome-react-app',
+      description: 'A modern React application with TypeScript and advanced features',
+      html_url: 'https://github.com/test/awesome-react-app',
+      language: 'TypeScript',
+      stargazers_count: 156,
+      fork: false,
+      archived: false,
+      created_at: '2024-01-15T10:30:00Z',
+      updated_at: '2025-08-01T14:22:00Z',
+      homepage: 'https://awesome-react-app.demo.com',
+      topics: ['react', 'typescript', 'vite', 'pwa'],
+    },
+    {
+      id: 2,
+      name: 'api-server-node',
+      description: 'RESTful API server built with Node.js, Express, and MongoDB',
+      html_url: 'https://github.com/test/api-server-node',
+      language: 'JavaScript',
+      stargazers_count: 89,
+      fork: false,
+      archived: false,
+      created_at: '2024-02-20T09:15:00Z',
+      updated_at: '2025-07-28T11:45:00Z',
+      homepage: null,
+      topics: ['nodejs', 'express', 'mongodb', 'api'],
+    },
+    {
+      id: 3,
+      name: 'python-data-analysis',
+      description: 'Data analysis toolkit with pandas, numpy, and visualization libraries',
+      html_url: 'https://github.com/test/python-data-analysis',
+      language: 'Python',
+      stargazers_count: 234,
+      fork: false,
+      archived: false,
+      created_at: '2023-11-10T16:20:00Z',
+      updated_at: '2025-07-25T08:30:00Z',
+      homepage: 'https://data-toolkit.example.com',
+      topics: ['python', 'data-science', 'pandas', 'visualization'],
+    },
+    {
+      id: 4,
+      name: 'mobile-flutter-app',
+      description: 'Cross-platform mobile application built with Flutter and Dart',
+      html_url: 'https://github.com/test/mobile-flutter-app',
+      language: 'Dart',
+      stargazers_count: 67,
+      fork: false,
+      archived: false,
+      created_at: '2024-03-05T12:00:00Z',
+      updated_at: '2025-07-20T15:10:00Z',
+      homepage: null,
+      topics: ['flutter', 'dart', 'mobile', 'cross-platform'],
+    },
+    {
+      id: 5,
+      name: 'rust-cli-tool',
+      description: 'Command-line utility written in Rust for system administration',
+      html_url: 'https://github.com/test/rust-cli-tool',
+      language: 'Rust',
+      stargazers_count: 143,
+      fork: false,
+      archived: false,
+      created_at: '2024-04-12T07:45:00Z',
+      updated_at: '2025-07-18T13:25:00Z',
+      homepage: 'https://cli-tool.docs.example.com',
+      topics: ['rust', 'cli', 'system-administration', 'performance'],
+    },
+    {
+      id: 6,
+      name: 'vue-dashboard',
+      description: 'Interactive dashboard application built with Vue.js and Chart.js',
+      html_url: 'https://github.com/test/vue-dashboard',
+      language: 'Vue',
+      stargazers_count: 92,
+      fork: false,
+      archived: false,
+      created_at: '2024-01-30T14:20:00Z',
+      updated_at: '2025-07-15T10:05:00Z',
+      homepage: 'https://vue-dashboard.example.com',
+      topics: ['vue', 'dashboard', 'charts', 'analytics'],
+    },
+  ],
+  issues: [
+    {
+      id: 1,
+      number: 1,
+      title: 'Building Scalable React Applications',
+      body: 'Learn how to build scalable React applications with modern patterns and best practices...',
+      labels: [{name: 'blog', color: '0052CC'}],
+      created_at: '2025-07-20T10:00:00Z',
+      updated_at: '2025-07-20T10:00:00Z',
+    },
+    {
+      id: 2,
+      number: 2,
+      title: 'TypeScript Tips and Tricks',
+      body: 'Advanced TypeScript techniques for better type safety and developer experience...',
+      labels: [{name: 'blog', color: '0052CC'}],
+      created_at: '2025-07-15T14:30:00Z',
+      updated_at: '2025-07-15T14:30:00Z',
+    },
+  ],
+} as const
+
+/**
+ * Set up GitHub API mocking for visual tests
+ */
+export async function setupGitHubAPIMocking(page: Page): Promise<void> {
+  // Mock repositories endpoint
+  await page.route('**/api.github.com/users/*/repos*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_GITHUB_DATA.repositories),
+    })
+  })
+
+  // Mock issues endpoint (for blog posts)
+  await page.route('**/api.github.com/repos/*/issues*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_GITHUB_DATA.issues),
+    })
+  })
+
+  // Mock gists endpoint (fallback for blog posts)
+  await page.route('**/api.github.com/users/*/gists*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    })
+  })
+}
+
+/**
  * Get appropriate threshold for test type
  */
 export function getThreshold(testType: keyof typeof VISUAL_THRESHOLDS): number {
@@ -68,11 +212,7 @@ export const VISUAL_BREAKPOINTS: ResponsiveBreakpoint[] = [
 ]
 
 /**
- * Prepare page for consistent visual testing
- * - Sets theme mode
- * - Waits for content to load
- * - Disables animations
- * - Hides dynamic elements
+ * Prepare page for visual testing with theme and content setup
  */
 export async function preparePageForVisualTest(
   page: Page,
@@ -80,9 +220,15 @@ export async function preparePageForVisualTest(
     theme?: ThemeMode
     waitForContent?: boolean
     hideScrollbars?: boolean
+    skipMocking?: boolean
   } = {},
 ): Promise<void> {
-  const {theme = 'light', waitForContent = true, hideScrollbars = true} = options
+  const {theme = 'light', waitForContent = true, hideScrollbars = true, skipMocking = false} = options
+
+  // Set up GitHub API mocking before navigation (unless skipped)
+  if (!skipMocking) {
+    await setupGitHubAPIMocking(page)
+  }
 
   // Navigate to page if not already there
   if (page.url() === 'about:blank') {
@@ -101,7 +247,9 @@ export async function preparePageForVisualTest(
   }
 
   // Wait an additional moment for theme CSS properties to be fully applied
-  await page.waitForTimeout(300) // Disable animations for consistent screenshots
+  await page.waitForTimeout(300)
+
+  // Disable animations for consistent screenshots
   await page.addStyleTag({
     content: `
       *, *::before, *::after {
