@@ -10,8 +10,8 @@ import {defineConfig} from '@playwright/test'
 export default defineConfig({
   testDir: '.',
 
-  // Visual tests should run sequentially to avoid resource conflicts
-  fullyParallel: false,
+  // Enable parallel execution for faster visual testing
+  fullyParallel: true,
 
   // Higher retry count for visual tests due to potential rendering variations
   retries: process.env['CI'] ? 3 : 1,
@@ -19,8 +19,8 @@ export default defineConfig({
   // Single worker for consistent rendering
   workers: 1,
 
-  // Timeout for individual tests (visual tests may take longer for rendering)
-  timeout: 60000,
+  // Optimized timeout for faster feedback (20s is sufficient for visual tests)
+  timeout: 20000,
 
   // Configure separate output directories to avoid conflicts
   outputDir: '../../test-results/visual',
