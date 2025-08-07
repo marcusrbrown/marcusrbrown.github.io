@@ -28,7 +28,10 @@ jobs:
   collect-status:
     name: Collect Test Status
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'cancelled'
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled')
     outputs:
       ci-status: ${{ steps.check-ci.outputs.status }}
       e2e-status: ${{ steps.check-e2e.outputs.status }}
@@ -41,46 +44,89 @@ jobs:
       - name: Setup project
         uses: ./.github/actions/setup
 
+      - name: Wait for workflows to be indexed
+        run: |
+          # Brief delay to ensure workflow runs are indexed by GitHub API
+          echo "Waiting for GitHub API to index workflow runs..."
+          sleep 10
+
       - name: Check CI workflow status
         id: check-ci
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            # For PR events, we'll check the status later via API
-            echo "status=pending" >> $GITHUB_OUTPUT
-          else
-            # For workflow_run events, check the specific workflow
-            if [[ "${{ github.event.workflow_run.name }}" == "CI" ]]; then
-              echo "status=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
-            else
-              echo "status=pending" >> $GITHUB_OUTPUT
-            fi
+          # Get the actual current status of CI workflow for this commit
+          ci_status=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select(.name=="CI" and .head_sha=="${{ github.sha }}") | .conclusion // .status' \
+            | head -1)
+
+          # Default to pending if no workflow found
+          if [[ -z "$ci_status" || "$ci_status" == "null" ]]; then
+            ci_status="pending"
           fi
+
+          # Map GitHub status to our status
+          case "$ci_status" in
+            "success") echo "status=success" >> $GITHUB_OUTPUT ;;
+            "failure") echo "status=failure" >> $GITHUB_OUTPUT ;;
+            "cancelled") echo "status=failure" >> $GITHUB_OUTPUT ;;
+            "skipped") echo "status=success" >> $GITHUB_OUTPUT ;;
+            *) echo "status=pending" >> $GITHUB_OUTPUT ;;
+          esac
+
+          echo "CI workflow status: $ci_status"
 
       - name: Check E2E Tests workflow status
         id: check-e2e
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "status=pending" >> $GITHUB_OUTPUT
-          else
-            if [[ "${{ github.event.workflow_run.name }}" == "E2E Tests" ]]; then
-              echo "status=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
-            else
-              echo "status=pending" >> $GITHUB_OUTPUT
-            fi
+          # Get the actual current status of E2E Tests workflow for this commit
+          e2e_status=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select(.name=="E2E Tests" and .head_sha=="${{ github.sha }}") | .conclusion // .status' \
+            | head -1)
+
+          # Default to pending if no workflow found
+          if [[ -z "$e2e_status" || "$e2e_status" == "null" ]]; then
+            e2e_status="pending"
           fi
+
+          # Map GitHub status to our status
+          case "$e2e_status" in
+            "success") echo "status=success" >> $GITHUB_OUTPUT ;;
+            "failure") echo "status=failure" >> $GITHUB_OUTPUT ;;
+            "cancelled") echo "status=failure" >> $GITHUB_OUTPUT ;;
+            "skipped") echo "status=success" >> $GITHUB_OUTPUT ;;
+            *) echo "status=pending" >> $GITHUB_OUTPUT ;;
+          esac
+
+          echo "E2E Tests workflow status: $e2e_status"
 
       - name: Check Performance Testing workflow status
         id: check-performance
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "status=pending" >> $GITHUB_OUTPUT
-          else
-            if [[ "${{ github.event.workflow_run.name }}" == "Performance Testing" ]]; then
-              echo "status=${{ github.event.workflow_run.conclusion }}" >> $GITHUB_OUTPUT
-            else
-              echo "status=pending" >> $GITHUB_OUTPUT
-            fi
+          # Get the actual current status of Performance Testing workflow for this commit
+          perf_status=$(gh api repos/${{ github.repository }}/actions/runs \
+            --jq '.workflow_runs[] | select(.name=="Performance Testing" and .head_sha=="${{ github.sha }}") | .conclusion // .status' \
+            | head -1)
+
+          # Default to pending if no workflow found
+          if [[ -z "$perf_status" || "$perf_status" == "null" ]]; then
+            perf_status="pending"
           fi
+
+          # Map GitHub status to our status
+          case "$perf_status" in
+            "success") echo "status=success" >> $GITHUB_OUTPUT ;;
+            "failure") echo "status=failure" >> $GITHUB_OUTPUT ;;
+            "cancelled") echo "status=failure" >> $GITHUB_OUTPUT ;;
+            "skipped") echo "status=success" >> $GITHUB_OUTPUT ;;
+            *) echo "status=pending" >> $GITHUB_OUTPUT ;;
+          esac
+
+          echo "Performance Testing workflow status: $perf_status"
 
       - name: Calculate overall status
         id: overall
@@ -89,17 +135,23 @@ jobs:
           e2e_status="${{ steps.check-e2e.outputs.status }}"
           performance_status="${{ steps.check-performance.outputs.status }}"
 
+          echo "=== Status Summary ==="
           echo "CI Status: $ci_status"
           echo "E2E Status: $e2e_status"
           echo "Performance Status: $performance_status"
+          echo "GitHub SHA: ${{ github.sha }}"
+          echo "Event: ${{ github.event_name }}"
 
           # Determine overall status
           if [[ "$ci_status" == "success" && "$e2e_status" == "success" && "$performance_status" == "success" ]]; then
             echo "status=success" >> $GITHUB_OUTPUT
+            echo "Overall Status: SUCCESS - All workflows passed"
           elif [[ "$ci_status" == "failure" || "$e2e_status" == "failure" || "$performance_status" == "failure" ]]; then
             echo "status=failure" >> $GITHUB_OUTPUT
+            echo "Overall Status: FAILURE - At least one workflow failed"
           else
             echo "status=pending" >> $GITHUB_OUTPUT
+            echo "Overall Status: PENDING - Some workflows still running or not found"
           fi
 
   comprehensive-status-check:
