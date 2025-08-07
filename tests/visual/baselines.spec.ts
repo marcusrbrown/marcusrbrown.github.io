@@ -68,34 +68,34 @@ test.describe('Theme Baseline Screenshots', () => {
   test.describe('Component-Level Theme Baselines', () => {
     const components = [
       {
-        selector: 'header.header, header[role="banner"], nav + header, header:first-of-type',
+        selector: 'header.header',
         name: 'header',
         page: '/',
       },
       {
-        selector: 'footer.footer, footer[role="contentinfo"], footer:last-of-type',
+        selector: 'footer.footer',
         name: 'footer',
         page: '/',
         scrollIntoView: true,
       },
       {
-        selector: '[data-testid="hero-section"], .hero-section, [class*="hero"], main > section:first-child',
+        selector: '#hero.hero-section',
         name: 'hero-section',
         page: '/',
       },
       {
-        selector: '[data-testid="skills-showcase"], .skills-showcase, [class*="skills"]',
+        selector: '#skills.skills-showcase',
         name: 'skills-showcase',
         page: '/',
         scrollIntoView: true,
       },
       {
-        selector: '[data-testid="project-gallery"], .project-gallery, [class*="project"]',
+        selector: '.project-gallery',
         name: 'project-gallery',
         page: '/projects',
       },
       {
-        selector: '[data-testid="project-card"], .project-card',
+        selector: '.project-card',
         name: 'project-card',
         page: '/projects',
         takeFirst: true,

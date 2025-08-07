@@ -14,7 +14,13 @@
 
 import {test} from '@playwright/test'
 
-import {preparePageForVisualTest, VISUAL_BREAKPOINTS, waitForComponentStable, type ThemeMode} from './utils'
+import {
+  preparePageForVisualTest,
+  setupGitHubAPIMocking,
+  VISUAL_BREAKPOINTS,
+  waitForComponentStable,
+  type ThemeMode,
+} from './utils'
 
 const THEMES: ThemeMode[] = ['light', 'dark']
 
@@ -376,8 +382,10 @@ test.describe('Theme System Visual Tests', () => {
 
   test.describe('Theme Integration Tests', () => {
     test('Code syntax highlighting theme integration', async ({page}) => {
+      // Set up mocking before any navigation
+      await setupGitHubAPIMocking(page)
       await page.goto('/blog')
-      await preparePageForVisualTest(page, {theme: 'light'})
+      await preparePageForVisualTest(page, {theme: 'light', skipMocking: true})
 
       // Look for code blocks
       const codeBlocks = page.locator('pre, code, .highlight, [class*="language-"]')

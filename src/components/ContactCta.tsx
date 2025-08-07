@@ -67,24 +67,10 @@ const ContactMethodCard: React.FC<ContactMethodCardProps> = ({method, index, var
     }
   }
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      const link = event.currentTarget.querySelector('a') as HTMLAnchorElement
-      if (link) {
-        link.click()
-      }
-    }
-  }
-
   return (
     <div
       className={`contact-method-card contact-method-card--${variant} contact-method-card--${method.type}`}
       style={{'--method-index': index} as React.CSSProperties}
-      tabIndex={0}
-      role="button"
-      aria-label={`${method.label}: ${method.description || 'Contact method'}`}
-      onKeyDown={handleKeyDown}
     >
       <a
         href={method.href}

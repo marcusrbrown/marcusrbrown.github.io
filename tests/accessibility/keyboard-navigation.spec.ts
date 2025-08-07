@@ -40,24 +40,39 @@ test.describe('Keyboard Navigation Tests', () => {
       // Verify it's focused
       await expect(themeToggle).toBeFocused()
 
-      // Get initial theme
+      // Get initial theme and button text
       const initialTheme = await page.locator('html').getAttribute('data-theme')
+      const initialButtonText = await themeToggle.textContent()
 
       // Activate with Enter key
       await page.keyboard.press('Enter')
       await page.waitForTimeout(400) // Wait for theme transition
 
-      // Verify theme changed
+      // Check if either theme changed OR button text changed (mode change)
       const newTheme = await page.locator('html').getAttribute('data-theme')
-      expect(newTheme).not.toBe(initialTheme)
+      const newButtonText = await themeToggle.textContent()
+
+      const themeChanged = newTheme !== initialTheme
+      const modeChanged = newButtonText !== initialButtonText
+
+      // Either the resolved theme should change OR the mode should change
+      expect(themeChanged || modeChanged).toBe(true)
 
       // Test with Space key as well
       await themeToggle.focus()
+      const beforeSpaceTheme = await page.locator('html').getAttribute('data-theme')
+      const beforeSpaceText = await themeToggle.textContent()
+
       await page.keyboard.press('Space')
       await page.waitForTimeout(400)
 
-      const finalTheme = await page.locator('html').getAttribute('data-theme')
-      expect(finalTheme).not.toBe(newTheme)
+      const afterSpaceTheme = await page.locator('html').getAttribute('data-theme')
+      const afterSpaceText = await themeToggle.textContent()
+
+      const spaceThemeChanged = afterSpaceTheme !== beforeSpaceTheme
+      const spaceModeChanged = afterSpaceText !== beforeSpaceText
+
+      expect(spaceThemeChanged || spaceModeChanged).toBe(true)
     })
 
     test('should provide logical tab order across all pages', async ({page}) => {

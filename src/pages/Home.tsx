@@ -11,9 +11,11 @@ import SkillsShowcase from '../components/SkillsShowcase'
 import SmoothScrollNav from '../components/SmoothScrollNav'
 import {useErrorTracking, useProjectTracking, useSectionTracking} from '../hooks/UseAnalytics'
 import {useGitHub} from '../hooks/UseGitHub'
+import {usePageTitle} from '../hooks/UsePageTitle'
 import '../styles/landing-page.css'
 
 const Home: React.FC = () => {
+  usePageTitle('Home')
   const {projects, blogPosts, loading, error} = useGitHub()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)

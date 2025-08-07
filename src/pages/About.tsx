@@ -1,7 +1,10 @@
 import React from 'react'
 import CodeBlock from '../components/CodeBlock'
+import {usePageTitle} from '../hooks/UsePageTitle'
 
 const About: React.FC = () => {
+  usePageTitle('About')
+
   const exampleCode = `// Example TypeScript code with syntax highlighting
 interface Developer {
   name: string

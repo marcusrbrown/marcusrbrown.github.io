@@ -5,7 +5,13 @@
 
 import {test} from '@playwright/test'
 
-import {preparePageForVisualTest, VISUAL_BREAKPOINTS, waitForComponentStable, type ThemeMode} from './utils'
+import {
+  preparePageForVisualTest,
+  setupGitHubAPIMocking,
+  VISUAL_BREAKPOINTS,
+  waitForComponentStable,
+  type ThemeMode,
+} from './utils'
 
 const THEMES: ThemeMode[] = ['light', 'dark']
 
@@ -194,8 +200,10 @@ test.describe('Responsive Visual Regression', () => {
 
   test.describe('Content Layout Responsive Tests', () => {
     test('Text content reflow - Article/Blog layout', async ({page}) => {
+      // Set up mocking before any navigation
+      await setupGitHubAPIMocking(page)
       await page.goto('/blog')
-      await preparePageForVisualTest(page, {theme: 'light'})
+      await preparePageForVisualTest(page, {theme: 'light', skipMocking: true})
 
       const breakpoints = [
         {name: 'mobile', width: 375, height: 667},
@@ -220,8 +228,10 @@ test.describe('Responsive Visual Regression', () => {
     })
 
     test('Card grid layouts - Projects page', async ({page}) => {
+      // Set up mocking before any navigation
+      await setupGitHubAPIMocking(page)
       await page.goto('/projects')
-      await preparePageForVisualTest(page, {theme: 'light'})
+      await preparePageForVisualTest(page, {theme: 'light', skipMocking: true})
 
       const projectGrid = page
         .locator('[data-testid="project-gallery"], .project-gallery, .project-grid, .projects-container')

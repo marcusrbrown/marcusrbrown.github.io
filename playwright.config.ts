@@ -33,7 +33,7 @@ export default defineConfig({
   // Shared settings for all the projects below
   use: {
     // Base URL to use in actions like `await page.goto('/')`
-    baseURL: process.env['CI'] ? 'https://mrbro.dev' : 'http://localhost:4173',
+    baseURL: process.env['CI'] ? process.env['PLAYWRIGHT_BASE_URL'] : 'http://localhost:4173',
 
     // Take screenshot on failure
     screenshot: 'only-on-failure',
@@ -128,6 +128,12 @@ export default defineConfig({
       },
     },
 
+    // Accessibility testing project
+    {
+      name: 'accessibility',
+      testDir: './tests/accessibility',
+    },
+
     // Visual regression testing project
     {
       name: 'visual-tests',
@@ -144,11 +150,9 @@ export default defineConfig({
   ],
 
   // Run local dev server before starting the tests
-  webServer: process.env['CI']
-    ? undefined
-    : {
-        command: 'pnpm preview',
-        port: 4173,
-        reuseExistingServer: !process.env['CI'],
-      },
+  webServer: {
+    command: 'pnpm preview',
+    port: 4173,
+    reuseExistingServer: !process.env['CI'],
+  },
 })

@@ -63,7 +63,7 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
   }
 
   return (
-    <div className="project-gallery">
+    <div className="project-gallery" data-testid="project-gallery">
       {/* Gallery Header */}
       {(title || subtitle) && (
         <header className="project-gallery__header">

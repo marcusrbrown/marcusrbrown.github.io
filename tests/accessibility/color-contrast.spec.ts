@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import {expect, test} from '@playwright/test'
 
-import {testData} from '../fixtures/test-data'
+import {testData} from '../e2e/fixtures/test-data'
 
 /**
  * Color contrast compliance tests across theme variations
