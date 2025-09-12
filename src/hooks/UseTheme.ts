@@ -46,13 +46,11 @@ export const useTheme = (): UseThemeReturn => {
   // Track whether a custom theme is currently active
   const [isCustomTheme, setIsCustomTheme] = useState(false)
 
-  // Update custom theme tracking when theme changes
   useEffect(() => {
     const isCustom = !availableThemes.some(theme => theme.id === currentTheme.id)
     setIsCustomTheme(isCustom)
   }, [currentTheme, availableThemes])
 
-  // Theme state checks
   const isDarkMode = currentTheme.mode === 'dark'
   const isLightMode = currentTheme.mode === 'light'
   const isSystemMode = themeMode === 'system'

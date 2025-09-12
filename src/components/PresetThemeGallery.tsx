@@ -123,7 +123,6 @@ export const PresetThemeGallery = ({onThemeApply, className = ''}: PresetThemeGa
   const [modeFilter, setModeFilter] = useState<'all' | 'light' | 'dark'>('all')
   const [previewTheme, setPreviewTheme] = useState<Theme | null>(null)
 
-  // Get all preset themes
   const allPresetThemes = useMemo(() => getPresetThemes(), [])
 
   // Filter themes based on search and mode filter
