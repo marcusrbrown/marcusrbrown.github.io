@@ -10,4 +10,10 @@ export default defineConfig({
       'vitest/prefer-lowercase-title': 'off',
     },
   },
+},
+{
+  files: ['README.md'],
+  rules: {
+    'react-hooks/rules-of-hooks': 'off',
+  }
 })
