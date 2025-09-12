@@ -53,9 +53,9 @@ interface GlobalManifest {
  * Performance artifact management
  */
 class PerformanceArtifactManager {
-  private artifactsDir = './performance-artifacts'
-  private maxArtifacts = Number.parseInt(process.env['MAX_PERFORMANCE_ARTIFACTS'] || '50', 10)
-  private retentionDays = Number.parseInt(process.env['ARTIFACT_RETENTION_DAYS'] || '30', 10)
+  private readonly artifactsDir = './performance-artifacts'
+  private readonly maxArtifacts = Number.parseInt(process.env.MAX_PERFORMANCE_ARTIFACTS || '50', 10)
+  private readonly retentionDays = Number.parseInt(process.env.ARTIFACT_RETENTION_DAYS || '30', 10)
 
   /**
    * Initialize artifact management
@@ -89,7 +89,7 @@ class PerformanceArtifactManager {
     console.log('📦 Collecting performance artifacts...\n')
 
     const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
-    const commit = process.env['GITHUB_SHA']?.slice(0, 7) || 'local'
+    const commit = process.env.GITHUB_SHA?.slice(0, 7) || 'local'
     const runId = `${timestamp}-${commit}`
 
     try {
@@ -321,15 +321,15 @@ class PerformanceArtifactManager {
       const manifest: RunManifest = {
         runId,
         timestamp: new Date().toISOString(),
-        commit: process.env['GITHUB_SHA'] || 'local',
-        branch: process.env['GITHUB_REF_NAME'] || 'local',
+        commit: process.env.GITHUB_SHA || 'local',
+        branch: process.env.GITHUB_REF_NAME || 'local',
         artifacts: this.scanArtifacts(runId),
         totalSize: 0,
         environment: {
           node: process.version,
           platform: process.platform,
           arch: process.arch,
-          ci: Boolean(process.env['CI']),
+          ci: Boolean(process.env.CI),
         },
       }
 

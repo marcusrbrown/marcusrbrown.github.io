@@ -28,9 +28,9 @@ interface BudgetWarning {
  * Performance budget validator
  */
 class PerformanceBudgetValidator {
-  private config: PerformanceTestConfig
-  private violations: BudgetViolation[] = []
-  private warnings: BudgetWarning[] = []
+  private readonly config: PerformanceTestConfig
+  private readonly violations: BudgetViolation[] = []
+  private readonly warnings: BudgetWarning[] = []
 
   constructor(config: PerformanceTestConfig = defaultPerformanceConfig) {
     this.config = config

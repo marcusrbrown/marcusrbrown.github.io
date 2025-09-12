@@ -32,12 +32,12 @@ interface AnalyticsConfig {
 }
 
 class AnalyticsManager {
-  private config: AnalyticsConfig
+  private readonly config: AnalyticsConfig
   private session: UserSession | null = null
-  private eventQueue: AnalyticsEvent[] = []
+  private readonly eventQueue: AnalyticsEvent[] = []
   private hasConsent = false
-  private observers: IntersectionObserver[] = []
-  private timers: NodeJS.Timeout[] = []
+  private readonly observers: IntersectionObserver[] = []
+  private readonly timers: NodeJS.Timeout[] = []
 
   constructor(config: Partial<AnalyticsConfig> = {}) {
     this.config = {

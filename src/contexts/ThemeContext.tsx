@@ -249,7 +249,7 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     root.style.setProperty('--color-success', colors.success)
 
     // Set data attribute for theme-specific styling
-    root.dataset['theme'] = currentTheme.mode
+    root.dataset.theme = currentTheme.mode
 
     if (isReducedMotion) {
       // For reduced motion, clean up immediately without transitions

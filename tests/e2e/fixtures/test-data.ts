@@ -141,7 +141,7 @@ export const testData = {
 /**
  * Type definitions for test data
  */
-export type ViewportSize = {
+export interface ViewportSize {
   width: number
   height: number
   name?: string
@@ -151,7 +151,7 @@ export type ThemeMode = (typeof testData.themes.modes)[number]
 
 export type RouteKey = keyof typeof testData.routes
 
-export type TestScenario = {
+export interface TestScenario {
   sequence: readonly string[]
   description: string
 }

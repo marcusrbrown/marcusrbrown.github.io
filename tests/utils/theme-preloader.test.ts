@@ -85,7 +85,7 @@ describe('Theme Preloader', () => {
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-text', '#0f172a')
-      expect(mockDocumentElement.dataset['theme']).toBe('light')
+      expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
     it('should apply dark theme when system preference is dark', () => {
@@ -98,7 +98,7 @@ describe('Theme Preloader', () => {
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#3b82f6')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#0f172a')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-text', '#f1f5f9')
-      expect(mockDocumentElement.dataset['theme']).toBe('dark')
+      expect(mockDocumentElement.dataset.theme).toBe('dark')
     })
 
     it('should apply light theme when saved theme mode is light', () => {
@@ -110,7 +110,7 @@ describe('Theme Preloader', () => {
       // Verify light theme colors are applied
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
-      expect(mockDocumentElement.dataset['theme']).toBe('light')
+      expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
     it('should apply dark theme when saved theme mode is dark', () => {
@@ -122,7 +122,7 @@ describe('Theme Preloader', () => {
       // Verify dark theme colors are applied
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#3b82f6')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#0f172a')
-      expect(mockDocumentElement.dataset['theme']).toBe('dark')
+      expect(mockDocumentElement.dataset.theme).toBe('dark')
     })
 
     it('should apply custom theme when available', () => {
@@ -153,7 +153,7 @@ describe('Theme Preloader', () => {
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#ff0000')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-secondary', '#00ff00')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-accent', '#0000ff')
-      expect(mockDocumentElement.dataset['theme']).toBe('light')
+      expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
     it('should fall back to light theme on localStorage error', () => {
@@ -167,7 +167,7 @@ describe('Theme Preloader', () => {
       // Verify light theme is applied as fallback
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
-      expect(mockDocumentElement.dataset['theme']).toBe('light')
+      expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
     it('should handle invalid JSON in custom theme gracefully', () => {
@@ -180,7 +180,7 @@ describe('Theme Preloader', () => {
       // Verify falls back to saved theme mode (dark)
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#3b82f6')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#0f172a')
-      expect(mockDocumentElement.dataset['theme']).toBe('dark')
+      expect(mockDocumentElement.dataset.theme).toBe('dark')
     })
 
     it('should handle missing matchMedia gracefully', () => {
@@ -195,7 +195,7 @@ describe('Theme Preloader', () => {
       // Verify falls back to light theme
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
       expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
-      expect(mockDocumentElement.dataset['theme']).toBe('light')
+      expect(mockDocumentElement.dataset.theme).toBe('light')
     })
   })
 
@@ -275,7 +275,7 @@ describe('Theme Preloader', () => {
     it('should set theme data attribute for CSS selectors', () => {
       preloadTheme()
 
-      expect(mockDocumentElement.dataset['theme']).toMatch(/^(light|dark)$/)
+      expect(mockDocumentElement.dataset.theme).toMatch(/^(light|dark)$/)
     })
 
     it('should work in server-side rendering environment', () => {

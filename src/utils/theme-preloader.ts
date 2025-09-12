@@ -74,7 +74,7 @@ const applyThemeColors = (theme: Theme): void => {
   root.style.setProperty('--color-success', colors.success)
 
   // Set data attribute for theme-specific styling
-  root.dataset['theme'] = theme.mode
+  root.dataset.theme = theme.mode
 }
 
 /**

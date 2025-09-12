@@ -127,7 +127,7 @@ function analyzeBuildOutput(returnDataOnly = false): BuildAnalysis {
     generateConsoleReport(analysis)
 
     // Generate GitHub Actions job summary
-    if (process.env['GITHUB_ACTIONS']) {
+    if (process.env.GITHUB_ACTIONS) {
       generateJobSummary(analysis)
     }
 
@@ -237,7 +237,7 @@ function saveAnalysisData(analysis: BuildAnalysis): void {
       jsSize: analysis.jsSize,
       cssSize: analysis.cssSize,
       fileCount: analysis.fileCount,
-      commit: process.env['GITHUB_SHA'] || 'local',
+      commit: process.env.GITHUB_SHA || 'local',
       budgetPassed: analysis.budgetStatus.passed,
     }
 
@@ -393,8 +393,8 @@ ${
   )
 
   // Append to GitHub Actions step summary
-  if (process.env['GITHUB_STEP_SUMMARY']) {
-    writeFileSync(process.env['GITHUB_STEP_SUMMARY'], summary, {flag: 'a'})
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    writeFileSync(process.env.GITHUB_STEP_SUMMARY, summary, {flag: 'a'})
   }
 }
 

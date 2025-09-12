@@ -22,6 +22,6 @@ export default defineConfig({
 
   // Enable GitHub Pages environment variable detection
   define: {
-    __GITHUB_PAGES__: JSON.stringify(process.env['GITHUB_PAGES'] === 'true'),
+    __GITHUB_PAGES__: JSON.stringify(process.env.GITHUB_PAGES === 'true'),
   },
 })

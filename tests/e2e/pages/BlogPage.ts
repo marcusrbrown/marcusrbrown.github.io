@@ -31,7 +31,7 @@ export class BlogPage extends BasePage {
    * Get the number of blog posts
    */
   async getBlogPostCount(): Promise<number> {
-    return await this.blogPosts.count()
+    return this.blogPosts.count()
   }
 
   /**

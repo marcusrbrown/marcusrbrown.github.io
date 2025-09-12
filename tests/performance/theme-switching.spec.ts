@@ -45,7 +45,7 @@ test.describe('Theme Switching Performance', () => {
 
     // Verify theme actually changed
     const isDarkMode = await page.evaluate(() => {
-      return document.documentElement.dataset['theme'] === 'dark'
+      return document.documentElement.dataset.theme === 'dark'
     })
 
     // Performance assertions
@@ -57,7 +57,7 @@ test.describe('Theme Switching Performance', () => {
     await page.waitForTimeout(500)
 
     const isLightMode = await page.evaluate(() => {
-      return document.documentElement.dataset['theme'] === 'light'
+      return document.documentElement.dataset.theme === 'light'
     })
 
     expect(isLightMode).toBe(true)
@@ -114,7 +114,7 @@ test.describe('Theme Switching Performance', () => {
 
     // Check if theme was applied before first paint
     const themeAppliedBeforePaint = await page.evaluate(() => {
-      const theme = document.documentElement.dataset['theme']
+      const theme = document.documentElement.dataset.theme
       return theme !== null && theme !== 'light' // Assuming we switched to dark
     })
 

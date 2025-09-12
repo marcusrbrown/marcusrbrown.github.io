@@ -307,21 +307,21 @@ export const validateThemeMetadata = (metadata: unknown): metadata is ThemeMetad
   const meta = metadata as Record<string, unknown>
 
   // Required fields
-  if (!meta['id'] || typeof meta['id'] !== 'string' || String(meta['id']).trim().length === 0) return false
-  if (!meta['name'] || typeof meta['name'] !== 'string' || String(meta['name']).trim().length === 0) return false
+  if (!meta.id || typeof meta.id !== 'string' || String(meta.id).trim().length === 0) return false
+  if (!meta.name || typeof meta.name !== 'string' || String(meta.name).trim().length === 0) return false
 
   // Optional fields validation
-  if (meta['description'] !== undefined && typeof meta['description'] !== 'string') return false
-  if (meta['author'] !== undefined && typeof meta['author'] !== 'string') return false
-  if (meta['version'] !== undefined && typeof meta['version'] !== 'string') return false
-  if (meta['isBuiltIn'] !== undefined && typeof meta['isBuiltIn'] !== 'boolean') return false
-  if (meta['createdAt'] !== undefined && typeof meta['createdAt'] !== 'string') return false
-  if (meta['updatedAt'] !== undefined && typeof meta['updatedAt'] !== 'string') return false
+  if (meta.description !== undefined && typeof meta.description !== 'string') return false
+  if (meta.author !== undefined && typeof meta.author !== 'string') return false
+  if (meta.version !== undefined && typeof meta.version !== 'string') return false
+  if (meta.isBuiltIn !== undefined && typeof meta.isBuiltIn !== 'boolean') return false
+  if (meta.createdAt !== undefined && typeof meta.createdAt !== 'string') return false
+  if (meta.updatedAt !== undefined && typeof meta.updatedAt !== 'string') return false
 
   // Tags validation
-  if (meta['tags'] !== undefined) {
-    if (!Array.isArray(meta['tags'])) return false
-    if (!(meta['tags'] as unknown[]).every(tag => typeof tag === 'string')) return false
+  if (meta.tags !== undefined) {
+    if (!Array.isArray(meta.tags)) return false
+    if (!(meta.tags as unknown[]).every(tag => typeof tag === 'string')) return false
   }
 
   return true
@@ -346,10 +346,10 @@ export const validateTheme = (theme: unknown): theme is Theme => {
   if (!validateThemeMetadata(themeObj)) return false
 
   // Validate mode
-  if (!isValidResolvedThemeMode(themeObj['mode'])) return false
+  if (!isValidResolvedThemeMode(themeObj.mode)) return false
 
   // Validate colors
-  if (!validateThemeColors(themeObj['colors'])) return false
+  if (!validateThemeColors(themeObj.colors)) return false
 
   return true
 }
