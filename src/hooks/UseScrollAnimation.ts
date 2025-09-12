@@ -68,20 +68,16 @@ const DEFAULT_OPTIONS: Required<ScrollAnimationOptions> = {
 export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
   options: ScrollAnimationOptions = {},
 ): UseScrollAnimationReturn<T> => {
-  // Merge options with defaults
   const config = {...DEFAULT_OPTIONS, ...options}
 
-  // State management
   const [animationState, setAnimationState] = useState<AnimationState>('idle')
   const [isInView, setIsInView] = useState(false)
   const [hasTriggered, setHasTriggered] = useState(false)
 
-  // Refs
   const elementRef = useRef<T>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Check if user prefers reduced motion
   const shouldReduceMotion = config.respectReducedMotion && prefersReducedMotion()
 
   /**
@@ -94,12 +90,10 @@ export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
       return
     }
 
-    // Clear any existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
 
-    // Set entering state
     setAnimationState('entering')
 
     // Apply delay if specified
@@ -173,13 +167,11 @@ export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
       return
     }
 
-    // Create intersection observer
     observerRef.current = new IntersectionObserver(handleIntersection, {
       threshold: config.threshold,
       rootMargin: config.rootMargin,
     })
 
-    // Start observing
     observerRef.current.observe(element)
 
     // IMPORTANT: Check if element is already in view when observer starts

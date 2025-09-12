@@ -19,6 +19,38 @@ export interface BlogPost {
   url: string
 }
 
+export interface GitHubRepository {
+  id: number
+  name: string
+  full_name: string
+  description: string | null
+  html_url: string
+  homepage: string | null
+  language: string | null
+  stargazers_count: number
+  topics: string[]
+  updated_at: string
+}
+
+export interface GitHubLabel {
+  id: number
+  name: string
+  color: string
+  description: string | null
+}
+
+export interface GitHubIssue {
+  id: number
+  number: number
+  title: string
+  body: string | null
+  html_url: string
+  created_at: string
+  updated_at: string
+  labels: GitHubLabel[]
+  state: 'open' | 'closed'
+}
+
 // Re-export theme types from dedicated theme types file
 export type {
   ColorContrastResult,

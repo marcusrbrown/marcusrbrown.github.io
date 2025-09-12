@@ -57,7 +57,6 @@ const Home: React.FC = () => {
     trackError(`GitHub API Error: ${error}`, 'useGitHub')
   }
 
-  // Create skeleton components for loading states
   const projectsSkeleton = (
     <div className="project-list">
       {Array.from({length: 6}).map((_, index) => (

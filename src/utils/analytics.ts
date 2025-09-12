@@ -357,7 +357,6 @@ class AnalyticsManager {
       this.timers.push(timer)
     }
 
-    // Update session time periodically
     const sessionTimer = setInterval(() => {
       if (this.session) {
         this.session.time_on_page = Math.round((Date.now() - startTime) / 1000)
