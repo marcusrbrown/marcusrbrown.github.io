@@ -36,7 +36,7 @@ export class HomePage extends BasePage {
    * Check if hero section is visible and contains expected content
    */
   async isHeroSectionVisible(): Promise<boolean> {
-    return await this.heroSection.isVisible()
+    return this.heroSection.isVisible()
   }
 
   /**
@@ -57,7 +57,7 @@ export class HomePage extends BasePage {
    * Check if skills showcase is present
    */
   async isSkillsShowcaseVisible(): Promise<boolean> {
-    return await this.skillsShowcase.isVisible()
+    return this.skillsShowcase.isVisible()
   }
 
   /**
@@ -72,14 +72,14 @@ export class HomePage extends BasePage {
    * Check if featured projects section is visible
    */
   async isFeaturedProjectsVisible(): Promise<boolean> {
-    return await this.featuredProjects.isVisible()
+    return this.featuredProjects.isVisible()
   }
 
   /**
    * Get the number of featured projects displayed
    */
   async getFeaturedProjectsCount(): Promise<number> {
-    return await this.featuredProjects.locator('.project-card, .card').count()
+    return this.featuredProjects.locator('.project-card, .card').count()
   }
 
   /**

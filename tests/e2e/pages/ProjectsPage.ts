@@ -31,7 +31,7 @@ export class ProjectsPage extends BasePage {
    * Get the number of visible project cards
    */
   async getProjectCount(): Promise<number> {
-    return await this.projectCards.count()
+    return this.projectCards.count()
   }
 
   /**

@@ -31,7 +31,7 @@ export class AboutPage extends BasePage {
    * Check if about content is visible
    */
   async isAboutContentVisible(): Promise<boolean> {
-    return await this.aboutContent.isVisible()
+    return this.aboutContent.isVisible()
   }
 
   /**

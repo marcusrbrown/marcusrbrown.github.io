@@ -90,7 +90,7 @@ export class BasePage {
    * Check if the header navigation is visible and functional
    */
   async isNavigationVisible(): Promise<boolean> {
-    return await this.header.isVisible()
+    return this.header.isVisible()
   }
 
   /**
@@ -169,7 +169,7 @@ export class BasePage {
    * Take a screenshot for visual testing
    */
   async takeScreenshot(name: string) {
-    return await this.page.screenshot({
+    return this.page.screenshot({
       path: `test-results/${name}.png`,
       fullPage: true,
     })

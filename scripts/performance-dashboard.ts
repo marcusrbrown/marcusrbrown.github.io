@@ -115,12 +115,12 @@ interface HistoryEntry {
  * Performance dashboard generator
  */
 class PerformanceDashboard {
-  private reportPath = './performance-dashboard.json'
-  private historyPath = './performance-history.json'
-  private data: DashboardData = {
+  private readonly reportPath = './performance-dashboard.json'
+  private readonly historyPath = './performance-history.json'
+  private readonly data: DashboardData = {
     generated: new Date().toISOString(),
-    commit: process.env['GITHUB_SHA'] || 'local',
-    branch: process.env['GITHUB_REF_NAME'] || 'local',
+    commit: process.env.GITHUB_SHA || 'local',
+    branch: process.env.GITHUB_REF_NAME || 'local',
     lighthouse: {},
     bundle: {
       timestamp: '',
@@ -340,7 +340,7 @@ class PerformanceDashboard {
     }
 
     // Aggregate Lighthouse scores
-    if (this.data.lighthouse['desktop'] || this.data.lighthouse['mobile']) {
+    if (this.data.lighthouse.desktop || this.data.lighthouse.mobile) {
       const devices = Object.keys(this.data.lighthouse)
       summary.scores = devices.reduce(
         (acc, device) => {
@@ -371,7 +371,7 @@ class PerformanceDashboard {
       summary.overallStatus = 'warning'
     }
 
-    const performanceScore = summary.scores['performance']
+    const performanceScore = summary.scores.performance
     if (performanceScore !== undefined && performanceScore < 90) {
       summary.issues.push('Performance score below 90%')
       summary.overallStatus = 'warning'
@@ -599,7 +599,7 @@ ${this.data.summary.issues.map(issue => `- ❌ ${issue}`).join('\n')}
    * Generate badge data for shields.io
    */
   generateBadgeData(): void {
-    const performanceScore = this.data.summary.scores['performance'] || 0
+    const performanceScore = this.data.summary.scores.performance || 0
     const badgeData = {
       schemaVersion: 1,
       label: 'performance',

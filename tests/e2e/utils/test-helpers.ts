@@ -94,7 +94,7 @@ export async function verifyThemeApplication(page: Page, expectedTheme: 'light' 
  */
 export async function takeTimestampedScreenshot(page: Page, name: string): Promise<Uint8Array> {
   const timestamp = new Date().toISOString().replaceAll(/[:.]/g, '-')
-  return await page.screenshot({
+  return page.screenshot({
     path: `test-results/${name}-${timestamp}.png`,
     fullPage: true,
   })
@@ -282,6 +282,6 @@ export function generateTestMetadata(testName: string): {
   return {
     testName,
     timestamp: new Date().toISOString(),
-    userAgent: process.env['USER_AGENT'] || 'unknown',
+    userAgent: process.env.USER_AGENT || 'unknown',
   }
 }

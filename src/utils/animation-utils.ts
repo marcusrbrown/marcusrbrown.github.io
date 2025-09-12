@@ -202,11 +202,11 @@ export const hasAnimationSupport = (): boolean => {
  * Optimized animation frame scheduler with priority queue
  */
 class AnimationScheduler {
-  private highPriorityQueue: (() => void)[] = []
-  private lowPriorityQueue: (() => void)[] = []
+  private readonly highPriorityQueue: (() => void)[] = []
+  private readonly lowPriorityQueue: (() => void)[] = []
   private isScheduled = false
 
-  private processQueue = () => {
+  private readonly processQueue = () => {
     this.isScheduled = false
 
     // Process high priority animations first
@@ -228,7 +228,7 @@ class AnimationScheduler {
     }
   }
 
-  private scheduleFrame = () => {
+  private readonly scheduleFrame = () => {
     if (!this.isScheduled) {
       this.isScheduled = true
       requestAnimationFrame(this.processQueue)

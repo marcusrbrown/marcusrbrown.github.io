@@ -178,7 +178,7 @@ test.describe('Theme Baseline Screenshots', () => {
           })
 
           // Set theme mode to custom
-          document.documentElement.dataset['theme'] = 'custom'
+          document.documentElement.dataset.theme = 'custom'
           localStorage.setItem('theme-mode', 'custom')
           localStorage.setItem('custom-theme', JSON.stringify(themeColors))
         }, colors)

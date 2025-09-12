@@ -19,7 +19,7 @@ test.describe('Color Contrast Compliance Tests', () => {
 
         // Set specific theme
         await page.evaluate(themeName => {
-          document.documentElement.dataset['theme'] = themeName
+          document.documentElement.dataset.theme = themeName
         }, theme)
 
         const htmlElement = page.locator('html')
@@ -60,7 +60,7 @@ test.describe('Color Contrast Compliance Tests', () => {
 
           // Set theme
           await page.evaluate(themeName => {
-            document.documentElement.dataset['theme'] = themeName
+            document.documentElement.dataset.theme = themeName
           }, theme)
 
           await page.waitForTimeout(400)
@@ -85,7 +85,7 @@ test.describe('Color Contrast Compliance Tests', () => {
       for (const theme of themes) {
         // Set theme
         await page.evaluate(themeName => {
-          document.documentElement.dataset['theme'] = themeName
+          document.documentElement.dataset.theme = themeName
         }, theme)
 
         await page.waitForTimeout(400)
@@ -106,7 +106,7 @@ test.describe('Color Contrast Compliance Tests', () => {
 
       for (const theme of themes) {
         await page.evaluate(themeName => {
-          document.documentElement.dataset['theme'] = themeName
+          document.documentElement.dataset.theme = themeName
         }, theme)
 
         await page.waitForTimeout(400)
@@ -137,7 +137,7 @@ test.describe('Color Contrast Compliance Tests', () => {
 
       for (const theme of themes) {
         await page.evaluate(themeName => {
-          document.documentElement.dataset['theme'] = themeName
+          document.documentElement.dataset.theme = themeName
         }, theme)
 
         await page.waitForTimeout(400)
@@ -209,7 +209,7 @@ test.describe('Color Contrast Compliance Tests', () => {
 
         for (const theme of themes) {
           await page.evaluate(themeName => {
-            document.documentElement.dataset['theme'] = themeName
+            document.documentElement.dataset.theme = themeName
           }, theme)
 
           await page.waitForTimeout(400)

@@ -14,26 +14,26 @@ export default defineConfig({
   fullyParallel: true,
 
   // Fail the build on CI if you accidentally left test.only in the source code
-  forbidOnly: !!process.env['CI'],
+  forbidOnly: !!process.env.CI,
 
   // Retry on CI only
-  retries: process.env['CI'] ? 2 : 0,
+  retries: process.env.CI ? 2 : 0,
 
   // Opt out of parallel tests on CI
-  workers: process.env['CI'] ? 1 : undefined,
+  workers: process.env.CI ? 1 : undefined,
 
   // Reporter to use
   reporter: [
     ['html'],
     ['json', {outputFile: 'test-results/results.json'}],
     // Add GitHub Actions reporter on CI
-    process.env['CI'] ? ['github'] : ['list'],
+    process.env.CI ? ['github'] : ['list'],
   ],
 
   // Shared settings for all the projects below
   use: {
     // Base URL to use in actions like `await page.goto('/')`
-    baseURL: process.env['CI'] ? process.env['PLAYWRIGHT_BASE_URL'] : 'http://localhost:4173',
+    baseURL: process.env.CI ? process.env.PLAYWRIGHT_BASE_URL : 'http://localhost:4173',
 
     // Take screenshot on failure
     screenshot: 'only-on-failure',
@@ -149,7 +149,7 @@ export default defineConfig({
       // Visual comparison settings
       expect: {
         // Optimized timeout for CI performance
-        timeout: process.env['CI'] ? 7500 : 5000,
+        timeout: process.env.CI ? 7500 : 5000,
 
         // Visual comparison settings optimized for cross-platform consistency
         toMatchSnapshot: {
@@ -167,6 +167,6 @@ export default defineConfig({
   webServer: {
     command: 'pnpm preview',
     port: 4173,
-    reuseExistingServer: !process.env['CI'],
+    reuseExistingServer: !process.env.CI,
   },
 })

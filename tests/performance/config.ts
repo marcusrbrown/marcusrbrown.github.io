@@ -228,7 +228,7 @@ export const PerformanceTestUtils = {
           cls: result.audits['cumulative-layout-shift']?.numericValue || 0,
           fcp: result.audits['first-contentful-paint']?.numericValue || 0,
           si: result.audits['speed-index']?.numericValue || 0,
-          tti: result.audits['interactive']?.numericValue || 0,
+          tti: result.audits.interactive?.numericValue || 0,
           tbt: result.audits['total-blocking-time']?.numericValue || 0,
         },
         validation,

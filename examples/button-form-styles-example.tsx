@@ -117,13 +117,13 @@ const ButtonFormStylesExample: React.FC = () => {
                 value={formData.email}
                 onChange={handleInputChange}
                 className={`form-input ${
-                  errors['email'] ? 'form-input--error' : success['email'] ? 'form-input--success' : ''
+                  errors.email ? 'form-input--error' : success.email ? 'form-input--success' : ''
                 }`}
                 placeholder="you@example.com"
                 required
               />
-              {errors['email'] && <div className="form-error-text">{errors['email']}</div>}
-              {success['email'] && <div className="form-success-text">Email format is valid</div>}
+              {errors.email && <div className="form-error-text">{errors.email}</div>}
+              {success.email && <div className="form-success-text">Email format is valid</div>}
             </div>
           </div>
 

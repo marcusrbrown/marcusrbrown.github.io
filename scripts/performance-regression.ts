@@ -78,11 +78,11 @@ interface BundleMetrics {
  * Performance regression detector
  */
 class PerformanceRegressionDetector {
-  private baselinePath: string
-  private thresholds: Thresholds
-  private regressions: RegressionItem[] = []
-  private warnings: WarningItem[] = []
-  private improvements: ImprovementItem[] = []
+  private readonly baselinePath: string
+  private readonly thresholds: Thresholds
+  private readonly regressions: RegressionItem[] = []
+  private readonly warnings: WarningItem[] = []
+  private readonly improvements: ImprovementItem[] = []
 
   constructor(_config: PerformanceTestConfig = defaultPerformanceConfig) {
     this.baselinePath = './performance-baseline.json'
@@ -136,7 +136,7 @@ class PerformanceRegressionDetector {
     this.generateReport(currentMetrics, baselineMetrics)
 
     // Update baseline if no regressions (or forced update)
-    if (this.regressions.length === 0 || process.env['UPDATE_BASELINE'] === 'true') {
+    if (this.regressions.length === 0 || process.env.UPDATE_BASELINE === 'true') {
       this.saveBaseline(currentMetrics)
       console.log('✅ Baseline updated with current metrics')
     }
@@ -155,7 +155,7 @@ class PerformanceRegressionDetector {
       timestamp: new Date().toISOString(),
       lighthouse: {},
       bundle: {},
-      commit: process.env['GITHUB_SHA'] || 'local',
+      commit: process.env.GITHUB_SHA || 'local',
     }
 
     // Load Lighthouse results
@@ -462,7 +462,7 @@ class PerformanceRegressionDetector {
    * Generate GitHub Actions step summary
    */
   generateGitHubSummary(current: any, baseline: any): void {
-    if (!process.env['GITHUB_STEP_SUMMARY']) return
+    if (!process.env.GITHUB_STEP_SUMMARY) return
 
     let summary = '## 📊 Performance Regression Analysis\n\n'
     summary += `**Analysis Date:** ${current.timestamp}\n`
@@ -507,8 +507,8 @@ class PerformanceRegressionDetector {
     }
 
     // Append to GitHub Actions step summary
-    if (process.env['GITHUB_STEP_SUMMARY']) {
-      writeFileSync(process.env['GITHUB_STEP_SUMMARY'], summary, {flag: 'a'})
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      writeFileSync(process.env.GITHUB_STEP_SUMMARY, summary, {flag: 'a'})
     }
   }
 

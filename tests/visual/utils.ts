@@ -345,7 +345,7 @@ export async function setThemeMode(page: Page, theme: ThemeMode): Promise<void> 
     root.style.setProperty('--color-success', colors.success)
 
     // Set the data-theme attribute
-    root.dataset['theme'] = themeMode
+    root.dataset.theme = themeMode
 
     // Also save to localStorage so React picks it up
     localStorage.setItem('mrbro-dev-theme-mode', themeMode)
@@ -429,7 +429,7 @@ export async function waitForComponentStable(page: Page, selector: string, timeo
       const htmlElement = element as HTMLElement
       const isLoading =
         element.classList.contains('loading') ||
-        htmlElement.dataset['loading'] !== undefined ||
+        htmlElement.dataset.loading !== undefined ||
         element.querySelector('[data-loading]') !== null
 
       return !isLoading

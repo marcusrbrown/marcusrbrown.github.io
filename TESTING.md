@@ -193,7 +193,7 @@ Tests run across three browsers:
 
 ```typescript
 // tests/e2e/pages/HomePage.ts
-import {type Locator, type Page} from '@playwright/test'
+import type {Locator, Page} from '@playwright/test'
 
 export class HomePage {
   readonly page: Page
@@ -543,6 +543,8 @@ test.use({
   viewport: {width: 1280, height: 720}
 })
 ```
+
+<!-- eslint-disable @typescript-eslint/no-unused-expressions -->
 
 ```typescript
 // Disable animations in playwright.config.ts

@@ -37,43 +37,43 @@ const validateThemeExport = ajv.compile(themeSchema)
  */
 const errorFormatters: Record<string, (error: ErrorObject, path: string) => string> = {
   required: (error, path) => {
-    const missingProperty = error.params?.['missingProperty']
+    const missingProperty = error.params?.missingProperty
     return `Missing required property: ${path}.${missingProperty}`
   },
   type: (error, path) => {
-    const expectedType = error.params?.['type']
+    const expectedType = error.params?.type
     return `Invalid type at ${path}: expected ${expectedType}, got ${typeof error.data}`
   },
   format: (error, path) => {
-    const format = error.params?.['format']
+    const format = error.params?.format
     return `Invalid format at ${path}: expected ${format} format`
   },
   pattern: (error, path) => {
-    const pattern = error.params?.['pattern']
+    const pattern = error.params?.pattern
     return `Invalid pattern at ${path}: must match pattern ${pattern}`
   },
   enum: (error, path) => {
-    const allowedValues = error.params?.['allowedValues']
+    const allowedValues = error.params?.allowedValues
     return `Invalid value at ${path}: must be one of ${allowedValues?.join(', ')}`
   },
   minLength: (error, path) => {
-    const minLength = error.params?.['limit']
+    const minLength = error.params?.limit
     return `Value too short at ${path}: minimum length is ${minLength}`
   },
   maxLength: (error, path) => {
-    const maxLength = error.params?.['limit']
+    const maxLength = error.params?.limit
     return `Value too long at ${path}: maximum length is ${maxLength}`
   },
   minimum: (error, path) => {
-    const minimum = error.params?.['limit']
+    const minimum = error.params?.limit
     return `Value too small at ${path}: minimum value is ${minimum}`
   },
   maximum: (error, path) => {
-    const maximum = error.params?.['limit']
+    const maximum = error.params?.limit
     return `Value too large at ${path}: maximum value is ${maximum}`
   },
   additionalProperties: (error, path) => {
-    const additionalProperty = error.params?.['additionalProperty']
+    const additionalProperty = error.params?.additionalProperty
     return `Unexpected property at ${path}: ${additionalProperty} is not allowed`
   },
   oneOf: (_, path) => {
