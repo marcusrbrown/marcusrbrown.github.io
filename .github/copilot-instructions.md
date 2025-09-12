@@ -18,8 +18,10 @@ This is a high-performance developer portfolio built with React 19+, TypeScript,
 # Core test commands that aren't obvious
 pnpm test:visual                    # Visual regression testing
 pnpm test:performance:budgets       # Performance budget validation
+pnpm test:performance:regression    # Performance regression detection
 pnpm dashboard                      # Generate comprehensive test dashboard
 pnpm badges                         # Update README test status badges
+pnpm artifacts                      # Artifact management and optimization
 ```
 
 **Key Testing Patterns:**
@@ -49,6 +51,10 @@ const { currentTheme, themeMode, toggleTheme, setCustomTheme } = useTheme()
 - `UseProgressiveImage.ts`: Blur-up effect for optimized image loading
 - `UseProjectFilter.ts`: Interactive filtering with smooth animations
 - `UseSyntaxHighlighting.ts`: Theme-aware code highlighting with Shiki
+- `UseAnalytics.ts`: Section tracking and interaction analytics with IntersectionObserver
+- `UseGitHub.ts`: GitHub API integration for repository data and blog content
+- `UsePageTitle.ts`: Dynamic page title management with SEO optimization
+- `UseParallax.ts`: Smooth parallax scrolling effects with performance optimization
 
 ### Theme System Architecture
 ```typescript
@@ -70,6 +76,7 @@ validateThemeExportData(themeData) // JSON schema validation with Ajv
 ```bash
 pnpm analyze-build                  # Detailed bundle analysis with warnings
 pnpm test:performance:budgets       # Automated performance budget enforcement
+pnpm test:performance:regression    # Performance regression detection
 pnpm artifacts                     # Artifact management and optimization
 ```
 
@@ -97,7 +104,7 @@ pnpm test:visual:update             # Update baseline screenshots
 ### ESLint Configuration (CRITICAL)
 - **IMPORTANT**: Uses flat config (`eslint.config.ts`) not legacy `.eslintrc.*`
 - Extends `@bfra.me/eslint-config` which includes Prettier
-- **Pattern**: `defineConfig({ name: 'project-name', ignores: [...], typescript: { tsconfigPath: './tsconfig.json' } })`
+- **Pattern**: `defineConfig({ name: 'project-name', ignores: [...], typescript: true })`
 
 ### File Naming Conventions
 - **Hook files use PascalCase**: `UseTheme.ts`, `UseScrollAnimation.ts`
@@ -118,7 +125,9 @@ pnpm test:visual:update             # Update baseline screenshots
 │   ├── analyze-build.ts             # Bundle analysis with GitHub job summaries
 │   ├── test-dashboard.mjs           # Aggregated test health scoring
 │   ├── generate-test-badges.mjs     # Auto-updating README badges
-│   └── performance-*.ts             # Performance monitoring suite
+│   ├── performance-*.ts             # Performance monitoring suite
+│   ├── artifact-management.mjs     # Test artifact cleanup and optimization
+│   └── visual-artifact-manager.mjs # Visual test artifact management
 ├── tests/visual/                    # Comprehensive visual regression testing
 ├── playwright.config.ts             # Multi-project test configuration
 └── package.json                     # ESM-only with git hooks automation
