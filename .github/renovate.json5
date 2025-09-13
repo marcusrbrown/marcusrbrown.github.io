@@ -2,7 +2,7 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: ['github>marcusrbrown/renovate-config#4.2.0', ':preserveSemverRanges', 'group:allNonMajor'],
   postUpgradeTasks: {
-    commands: ['pnpm install', 'pnpm run fix', 'pnpm run build'],
+    commands: ['pnpm install', 'pnpm run build', 'pnpm run fix', 'pnpm run fix'],
     executionMode: 'branch',
   },
 }
