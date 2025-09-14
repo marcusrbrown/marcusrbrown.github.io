@@ -1,5 +1,5 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
-import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
+import {createContext, use, useEffect, useRef, useState, type ReactNode} from 'react'
 import {prefersReducedMotion} from '../utils/accessibility'
 import {analytics} from '../utils/analytics'
 import {
@@ -70,7 +70,7 @@ const detectSystemPreference = (): 'light' | 'dark' => {
 }
 
 export const useThemeContext = (): ThemeContextValue => {
-  const context = useContext(ThemeContext)
+  const context = use(ThemeContext)
   if (context === undefined) {
     throw new Error('useThemeContext must be used within a ThemeProvider')
   }
@@ -284,5 +284,5 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     setCustomTheme,
   }
 
-  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>
+  return <ThemeContext value={contextValue}>{children}</ThemeContext>
 }
