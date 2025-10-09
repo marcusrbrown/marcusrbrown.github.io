@@ -165,7 +165,7 @@ describe('theme-performance utilities', () => {
 
       const result = supportsHardwareAcceleration()
       expect(result).toBe(true)
-      expect(mockCanvas.getContext).toHaveBeenCalledWith('webgl')
+      expect(mockCanvas.getContext).toHaveBeenCalledExactlyOnceWith('webgl')
     })
 
     it('should return false when WebGL is not supported', () => {
@@ -284,11 +284,11 @@ describe('theme-performance utilities', () => {
 
       preloadThemeAssets()
 
-      expect(createElementSpy).toHaveBeenCalledWith('link')
+      expect(createElementSpy).toHaveBeenCalledExactlyOnceWith('link')
       expect(mockLink.rel).toBe('preload')
       expect(mockLink.as).toBe('style')
       expect(mockLink.href).toBe('/src/styles/themes.css')
-      expect(appendSpy).toHaveBeenCalledWith(mockLink)
+      expect(appendSpy).toHaveBeenCalledExactlyOnceWith(mockLink)
 
       createElementSpy.mockRestore()
       querySelectorSpy.mockRestore()
@@ -346,7 +346,7 @@ describe('theme-performance utilities', () => {
       expect(mockElement.style.position).toBe('absolute')
       expect(mockElement.style.left).toBe('-9999px')
       expect(mockElement.style.opacity).toBe('0')
-      expect(appendSpy).toHaveBeenCalledWith(mockElement)
+      expect(appendSpy).toHaveBeenCalledExactlyOnceWith(mockElement)
 
       // Fast-forward to trigger element removal
       vi.advanceTimersByTime(10)

@@ -82,9 +82,9 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify light theme colors are applied
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-text', '#0f172a')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#2563eb')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#ffffff')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-text', '#0f172a')
       expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
@@ -95,9 +95,9 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify dark theme colors are applied
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#3b82f6')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#0f172a')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-text', '#f1f5f9')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#3b82f6')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#0f172a')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-text', '#f1f5f9')
       expect(mockDocumentElement.dataset.theme).toBe('dark')
     })
 
@@ -108,8 +108,8 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify light theme colors are applied
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#2563eb')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#ffffff')
       expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
@@ -120,8 +120,8 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify dark theme colors are applied
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#3b82f6')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#0f172a')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#3b82f6')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#0f172a')
       expect(mockDocumentElement.dataset.theme).toBe('dark')
     })
 
@@ -150,9 +150,9 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify custom theme colors are applied
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#ff0000')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-secondary', '#00ff00')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-accent', '#0000ff')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#ff0000')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-secondary', '#00ff00')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-accent', '#0000ff')
       expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
@@ -165,8 +165,8 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify light theme is applied as fallback
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#2563eb')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#ffffff')
       expect(mockDocumentElement.dataset.theme).toBe('light')
     })
 
@@ -178,8 +178,8 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify falls back to saved theme mode (dark)
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#3b82f6')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#0f172a')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#3b82f6')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#0f172a')
       expect(mockDocumentElement.dataset.theme).toBe('dark')
     })
 
@@ -193,8 +193,8 @@ describe('Theme Preloader', () => {
       preloadTheme()
 
       // Verify falls back to light theme
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-primary', '#2563eb')
-      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith('--color-background', '#ffffff')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-primary', '#2563eb')
+      expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith('--color-background', '#ffffff')
       expect(mockDocumentElement.dataset.theme).toBe('light')
     })
   })
@@ -268,7 +268,7 @@ describe('Theme Preloader', () => {
       ]
 
       expectedProperties.forEach(property => {
-        expect(mockDocumentElement.style.setProperty).toHaveBeenCalledWith(property, expect.any(String))
+        expect(mockDocumentElement.style.setProperty).toHaveBeenCalledExactlyOnceWith(property, expect.any(String))
       })
     })
 

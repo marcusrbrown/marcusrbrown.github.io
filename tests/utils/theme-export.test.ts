@@ -68,13 +68,13 @@ describe('theme-export utilities', () => {
       exportTheme(mockTheme)
 
       // Verify blob creation with correct content
-      expect(globalThis.Blob).toHaveBeenCalledWith([expect.stringContaining('"name": "Test Theme"')], {
+      expect(globalThis.Blob).toHaveBeenCalledExactlyOnceWith([expect.stringContaining('"name": "Test Theme"')], {
         type: 'application/json',
       })
 
       // Verify URL creation and cleanup
-      expect(mockCreateObjectURL).toHaveBeenCalledWith(mockBlob)
-      expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+      expect(mockCreateObjectURL).toHaveBeenCalledExactlyOnceWith(mockBlob)
+      expect(mockRevokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:mock-url')
 
       // Verify DOM manipulation
       expect(mockAppend).toHaveBeenCalled()
@@ -296,7 +296,7 @@ describe('theme-export utilities', () => {
       const {copyThemeToClipboard} = await import('../../src/utils/theme-export')
 
       await expect(copyThemeToClipboard(mockTheme)).resolves.not.toThrow()
-      expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('"name": "Test Theme"'))
+      expect(mockWriteText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('"name": "Test Theme"'))
     })
 
     it('should handle copyThemeToClipboard failure', async () => {

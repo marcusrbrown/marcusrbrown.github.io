@@ -39,7 +39,7 @@ describe('ThemeCustomizer', () => {
     expect(closeButton).toBeInTheDocument()
 
     fireEvent.click(closeButton)
-    expect(mockClose).toHaveBeenCalledOnce()
+    expect(mockClose).toHaveBeenCalledExactlyOnceWith()
   })
 
   it('allows theme mode selection', () => {

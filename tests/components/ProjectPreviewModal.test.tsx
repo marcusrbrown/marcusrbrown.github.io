@@ -270,7 +270,7 @@ describe('ProjectPreviewModal', () => {
     const prevButton = screen.getByRole('button', {name: /Previous project/i})
     fireEvent.click(prevButton)
 
-    expect(mockOnNavigate).toHaveBeenCalledWith(project1)
+    expect(mockOnNavigate).toHaveBeenCalledExactlyOnceWith(project1)
   })
 
   it('calls onNavigate when next button is clicked', () => {
@@ -287,7 +287,7 @@ describe('ProjectPreviewModal', () => {
     const nextButton = screen.getByRole('button', {name: /Next project/i})
     fireEvent.click(nextButton)
 
-    expect(mockOnNavigate).toHaveBeenCalledWith(project2)
+    expect(mockOnNavigate).toHaveBeenCalledExactlyOnceWith(project2)
   })
 
   it('handles keyboard navigation - Escape key', () => {
@@ -321,7 +321,7 @@ describe('ProjectPreviewModal', () => {
     const modal = screen.getByRole('dialog')
     fireEvent.keyDown(modal, {key: 'ArrowLeft'})
 
-    expect(mockOnNavigate).toHaveBeenCalledWith(project1)
+    expect(mockOnNavigate).toHaveBeenCalledExactlyOnceWith(project1)
   })
 
   it('handles keyboard navigation - Arrow right for next project', () => {
@@ -338,7 +338,7 @@ describe('ProjectPreviewModal', () => {
     const modal = screen.getByRole('dialog')
     fireEvent.keyDown(modal, {key: 'ArrowRight'})
 
-    expect(mockOnNavigate).toHaveBeenCalledWith(project2)
+    expect(mockOnNavigate).toHaveBeenCalledExactlyOnceWith(project2)
   })
 
   it('shows project counter information', () => {
@@ -457,7 +457,7 @@ describe('ProjectPreviewModal', () => {
       })
       fireEvent.touchEnd(backdrop)
 
-      expect(mockOnNavigate).toHaveBeenCalledWith(project1)
+      expect(mockOnNavigate).toHaveBeenCalledExactlyOnceWith(project1)
 
       vi.clearAllMocks()
 
@@ -470,7 +470,7 @@ describe('ProjectPreviewModal', () => {
       })
       fireEvent.touchEnd(backdrop)
 
-      expect(mockOnNavigate).toHaveBeenCalledWith(project3)
+      expect(mockOnNavigate).toHaveBeenCalledExactlyOnceWith(project3)
     }
   })
 
