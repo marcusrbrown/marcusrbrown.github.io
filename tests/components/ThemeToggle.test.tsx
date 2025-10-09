@@ -67,28 +67,28 @@ describe('ThemeToggle', () => {
     render(<ThemeToggleWrapper />)
     const button = screen.getByRole('button')
     fireEvent.click(button)
-    expect(mockUseTheme.setThemeMode).toHaveBeenCalledWith('dark')
+    expect(mockUseTheme.setThemeMode).toHaveBeenCalledExactlyOnceWith('dark')
   })
 
   it('cycles to dark mode when in light mode', () => {
     render(<ThemeToggleWrapper />)
     const button = screen.getByRole('button')
     fireEvent.click(button)
-    expect(mockUseTheme.setThemeMode).toHaveBeenCalledWith('dark')
+    expect(mockUseTheme.setThemeMode).toHaveBeenCalledExactlyOnceWith('dark')
   })
 
   it('handles Enter key press for accessibility', () => {
     render(<ThemeToggleWrapper />)
     const button = screen.getByRole('button')
     fireEvent.keyDown(button, {key: 'Enter'})
-    expect(mockUseTheme.setThemeMode).toHaveBeenCalledWith('dark')
+    expect(mockUseTheme.setThemeMode).toHaveBeenCalledExactlyOnceWith('dark')
   })
 
   it('handles Space key press for accessibility', () => {
     render(<ThemeToggleWrapper />)
     const button = screen.getByRole('button')
     fireEvent.keyDown(button, {key: ' '})
-    expect(mockUseTheme.setThemeMode).toHaveBeenCalledWith('dark')
+    expect(mockUseTheme.setThemeMode).toHaveBeenCalledExactlyOnceWith('dark')
   })
 
   it('ignores other key presses', () => {
@@ -107,7 +107,7 @@ describe('ThemeToggle', () => {
       render(<ThemeToggleWrapper />)
       const button = screen.getByRole('button')
       fireEvent.click(button)
-      expect(mockUseTheme.setThemeMode).toHaveBeenCalledWith('system')
+      expect(mockUseTheme.setThemeMode).toHaveBeenCalledExactlyOnceWith('system')
     })
 
     it('switches from system to light mode', () => {
@@ -118,7 +118,7 @@ describe('ThemeToggle', () => {
       render(<ThemeToggleWrapper />)
       const button = screen.getByRole('button')
       fireEvent.click(button)
-      expect(mockUseTheme.setThemeMode).toHaveBeenCalledWith('light')
+      expect(mockUseTheme.setThemeMode).toHaveBeenCalledExactlyOnceWith('light')
     })
 
     it('displays correct icon for dark mode', () => {

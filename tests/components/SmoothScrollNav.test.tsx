@@ -65,7 +65,7 @@ describe('SmoothScrollNav', () => {
     const homeButton = screen.getByRole('button', {name: /navigate to home section/i})
     fireEvent.click(homeButton)
 
-    expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+    expect(scrollIntoViewSpy).toHaveBeenCalledExactlyOnceWith({
       behavior: 'smooth',
       block: 'start',
     })
@@ -81,7 +81,7 @@ describe('SmoothScrollNav', () => {
 
     // Test Enter key
     fireEvent.keyDown(skillsButton, {key: 'Enter', code: 'Enter'})
-    expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+    expect(scrollIntoViewSpy).toHaveBeenCalledExactlyOnceWith({
       behavior: 'smooth',
       block: 'start',
     })
@@ -143,7 +143,7 @@ describe('SmoothScrollNav', () => {
   it('sets up intersection observer for active section detection', () => {
     render(<SmoothScrollNav />)
 
-    expect(globalThis.IntersectionObserver).toHaveBeenCalledWith(expect.any(Function), {
+    expect(globalThis.IntersectionObserver).toHaveBeenCalledExactlyOnceWith(expect.any(Function), {
       threshold: [0.1, 0.5, 1],
       rootMargin: '-20% 0px -60% 0px',
     })

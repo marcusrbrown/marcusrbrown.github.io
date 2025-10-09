@@ -144,7 +144,7 @@ describe('AboutSection', () => {
 
       // Should call useScrollAnimation for header, story, counters, timeline sections
       // Plus additional calls from testimonials carousel
-      expect(useScrollAnimation).toHaveBeenCalledWith({
+      expect(useScrollAnimation).toHaveBeenCalledExactlyOnceWith({
         threshold: 0.1,
         rootMargin: '100px 0px',
         triggerOnce: true,

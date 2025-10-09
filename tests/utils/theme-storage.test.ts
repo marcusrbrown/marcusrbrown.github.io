@@ -71,7 +71,7 @@ describe('theme-storage', () => {
         const result = saveThemeMode('dark')
 
         expect(result).toBe(true)
-        expect(localStorageMock.setItem).toHaveBeenCalledWith('mrbro-dev-theme-mode', JSON.stringify('dark'))
+        expect(localStorageMock.setItem).toHaveBeenCalledExactlyOnceWith('mrbro-dev-theme-mode', JSON.stringify('dark'))
       })
 
       it('should handle all valid theme modes', () => {
@@ -84,7 +84,7 @@ describe('theme-storage', () => {
         const result = saveThemeMode('invalid' as any)
 
         expect(result).toBe(false)
-        expect(consoleMock.warn).toHaveBeenCalledWith('Invalid theme mode provided:', 'invalid')
+        expect(consoleMock.warn).toHaveBeenCalledExactlyOnceWith('Invalid theme mode provided:', 'invalid')
         expect(localStorageMock.setItem).not.toHaveBeenCalled()
       })
 
@@ -103,7 +103,9 @@ describe('theme-storage', () => {
 
         expect(result).toBe(false)
         expect(consoleMock.warn).toHaveBeenCalled()
-        expect(consoleMock.error).toHaveBeenCalledWith('Failed to save theme data even after clearing storage')
+        expect(consoleMock.error).toHaveBeenCalledExactlyOnceWith(
+          'Failed to save theme data even after clearing storage',
+        )
       })
 
       it('should attempt cleanup and retry on storage error', () => {
@@ -118,7 +120,7 @@ describe('theme-storage', () => {
         const result = saveThemeMode('dark')
 
         expect(result).toBe(true)
-        expect(localStorageMock.removeItem).toHaveBeenCalledWith('mrbro-dev-custom-theme')
+        expect(localStorageMock.removeItem).toHaveBeenCalledExactlyOnceWith('mrbro-dev-custom-theme')
       })
     })
 
@@ -191,7 +193,10 @@ describe('theme-storage', () => {
         const result = saveCustomTheme(validTheme)
 
         expect(result).toBe(true)
-        expect(localStorageMock.setItem).toHaveBeenCalledWith('mrbro-dev-custom-theme', JSON.stringify(validTheme))
+        expect(localStorageMock.setItem).toHaveBeenCalledExactlyOnceWith(
+          'mrbro-dev-custom-theme',
+          JSON.stringify(validTheme),
+        )
       })
 
       it('should reject theme with missing id', () => {
@@ -200,7 +205,7 @@ describe('theme-storage', () => {
         const result = saveCustomTheme(invalidTheme)
 
         expect(result).toBe(false)
-        expect(consoleMock.warn).toHaveBeenCalledWith('Invalid theme provided for storage:', invalidTheme)
+        expect(consoleMock.warn).toHaveBeenCalledExactlyOnceWith('Invalid theme provided for storage:', invalidTheme)
       })
 
       it('should reject theme with invalid mode', () => {
@@ -277,7 +282,7 @@ describe('theme-storage', () => {
         const result = removeCustomTheme()
 
         expect(result).toBe(true)
-        expect(localStorageMock.removeItem).toHaveBeenCalledWith('mrbro-dev-custom-theme')
+        expect(localStorageMock.removeItem).toHaveBeenCalledExactlyOnceWith('mrbro-dev-custom-theme')
       })
 
       it('should handle localStorage remove error', () => {
@@ -299,8 +304,8 @@ describe('theme-storage', () => {
         const result = clearThemeStorage()
 
         expect(result).toBe(true)
-        expect(localStorageMock.removeItem).toHaveBeenCalledWith('mrbro-dev-theme-mode')
-        expect(localStorageMock.removeItem).toHaveBeenCalledWith('mrbro-dev-custom-theme')
+        expect(localStorageMock.removeItem).toHaveBeenCalledExactlyOnceWith('mrbro-dev-theme-mode')
+        expect(localStorageMock.removeItem).toHaveBeenCalledExactlyOnceWith('mrbro-dev-custom-theme')
       })
 
       it('should handle localStorage clear error', () => {

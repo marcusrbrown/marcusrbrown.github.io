@@ -102,7 +102,7 @@ describe('accessibility utilities', () => {
       handleTabNavigation(mockEvent, 'tab1', tabs, mockOnTabChange)
 
       expect(mockPreventDefault).toHaveBeenCalled()
-      expect(mockOnTabChange).toHaveBeenCalledWith('tab2')
+      expect(mockOnTabChange).toHaveBeenCalledExactlyOnceWith('tab2')
     })
 
     it('should navigate to previous tab on ArrowLeft', () => {
@@ -117,7 +117,7 @@ describe('accessibility utilities', () => {
       handleTabNavigation(mockEvent, 'tab2', tabs, mockOnTabChange)
 
       expect(mockPreventDefault).toHaveBeenCalled()
-      expect(mockOnTabChange).toHaveBeenCalledWith('tab1')
+      expect(mockOnTabChange).toHaveBeenCalledExactlyOnceWith('tab1')
     })
 
     it('should wrap around from first to last tab on ArrowLeft', () => {
@@ -132,7 +132,7 @@ describe('accessibility utilities', () => {
       handleTabNavigation(mockEvent, 'tab1', tabs, mockOnTabChange)
 
       expect(mockPreventDefault).toHaveBeenCalled()
-      expect(mockOnTabChange).toHaveBeenCalledWith('tab3')
+      expect(mockOnTabChange).toHaveBeenCalledExactlyOnceWith('tab3')
     })
 
     it('should wrap around from last to first tab on ArrowRight', () => {
@@ -147,7 +147,7 @@ describe('accessibility utilities', () => {
       handleTabNavigation(mockEvent, 'tab3', tabs, mockOnTabChange)
 
       expect(mockPreventDefault).toHaveBeenCalled()
-      expect(mockOnTabChange).toHaveBeenCalledWith('tab1')
+      expect(mockOnTabChange).toHaveBeenCalledExactlyOnceWith('tab1')
     })
   })
 
@@ -353,10 +353,10 @@ describe('accessibility utilities', () => {
 
       const cleanup = onReducedMotionChange(mockCallback)
 
-      expect(mockAddEventListener).toHaveBeenCalledWith('change', expect.any(Function))
+      expect(mockAddEventListener).toHaveBeenCalledExactlyOnceWith('change', expect.any(Function))
 
       cleanup()
-      expect(mockRemoveEventListener).toHaveBeenCalledWith('change', expect.any(Function))
+      expect(mockRemoveEventListener).toHaveBeenCalledExactlyOnceWith('change', expect.any(Function))
     })
 
     it('should return no-op cleanup when matchMedia not available', () => {

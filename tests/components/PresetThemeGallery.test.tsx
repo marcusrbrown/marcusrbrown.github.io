@@ -225,7 +225,7 @@ describe('PresetThemeGallery', () => {
       fireEvent.click(themeCard)
     }
 
-    expect(mockSetCustomTheme).toHaveBeenCalledWith(
+    expect(mockSetCustomTheme).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         id: 'test-light',
         name: 'Test Light',
@@ -243,7 +243,7 @@ describe('PresetThemeGallery', () => {
       fireEvent.click(themeCard)
     }
 
-    expect(mockOnThemeApply).toHaveBeenCalledWith(
+    expect(mockOnThemeApply).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         id: 'test-light',
         name: 'Test Light',
