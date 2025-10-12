@@ -92,6 +92,14 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
   const initialSystemPreference = useRef<'light' | 'dark'>(detectSystemPreference())
   const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>(initialSystemPreference.current)
 
+  // Remove theme-preload class after React hydration to enable transitions
+  useEffect(() => {
+    // Use requestAnimationFrame to ensure DOM is fully rendered
+    requestAnimationFrame(() => {
+      document.documentElement.classList.remove('theme-preload')
+    })
+  }, [])
+
   const availableThemes = [defaultLightTheme, defaultDarkTheme]
 
   // Enhanced setThemeMode that persists to localStorage and optimizes performance
