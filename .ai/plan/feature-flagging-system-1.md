@@ -194,7 +194,7 @@ This implementation plan outlines the development of a comprehensive feature fla
 ## 8. Related Specifications / Further Reading
 
 **Internal Project Documentation:**
-- [GitHub Copilot Instructions](/.github/copilot-instructions.md) - Project conventions and architecture patterns
+- [AGENTS.md](/AGENTS.md) - Project conventions and architecture patterns
 - [Testing Documentation](/TESTING.md) - Testing infrastructure and guidelines
 - [Performance Monitoring Scripts](/scripts/) - Build analysis and performance budgets
 
