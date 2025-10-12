@@ -191,6 +191,18 @@
   }
 }
 
+/* Theme preload state - disables transitions during initial page load */
+/* This class is added by the inline preloader script and removed after React hydration */
+.theme-preload,
+.theme-preload *,
+.theme-preload *::before,
+.theme-preload *::after {
+  transition: none !important;
+  animation: none !important;
+  /* Prevent any visual changes during initial load */
+  will-change: auto !important;
+}
+
 /* Reduced motion preferences - comprehensive animation control */
 @media (prefers-reduced-motion: reduce) {
   :root {
