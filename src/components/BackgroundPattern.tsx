@@ -1,4 +1,4 @@
-import React from 'react'
+import React, {useMemo, useState} from 'react'
 
 /**
  * Subtle background pattern component with geometric elements
@@ -48,34 +48,47 @@ interface FloatingShapesProps {
   animated?: boolean
 }
 
+const DEFAULT_SHAPES: ('circle' | 'square' | 'triangle')[] = ['circle', 'square', 'triangle']
+
 export const FloatingShapes: React.FC<FloatingShapesProps> = ({
   className = '',
   count = 6,
-  shapes = ['circle', 'square', 'triangle'],
+  shapes = DEFAULT_SHAPES,
   animated = true,
 }) => {
-  const elements = Array.from({length: count}, (_, index) => {
-    const shape = shapes[index % shapes.length]
-    const size = 20 + Math.random() * 40 // Random size between 20-60px
-    const delay = Math.random() * 10 // Random animation delay
-    const duration = 15 + Math.random() * 10 // Random duration 15-25s
+  // Generate random values once on mount using useState with lazy initializer
+  const [shapeData] = useState(() =>
+    Array.from({length: count}, (_, index) => ({
+      shape: shapes[index % shapes.length],
+      size: 20 + Math.random() * 40,
+      delay: Math.random() * 10,
+      duration: 15 + Math.random() * 10,
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+    })),
+  )
 
-    const style = {
-      '--shape-size': `${size}px`,
-      '--animation-delay': `${delay}s`,
-      '--animation-duration': `${duration}s`,
-      left: `${Math.random() * 100}%`,
-      top: `${Math.random() * 100}%`,
-    } as React.CSSProperties
+  const elements = useMemo(
+    () =>
+      shapeData.map((data, index) => {
+        const style = {
+          '--shape-size': `${data.size}px`,
+          '--animation-delay': `${data.delay}s`,
+          '--animation-duration': `${data.duration}s`,
+          left: `${data.left}%`,
+          top: `${data.top}%`,
+        } as React.CSSProperties
 
-    return (
-      <div
-        key={index}
-        className={`floating-shape floating-shape--${shape} ${animated ? 'floating-shape--animated' : ''}`}
-        style={style}
-      />
-    )
-  })
+        return (
+          <div
+            key={index}
+            className={`floating-shape floating-shape--${data.shape} ${animated ? 'floating-shape--animated' : ''}`}
+            style={style}
+          />
+        )
+      }),
+    [shapeData, animated],
+  )
 
   return (
     <div className={`floating-shapes ${className}`.trim()} aria-hidden="true">

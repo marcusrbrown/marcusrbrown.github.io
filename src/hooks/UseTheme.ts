@@ -1,5 +1,5 @@
 import type {Theme, ThemeMode} from '../types'
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useMemo} from 'react'
 import {useThemeContext} from '../contexts/ThemeContext'
 
 export interface UseThemeReturn {
@@ -43,13 +43,11 @@ export interface UseThemeReturn {
 export const useTheme = (): UseThemeReturn => {
   const {currentTheme, themeMode, availableThemes, systemPreference, setThemeMode, setCustomTheme} = useThemeContext()
 
-  // Track whether a custom theme is currently active
-  const [isCustomTheme, setIsCustomTheme] = useState(false)
-
-  useEffect(() => {
-    const isCustom = !availableThemes.some(theme => theme.id === currentTheme.id)
-    setIsCustomTheme(isCustom)
-  }, [currentTheme, availableThemes])
+  // Track whether a custom theme is currently active (derived state)
+  const isCustomTheme = useMemo(
+    () => !availableThemes.some(theme => theme.id === currentTheme.id),
+    [currentTheme, availableThemes],
+  )
 
   const isDarkMode = currentTheme.mode === 'dark'
   const isLightMode = currentTheme.mode === 'light'

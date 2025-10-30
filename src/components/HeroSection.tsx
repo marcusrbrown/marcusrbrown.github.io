@@ -46,22 +46,22 @@ const HeroSection: React.FC<HeroSectionProps> = ({
   secondaryHref = '#contact',
 }) => {
   // Animation hooks for staggered entrance effects
-  const titleAnimation = useScrollAnimation<HTMLHeadingElement>({
+  const {ref: titleRef, animationState: titleAnimationState} = useScrollAnimation<HTMLHeadingElement>({
     threshold: 0.2,
     delay: getStaggerDelay(0, 200, 150),
   })
 
-  const subtitleAnimation = useScrollAnimation<HTMLParagraphElement>({
+  const {ref: subtitleRef, animationState: subtitleAnimationState} = useScrollAnimation<HTMLParagraphElement>({
     threshold: 0.2,
     delay: getStaggerDelay(1, 200, 150),
   })
 
-  const ctaAnimation = useScrollAnimation<HTMLDivElement>({
+  const {ref: ctaRef, animationState: ctaAnimationState} = useScrollAnimation<HTMLDivElement>({
     threshold: 0.2,
     delay: getStaggerDelay(2, 200, 150),
   })
 
-  const scrollIndicatorAnimation = useScrollAnimation<HTMLDivElement>({
+  const {ref: scrollIndicatorRef, animationState: scrollIndicatorAnimationState} = useScrollAnimation<HTMLDivElement>({
     threshold: 0.2,
     delay: getStaggerDelay(3, 200, 150),
   })
@@ -124,26 +124,20 @@ const HeroSection: React.FC<HeroSectionProps> = ({
       {/* Main Content */}
       <div className={`hero-content ${isLoaded ? 'loaded' : 'loading'}`}>
         {/* Main Title */}
-        <h1
-          ref={titleAnimation.ref}
-          className={`hero-title ${getAnimationClasses(titleAnimation.animationState, 'animate-fade-up')}`}
-        >
+        <h1 ref={titleRef} className={`hero-title ${getAnimationClasses(titleAnimationState, 'animate-fade-up')}`}>
           Hello, I'm <span className="hero-title-highlight">{title}</span>
         </h1>
 
         {/* Subtitle */}
         <p
-          ref={subtitleAnimation.ref}
-          className={`hero-subtitle ${getAnimationClasses(subtitleAnimation.animationState, 'animate-fade-up')}`}
+          ref={subtitleRef}
+          className={`hero-subtitle ${getAnimationClasses(subtitleAnimationState, 'animate-fade-up')}`}
         >
           {subtitle}
         </p>
 
         {/* Call-to-Action Buttons */}
-        <div
-          ref={ctaAnimation.ref}
-          className={`hero-cta ${getAnimationClasses(ctaAnimation.animationState, 'animate-scale')}`}
-        >
+        <div ref={ctaRef} className={`hero-cta ${getAnimationClasses(ctaAnimationState, 'animate-scale')}`}>
           <a
             href={primaryHref}
             className="hero-cta-button hero-cta-button--primary"
@@ -176,8 +170,8 @@ const HeroSection: React.FC<HeroSectionProps> = ({
 
       {/* Scroll Indicator */}
       <div
-        ref={scrollIndicatorAnimation.ref}
-        className={`hero-scroll-indicator ${getAnimationClasses(scrollIndicatorAnimation.animationState, 'animate-fade-in')}`}
+        ref={scrollIndicatorRef}
+        className={`hero-scroll-indicator ${getAnimationClasses(scrollIndicatorAnimationState, 'animate-fade-in')}`}
         aria-label="Scroll down to see more content"
         role="presentation"
       >
