@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 
 interface ParallaxOptions {
   speed?: number // Parallax speed multiplier (0.1 = subtle, 1.0 = fast)
@@ -22,13 +22,23 @@ export const useParallax = <T extends HTMLElement>(options: ParallaxOptions = {}
   const {speed = 0.5, direction = 'up', disabled = false} = options
 
   const ref = useRef<T>(null)
-  const [transform, setTransform] = useState('translate3d(0, 0, 0)')
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  const [rawTransform, setRawTransform] = useState('translate3d(0, 0, 0)')
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  })
+
+  // Derive the final transform based on conditions
+  const transform = useMemo(() => {
+    if (disabled || prefersReducedMotion) {
+      return 'translate3d(0, 0, 0)'
+    }
+    return rawTransform
+  }, [disabled, prefersReducedMotion, rawTransform])
 
   useEffect(() => {
     // Check for prefers-reduced-motion
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setPrefersReducedMotion(mediaQuery.matches)
 
     const handleMediaQueryChange = (e: MediaQueryListEvent) => {
       setPrefersReducedMotion(e.matches)
@@ -40,7 +50,6 @@ export const useParallax = <T extends HTMLElement>(options: ParallaxOptions = {}
 
   useEffect(() => {
     if (disabled || prefersReducedMotion || !ref.current) {
-      setTransform('translate3d(0, 0, 0)')
       return
     }
 
@@ -80,7 +89,7 @@ export const useParallax = <T extends HTMLElement>(options: ParallaxOptions = {}
           break
       }
 
-      setTransform(transformValue)
+      setRawTransform(transformValue)
     }
 
     const throttledScroll = () => {

@@ -1,5 +1,5 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
-import {createContext, use, useEffect, useRef, useState, type ReactNode} from 'react'
+import {createContext, use, useEffect, useState, type ReactNode} from 'react'
 import {prefersReducedMotion} from '../utils/accessibility'
 import {analytics} from '../utils/analytics'
 import {
@@ -89,8 +89,7 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
   const [customTheme, setCustomThemeState] = useState<Theme | null>(() => loadCustomTheme())
 
   // Initialize system preference synchronously to prevent theme flash on startup
-  const initialSystemPreference = useRef<'light' | 'dark'>(detectSystemPreference())
-  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>(initialSystemPreference.current)
+  const [systemPreference, setSystemPreference] = useState<'light' | 'dark'>(() => detectSystemPreference())
 
   // Remove theme-preload class after React hydration to enable transitions
   useEffect(() => {
@@ -161,9 +160,6 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     if (typeof window === 'undefined') return
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-
-    // Update system preference (may be redundant with initial detection, but ensures consistency)
-    setSystemPreference(mediaQuery.matches ? 'dark' : 'light')
 
     const handleChange = (e: MediaQueryListEvent) => {
       setSystemPreference(e.matches ? 'dark' : 'light')

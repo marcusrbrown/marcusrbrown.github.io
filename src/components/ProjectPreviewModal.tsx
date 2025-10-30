@@ -34,6 +34,7 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
     if (currentProjectIndex > 0) {
       const previousProject = projects[currentProjectIndex - 1]
       if (previousProject && onNavigate) {
+        setCurrentImageIndex(0) // Reset image index when navigating
         onNavigate(previousProject)
       }
     }
@@ -43,10 +44,11 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
     if (currentProjectIndex < projects.length - 1) {
       const nextProject = projects[currentProjectIndex + 1]
       if (nextProject && onNavigate) {
+        setCurrentImageIndex(0) // Reset image index when navigating
         onNavigate(nextProject)
       }
     }
-  }, [currentProjectIndex, projects.length, onNavigate])
+  }, [currentProjectIndex, projects, onNavigate])
 
   // Image carousel navigation functions
   const navigateToPreviousImage = useCallback(() => {
@@ -66,8 +68,6 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
       }
       // Prevent body scroll
       document.body.style.overflow = 'hidden'
-      // Reset image index
-      setCurrentImageIndex(0)
     } else {
       // Restore body scroll
       document.body.style.overflow = ''

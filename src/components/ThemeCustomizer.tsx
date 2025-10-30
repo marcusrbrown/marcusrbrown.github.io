@@ -424,7 +424,7 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
   // Get accessibility validation results for the current theme
   const accessibilityResults = useMemo(() => {
     return validateThemeAccessibility(editingTheme)
-  }, [editingTheme.colors])
+  }, [editingTheme])
 
   // Show notification temporarily
   const showNotification = useCallback((type: 'success' | 'error', message: string) => {

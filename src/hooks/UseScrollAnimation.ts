@@ -163,8 +163,9 @@ export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
     // Check if IntersectionObserver is supported
     if (!('IntersectionObserver' in window)) {
       // Fallback: immediately trigger animation for unsupported browsers
-      triggerAnimation()
-      return
+      // Use setTimeout to avoid synchronous setState in effect
+      const timeoutId = setTimeout(() => triggerAnimation(), 0)
+      return () => clearTimeout(timeoutId)
     }
 
     observerRef.current = new IntersectionObserver(handleIntersection, {
@@ -228,9 +229,11 @@ export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
   useEffect(() => {
     if (shouldReduceMotion && animationState !== 'idle') {
       // If reduced motion is preferred and animation is active,
-      // immediately set to visible state
-      setAnimationState('visible')
+      // immediately set to visible state (use setTimeout to avoid sync setState)
+      const timeoutId = setTimeout(() => setAnimationState('visible'), 0)
+      return () => clearTimeout(timeoutId)
     }
+    return undefined
   }, [shouldReduceMotion, animationState])
 
   return {

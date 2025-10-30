@@ -184,17 +184,17 @@ const ContactCTA: React.FC<ContactCTAProps> = ({
   const methods = contactMethods || defaultContactMethods
 
   // Animation hooks for staggered entrance effects
-  const headerAnimation = useScrollAnimation<HTMLElement>({
+  const {ref: headerRef, animationState: headerAnimationState} = useScrollAnimation<HTMLElement>({
     threshold: 0.3,
     delay: getStaggerDelay(0, 200, 100),
   })
 
-  const availabilityAnimation = useScrollAnimation<HTMLDivElement>({
+  const {ref: availabilityRef, animationState: availabilityAnimationState} = useScrollAnimation<HTMLDivElement>({
     threshold: 0.3,
     delay: getStaggerDelay(1, 200, 100),
   })
 
-  const methodsAnimation = useScrollAnimation<HTMLDivElement>({
+  const {ref: methodsRef, animationState: methodsAnimationState} = useScrollAnimation<HTMLDivElement>({
     threshold: 0.3,
     delay: getStaggerDelay(2, 200, 100),
   })
@@ -208,8 +208,8 @@ const ContactCTA: React.FC<ContactCTAProps> = ({
       <div className="container">
         {/* Header */}
         <header
-          ref={headerAnimation.ref}
-          className={`contact-cta-header ${getAnimationClasses(headerAnimation.animationState, 'animate-fade-up')}`}
+          ref={headerRef}
+          className={`contact-cta-header ${getAnimationClasses(headerAnimationState, 'animate-fade-up')}`}
         >
           <h2 id="contact-title" className="contact-cta-title">
             {title}
@@ -220,8 +220,8 @@ const ContactCTA: React.FC<ContactCTAProps> = ({
         {/* Availability Status */}
         {showAvailability && (
           <div
-            ref={availabilityAnimation.ref}
-            className={`contact-availability ${getAnimationClasses(availabilityAnimation.animationState, 'animate-scale')}`}
+            ref={availabilityRef}
+            className={`contact-availability ${getAnimationClasses(availabilityAnimationState, 'animate-scale')}`}
           >
             <div className="contact-availability-indicator" aria-hidden="true">
               <div className="availability-dot"></div>
@@ -232,8 +232,8 @@ const ContactCTA: React.FC<ContactCTAProps> = ({
 
         {/* Contact Methods */}
         <div
-          ref={methodsAnimation.ref}
-          className={`contact-methods ${getAnimationClasses(methodsAnimation.animationState, 'animate-fade-up')}`}
+          ref={methodsRef}
+          className={`contact-methods ${getAnimationClasses(methodsAnimationState, 'animate-fade-up')}`}
         >
           {/* Primary Contact Methods */}
           {primaryMethods.length > 0 && (
