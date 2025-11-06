@@ -172,7 +172,7 @@ print(f"Current theme: {theme_manager.current_theme}")`,
 </body>
 </html>`,
 
-  bash: `#!/bin/bash
+  bash: String.raw`#!/bin/bash
 # Automated deployment script for mrbro.dev
 set -euo pipefail
 
@@ -181,10 +181,10 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/dist"
 
 # Color codes for output
-RED='\\033[0;31m'
-GREEN='\\033[0;32m'
-YELLOW='\\033[1;33m'
-NC='\\033[0m' # No Color
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 log_info() {
   echo -e "$GREEN[INFO]$NC $1"
