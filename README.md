@@ -30,7 +30,10 @@
 
 A modern, high-performance developer portfolio built with React 19+, TypeScript, and Vite. Features an advanced theme system, GitHub API integration, and automated deployment to GitHub Pages with the custom domain [mrbro.dev](https://mrbro.dev).
 
-> [!NOTE] **Modern Architecture**: This project uses pure ESM modules, React 19+, and cutting-edge tooling for optimal performance and developer experience.
+<!-- prettier-ignore-start -->
+> [!NOTE]
+> **Modern Architecture**: This project uses pure ESM modules, React 19+, and cutting-edge tooling for optimal performance and developer experience.
+<!-- prettier-ignore-end -->
 
 ## Features
 
@@ -360,4 +363,7 @@ pnpm test --reporter=verbose    # Detailed test output
 pnpm run setup-hooks           # Reinstall git hooks
 ```
 
-> [!TIP] **Performance**: The build analysis script provides detailed bundle metrics and optimization suggestions in GitHub Actions job summaries.
+<!-- prettier-ignore-start -->
+> [!TIP]
+> **Performance**: The build analysis script provides detailed bundle metrics and optimization suggestions in GitHub Actions job summaries.
+<!-- prettier-ignore-end -->
