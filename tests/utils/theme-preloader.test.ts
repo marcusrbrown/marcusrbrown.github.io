@@ -6,21 +6,19 @@ import {
 } from '../../src/utils/theme-preloader'
 
 // Mock localStorage
-const mockLocalStorage = (() => {
-  let store: Record<string, string> = {}
-  return {
-    getItem: vi.fn((key: string) => store[key] || null),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = value
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key]
-    }),
-    clear: vi.fn(() => {
-      store = {}
-    }),
-  }
-})()
+let localStorageStore: Record<string, string> = {}
+const mockLocalStorage = {
+  getItem: vi.fn((key: string) => localStorageStore[key] || null),
+  setItem: vi.fn((key: string, value: string) => {
+    localStorageStore[key] = value
+  }),
+  removeItem: vi.fn((key: string) => {
+    delete localStorageStore[key]
+  }),
+  clear: vi.fn(() => {
+    localStorageStore = {}
+  }),
+}
 
 // Mock matchMedia
 const mockMatchMedia = vi.fn()
@@ -39,6 +37,12 @@ describe('Theme Preloader', () => {
     // Reset mocks
     vi.clearAllMocks()
     mockLocalStorage.clear()
+
+    // Reset getItem implementation to default behavior
+    // This is necessary because vi.clearAllMocks() doesn't reset mock implementations
+    ;(mockLocalStorage.getItem as MockedFunction<typeof mockLocalStorage.getItem>).mockImplementation(
+      (key: string) => localStorageStore[key] || null,
+    )
 
     // Reset mock functions
     mockDocumentElement.style.setProperty.mockClear()

@@ -3,11 +3,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import SmoothScrollNav from '../../src/components/SmoothScrollNav'
 
 // Mock IntersectionObserver
-globalThis.IntersectionObserver = vi.fn().mockImplementation(_callback => ({
-  observe: vi.fn(),
-  disconnect: vi.fn(),
-  unobserve: vi.fn(),
-}))
+// eslint-disable-next-line prefer-arrow-callback
+globalThis.IntersectionObserver = vi.fn(function (_callback, _options) {
+  return {
+    observe: vi.fn(),
+    disconnect: vi.fn(),
+    unobserve: vi.fn(),
+  }
+}) as any
 
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = vi.fn()
