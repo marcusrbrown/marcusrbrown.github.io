@@ -45,10 +45,12 @@ describe('theme-export utilities', () => {
       })
 
       // Mock Blob constructor
-      const mockBlob = {type: 'application/json'}
       vi.stubGlobal(
         'Blob',
-        vi.fn().mockImplementation(() => mockBlob),
+        // eslint-disable-next-line prefer-arrow-callback
+        vi.fn(function (_content, options) {
+          return {type: options?.type || 'application/json'}
+        }) as any,
       )
 
       // Mock link click
@@ -73,7 +75,7 @@ describe('theme-export utilities', () => {
       })
 
       // Verify URL creation and cleanup
-      expect(mockCreateObjectURL).toHaveBeenCalledWith(mockBlob)
+      expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.objectContaining({type: 'application/json'}))
       expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
 
       // Verify DOM manipulation
