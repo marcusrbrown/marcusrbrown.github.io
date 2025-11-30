@@ -56,7 +56,7 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
         {/* Section Header */}
         <header
           ref={headerRef}
-          className={`section-header`}
+          className="section-header"
           style={{
             opacity: headerInView ? 1 : 0,
             transform: headerInView ? 'translateY(0)' : 'translateY(2rem)',
@@ -74,7 +74,7 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
         {/* Professional Story */}
         <div
           ref={storyRef}
-          className={`about-story`}
+          className="about-story"
           style={{
             opacity: storyInView ? 1 : 0,
             transform: storyInView ? 'translateY(0)' : 'translateY(2rem)',
@@ -106,7 +106,7 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
         {/* Professional Statistics */}
         <div
           ref={countersRef}
-          className={`about-counters`}
+          className="about-counters"
           style={{
             opacity: countersInView ? 1 : 0,
             transform: countersInView ? 'translateY(0)' : 'translateY(2rem)',
@@ -120,7 +120,7 @@ const AboutSection: React.FC<AboutSectionProps> = ({className = ''}) => {
         {/* Career Timeline */}
         <div
           ref={timelineRef}
-          className={`about-timeline`}
+          className="about-timeline"
           style={{
             opacity: timelineInView ? 1 : 0,
             transform: timelineInView ? 'translateY(0)' : 'translateY(2rem)',
