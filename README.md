@@ -138,8 +138,6 @@ Then you can get the project code:
 
 The project implements a comprehensive theme system using Context + Hook pattern:
 
-<!-- eslint-disable react-hooks/rules-of-hooks -->
-
 ```typescript
 // Advanced theme management with custom creation, presets, and persistence
 const { currentTheme, themeMode, toggleTheme, setCustomTheme } = useTheme()
