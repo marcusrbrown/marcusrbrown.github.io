@@ -544,8 +544,6 @@ test.use({
 })
 ```
 
-<!-- eslint-disable @typescript-eslint/no-unused-expressions -->
-
 ```typescript
 // Disable animations in playwright.config.ts
 use: {
