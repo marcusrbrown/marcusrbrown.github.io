@@ -75,7 +75,7 @@ describe('CodeBlock component', () => {
   })
 
   it('should handle empty code', async () => {
-    renderWithTheme(<CodeBlock>{''}</CodeBlock>)
+    renderWithTheme(<CodeBlock> </CodeBlock>)
 
     await waitFor(() => {
       expect(screen.getByLabelText('Code snippet in typescript')).toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('CodeBlock component', () => {
   it('should apply custom className', async () => {
     const customClass = 'my-custom-class'
 
-    renderWithTheme(<CodeBlock className={customClass}>{'test'}</CodeBlock>)
+    renderWithTheme(<CodeBlock className={customClass}>test</CodeBlock>)
 
     await waitFor(() => {
       const codeBlock = screen.getByLabelText('Code snippet in typescript')
