@@ -139,8 +139,10 @@ Then you can get the project code:
 The project implements a comprehensive theme system using Context + Hook pattern:
 
 ```typescript
+function App() {
 // Advanced theme management with custom creation, presets, and persistence
 const { currentTheme, themeMode, toggleTheme, setCustomTheme } = useTheme()
+}
 ```
 
 **Key Features:**
