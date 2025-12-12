@@ -322,12 +322,50 @@ jobs:
           persist-credentials: false
           token: ${{ steps.get-app-token.outputs.token }}
 
-      - name: Comment on PR
+      - name: Update or Create PR Comment
         env:
           GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
+          # Configuration
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          COMMENT_MARKER="<!-- E2E_TEST_NOTIFICATION_v1 -->"
+
+          # Search for existing comment from this workflow
+          echo "Checking for existing E2E test notification comment..."
+          EXISTING_COMMENT_ID=$(gh pr view "${PR_NUMBER}" \
+            --json comments \
+            --jq '.comments[] | select(.body | contains("E2E_TEST_NOTIFICATION")) | .id' \
+            | head -1)
+
+          # Build comment body based on test results
           if [[ "${{ needs.test-summary.result }}" == "success" ]]; then
-            gh pr comment ${{ github.event.pull_request.number }} --body "✅ E2E testing completed successfully! All accessibility, visual, and functional tests passed."
+            COMMENT_BODY="${COMMENT_MARKER}
+          ✅ **E2E Testing Passed**
+
+          All accessibility, visual, and functional tests passed successfully.
+
+          **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          **Test Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           else
-            gh pr comment ${{ github.event.pull_request.number }} --body "❌ E2E testing completed with issues. Please check the test results and fix any failures before merging."
+            COMMENT_BODY="${COMMENT_MARKER}
+          ❌ **E2E Testing Failed**
+
+          Some tests failed. Please review the test results and fix any failures before merging.
+
+          **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          **Test Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          fi
+
+          # Update existing comment or create new one
+          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
+            echo "Found existing comment. Updating comment ID: ${EXISTING_COMMENT_ID}"
+            gh api \
+              --method PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}" \
+              -f body="$COMMENT_BODY"
+          else
+            echo "No existing comment found. Creating new comment..."
+            gh pr comment "${PR_NUMBER}" --body "$COMMENT_BODY"
           fi
