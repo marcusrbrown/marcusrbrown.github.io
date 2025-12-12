@@ -75,7 +75,7 @@ describe('CodeBlock component', () => {
   })
 
   it('should handle empty code', async () => {
-    renderWithTheme(<CodeBlock></CodeBlock>)
+    renderWithTheme(<CodeBlock> </CodeBlock>)
 
     await waitFor(() => {
       expect(screen.getByLabelText('Code snippet in typescript')).toBeInTheDocument()
