@@ -58,7 +58,7 @@ jobs:
         run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[] | .dependencies | .["@playwright/test"] | .version')" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
-        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -110,7 +110,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Cache Playwright browsers
-        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ needs.setup.outputs.playwright-version }}
