@@ -2,8 +2,7 @@
 
 import type {BundledLanguage, BundledTheme, Highlighter} from 'shiki'
 import type {ResolvedThemeMode} from '../types/theme'
-// Vite define in vite.config.ts
-declare const __GITHUB_PAGES__: boolean
+
 const isPagesEnv = __GITHUB_PAGES__ !== undefined && __GITHUB_PAGES__ === true
 
 let highlighterInstance: Highlighter | null = null
