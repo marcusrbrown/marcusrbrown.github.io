@@ -60,7 +60,7 @@ const Home: React.FC = () => {
   const projectsSkeleton = (
     <div className="project-list">
       {Array.from({length: 6}).map((_, index) => (
-        <ProjectCardSkeleton key={index} />
+        <ProjectCardSkeleton key={`project-skeleton-${index}`} />
       ))}
     </div>
   )
@@ -68,7 +68,7 @@ const Home: React.FC = () => {
   const blogPostsSkeleton = (
     <div className="blog-list">
       {Array.from({length: 3}).map((_, index) => (
-        <BlogPostSkeleton key={index} />
+        <BlogPostSkeleton key={`blog-skeleton-${index}`} />
       ))}
     </div>
   )

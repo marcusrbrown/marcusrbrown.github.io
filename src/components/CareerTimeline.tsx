@@ -55,6 +55,7 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({item, index, isExpa
 
       <div className="timeline-content">
         <button
+          type="button"
           className="timeline-header"
           onClick={handleToggle}
           onKeyDown={handleKeyPress}
@@ -98,8 +99,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({item, index, isExpa
             <div className="timeline-achievements">
               <h4 className="timeline-achievements-title">Key Achievements</h4>
               <ul className="timeline-achievements-list">
-                {item.achievements.map((achievement, i) => (
-                  <li key={i} className="timeline-achievement">
+                {item.achievements.map(achievement => (
+                  <li key={achievement} className="timeline-achievement">
                     {achievement}
                   </li>
                 ))}
@@ -111,8 +112,8 @@ const TimelineItemComponent: React.FC<TimelineItemProps> = ({item, index, isExpa
             <div className="timeline-technologies">
               <h4 className="timeline-technologies-title">Technologies Used</h4>
               <div className="timeline-tech-tags">
-                {item.technologies.map((tech, i) => (
-                  <span key={i} className="timeline-tech-tag">
+                {item.technologies.map(tech => (
+                  <span key={tech} className="timeline-tech-tag">
                     {tech}
                   </span>
                 ))}
@@ -203,7 +204,7 @@ const timelineData: TimelineItem[] = [
  * Career timeline component with expandable items
  */
 const CareerTimeline: React.FC = () => {
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set())
 
   const {ref, animationState} = useScrollAnimation<HTMLDivElement>({
     threshold: 0.2,

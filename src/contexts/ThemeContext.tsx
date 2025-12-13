@@ -1,5 +1,5 @@
 import type {Theme, ThemeContextValue, ThemeMode} from '../types'
-import {createContext, use, useEffect, useState, type ReactNode} from 'react'
+import {createContext, use, useCallback, useEffect, useMemo, useState, type ReactNode} from 'react'
 import {prefersReducedMotion} from '../utils/accessibility'
 import {analytics} from '../utils/analytics'
 import {
@@ -99,37 +99,40 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     })
   }, [])
 
-  const availableThemes = [defaultLightTheme, defaultDarkTheme]
+  const availableThemes = useMemo(() => [defaultLightTheme, defaultDarkTheme], [])
 
   // Enhanced setThemeMode that persists to localStorage and optimizes performance
-  const setThemeMode = (mode: ThemeMode) => {
-    const previousMode = themeMode
+  const setThemeMode = useCallback(
+    (mode: ThemeMode) => {
+      const previousMode = themeMode
 
-    // Track theme change analytics
-    analytics.trackThemeChange(previousMode, mode)
+      // Track theme change analytics
+      analytics.trackThemeChange(previousMode, mode)
 
-    // Skip animations entirely if user prefers reduced motion
-    if (prefersReducedMotion()) {
+      // Skip animations entirely if user prefers reduced motion
+      if (prefersReducedMotion()) {
+        setThemeModeState(mode)
+        saveThemeMode(mode)
+        return
+      }
+
+      // Optimize for theme switching performance
+      const performanceLevel = getOptimalPerformanceLevel()
+      optimizeForThemeSwitch(performanceLevel)
+
       setThemeModeState(mode)
       saveThemeMode(mode)
-      return
-    }
 
-    // Optimize for theme switching performance
-    const performanceLevel = getOptimalPerformanceLevel()
-    optimizeForThemeSwitch(performanceLevel)
-
-    setThemeModeState(mode)
-    saveThemeMode(mode)
-
-    // Clean up performance optimizations after transition
-    setTimeout(() => {
-      cleanupThemeOptimizations()
-    }, 350) // Slightly longer than max transition duration
-  }
+      // Clean up performance optimizations after transition
+      setTimeout(() => {
+        cleanupThemeOptimizations()
+      }, 350) // Slightly longer than max transition duration
+    },
+    [themeMode],
+  )
 
   // Enhanced setCustomTheme that persists to localStorage and optimizes performance
-  const setCustomTheme = (theme: Theme | null) => {
+  const setCustomTheme = useCallback((theme: Theme | null) => {
     // Skip animations entirely if user prefers reduced motion
     if (prefersReducedMotion()) {
       setCustomThemeState(theme)
@@ -152,7 +155,7 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     setTimeout(() => {
       cleanupThemeOptimizations()
     }, 350) // Slightly longer than max transition duration
-  }
+  }, [])
 
   // Detect system preference and listen for changes
   useEffect(() => {
@@ -263,30 +266,35 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
     }
 
     // Clean up performance optimization class after transition (normal motion only)
+    let completeTimer: ReturnType<typeof setTimeout>
     const cleanupTimer = setTimeout(() => {
       root.classList.remove('theme-switching')
       root.classList.add('theme-switch-complete')
 
       // Remove the complete class after a brief moment
-      setTimeout(() => {
+      completeTimer = setTimeout(() => {
         root.classList.remove('theme-switch-complete')
       }, 50)
     }, 300) // Allow for the longest transition (300ms)
 
     return () => {
       clearTimeout(cleanupTimer)
+      if (completeTimer) clearTimeout(completeTimer)
       root.classList.remove('theme-switching', 'theme-switch-complete')
     }
   }, [currentTheme])
 
-  const contextValue: ThemeContextValue = {
-    currentTheme,
-    themeMode,
-    availableThemes,
-    systemPreference,
-    setThemeMode,
-    setCustomTheme,
-  }
+  const contextValue: ThemeContextValue = useMemo(
+    () => ({
+      currentTheme,
+      themeMode,
+      availableThemes,
+      systemPreference,
+      setThemeMode,
+      setCustomTheme,
+    }),
+    [currentTheme, themeMode, availableThemes, systemPreference, setThemeMode, setCustomTheme],
+  )
 
   return <ThemeContext value={contextValue}>{children}</ThemeContext>
 }

@@ -1,7 +1,10 @@
 // mrbro.dev/src/utils/syntax-highlighting.ts
 
+import type {BundledLanguage, BundledTheme, Highlighter} from 'shiki'
 import type {ResolvedThemeMode} from '../types/theme'
-import {createHighlighter, type BundledLanguage, type BundledTheme, type Highlighter} from 'shiki'
+// Vite define in vite.config.ts
+declare const __GITHUB_PAGES__: boolean
+const isPagesEnv = __GITHUB_PAGES__ !== undefined && __GITHUB_PAGES__ === true
 
 let highlighterInstance: Highlighter | null = null
 let currentThemeMode: ResolvedThemeMode = 'light'
@@ -26,16 +29,6 @@ const SUPPORTED_LANGUAGES: BundledLanguage[] = [
   'css',
   'html',
   'markdown',
-  'bash',
-  'shell',
-  'yaml',
-  'python',
-  'rust',
-  'go',
-  'java',
-  'php',
-  'sql',
-  'dockerfile',
 ]
 
 /**
@@ -47,6 +40,7 @@ export const initializeHighlighter = async (): Promise<Highlighter> => {
   }
 
   try {
+    const {createHighlighter} = await import('shiki')
     highlighterInstance = await createHighlighter({
       themes: [SHIKI_THEME_MAP.light, SHIKI_THEME_MAP.dark],
       langs: SUPPORTED_LANGUAGES,
@@ -89,6 +83,10 @@ export const highlightCode = async (
   const {theme = currentThemeMode, removeBackground = false} = options
 
   try {
+    if (isPagesEnv) {
+      const plain = `<pre><code>${escapeHtml(code)}</code></pre>`
+      return removeBackground ? plain.replaceAll(/style="[^"]*background[^"]*"/g, '') : plain
+    }
     const highlighter = await initializeHighlighter()
 
     const html = highlighter.codeToHtml(code, {

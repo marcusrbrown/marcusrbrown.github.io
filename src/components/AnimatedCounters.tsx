@@ -37,7 +37,6 @@ const AnimatedCounter: React.FC<AnimatedCounterProps> = ({statistic, shouldAnima
     if (!shouldAnimate || isAnimating) return
 
     const startAnimation = () => {
-      setIsAnimating(true)
       const startTime = Date.now()
       const duration = statistic.duration || 2000
       const startValue = 0

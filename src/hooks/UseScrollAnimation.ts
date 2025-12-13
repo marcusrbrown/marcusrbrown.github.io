@@ -221,7 +221,7 @@ export const useScrollAnimation = <T extends HTMLElement = HTMLElement>(
         timeoutRef.current = null
       }
     }
-  }, [config.rootMargin, config.threshold, handleIntersection, triggerAnimation])
+  }, [config.rootMargin, config.threshold, config.triggerOnce, handleIntersection, triggerAnimation, hasTriggered])
 
   /**
    * Handle reduced motion preference changes

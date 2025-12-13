@@ -9,9 +9,16 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
+      external: ['shiki', '@shikijs/core', '@shikijs/transformers'],
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@shikijs')) return 'shiki'
+            if (id.includes('highlight.js')) return 'highlight'
+            if (id.includes('react') || id.includes('react-dom')) return 'vendor'
+            return 'vendor'
+          }
+          return undefined
         },
       },
     },

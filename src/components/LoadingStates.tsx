@@ -83,7 +83,7 @@ export const SkillCategorySkeleton: React.FC = () => {
       </div>
       <div className="skill-list">
         {Array.from({length: 4}).map((_, index) => (
-          <div key={index} className="skill-item skill-item--skeleton">
+          <div key={`skill-skeleton-${index}`} className="skill-item skill-item--skeleton">
             <div className="skill-content">
               <Skeleton width={32} height={32} variant="rectangular" />
               <div className="skill-info">
@@ -150,7 +150,7 @@ export const TimelineSkeleton: React.FC = () => {
     <div className="career-timeline career-timeline--skeleton" aria-hidden="true">
       <div className="timeline-list">
         {Array.from({length: 3}).map((_, index) => (
-          <div key={index} className="timeline-item timeline-item--skeleton">
+          <div key={`timeline-skeleton-${index}`} className="timeline-item timeline-item--skeleton">
             <div className="timeline-marker">
               <Skeleton width={12} height={12} variant="circular" />
             </div>
@@ -181,7 +181,7 @@ export const ContactMethodsSkeleton: React.FC = () => {
     <div className="contact-methods contact-methods--skeleton" aria-hidden="true">
       <div className="contact-methods-grid contact-methods-grid--primary">
         {Array.from({length: 2}).map((_, index) => (
-          <div key={index} className="contact-method-card contact-method-card--skeleton">
+          <div key={`contact-primary-skeleton-${index}`} className="contact-method-card contact-method-card--skeleton">
             <div className="contact-method-link">
               <Skeleton width={48} height={48} variant="rectangular" />
               <div className="contact-method-content">
@@ -195,7 +195,10 @@ export const ContactMethodsSkeleton: React.FC = () => {
       </div>
       <div className="contact-methods-grid contact-methods-grid--secondary">
         {Array.from({length: 4}).map((_, index) => (
-          <div key={index} className="contact-method-card contact-method-card--skeleton">
+          <div
+            key={`contact-secondary-skeleton-${index}`}
+            className="contact-method-card contact-method-card--skeleton"
+          >
             <div className="contact-method-link">
               <Skeleton width={48} height={48} variant="rectangular" />
               <div className="contact-method-content">

@@ -203,9 +203,9 @@ const TestimonialsCarousel: React.FC<TestimonialsCarouselProps> = ({
           </button>
 
           <div className="testimonials-indicators">
-            {testimonials.map((_, index) => (
+            {testimonials.map((testimonial, index) => (
               <button
-                key={index}
+                key={testimonial.id}
                 type="button"
                 onClick={() => {
                   goToTestimonial(index)

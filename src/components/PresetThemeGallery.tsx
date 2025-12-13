@@ -220,7 +220,7 @@ export const PresetThemeGallery = ({onThemeApply, className = ''}: PresetThemeGa
           <div className="no-themes-message">
             <p>No themes found matching your criteria.</p>
             {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="clear-search-btn">
+              <button type="button" onClick={() => setSearchQuery('')} className="clear-search-btn">
                 Clear search
               </button>
             )}
