@@ -114,7 +114,7 @@ export const useProjectFilter = (projects: Project[], _options: ProjectFilterOpt
 
       return true
     })
-  }, [projects, activeFilters])
+  }, [projects, activeFilters, hasActiveFilters])
 
   const setTechnologyFilter = (technology: string) => {
     setActiveFilters(prev => ({

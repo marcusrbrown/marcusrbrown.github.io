@@ -42,7 +42,9 @@ const Projects: React.FC = () => {
         <div className="container">
           <h1>Error Loading Projects</h1>
           <p>Unable to load projects: {error}</p>
-          <button onClick={() => window.location.reload()}>Try Again</button>
+          <button type="button" onClick={() => window.location.reload()}>
+            Try Again
+          </button>
         </div>
       </div>
     )

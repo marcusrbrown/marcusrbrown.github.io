@@ -81,7 +81,7 @@ export const FloatingShapes: React.FC<FloatingShapesProps> = ({
 
         return (
           <div
-            key={index}
+            key={`${data.shape}-${data.left}-${data.top}-${index}`}
             className={`floating-shape floating-shape--${data.shape} ${animated ? 'floating-shape--animated' : ''}`}
             style={style}
           />
@@ -107,9 +107,11 @@ interface GradientOverlayProps {
   opacity?: number
 }
 
+const DEFAULT_GRADIENT_COLORS = ['var(--color-primary)', 'var(--color-accent)']
+
 export const GradientOverlay: React.FC<GradientOverlayProps> = ({
   direction = 'radial',
-  colors = ['var(--color-primary)', 'var(--color-accent)'],
+  colors = DEFAULT_GRADIENT_COLORS,
   className = '',
   opacity = 0.05,
 }) => {
@@ -163,7 +165,7 @@ export const SectionDivider: React.FC<SectionDividerProps> = ({variant = 'wave',
         )
       case 'curve':
         return (
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+          <svg viewBox="0 0 1200 120" preserveAspectRatio="none" key="wave-pattern">
             <path d="M0,0 Q600,120 1200,0 L1200,120 L0,120 Z" fill="var(--color-surface)" />
           </svg>
         )
@@ -173,7 +175,7 @@ export const SectionDivider: React.FC<SectionDividerProps> = ({variant = 'wave',
         return (
           <div className="section-divider-dots">
             {Array.from({length: 5}).map((_, index) => (
-              <div key={index} className="section-divider-dot" />
+              <div key={`dot-${index}`} className="section-divider-dot" />
             ))}
           </div>
         )

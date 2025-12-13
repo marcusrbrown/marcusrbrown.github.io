@@ -31,7 +31,12 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
       <div className="project-filter__header">
         <h3 className="project-filter__title">Filter Projects</h3>
         {hasActiveFilters && (
-          <button className="project-filter__clear-all" onClick={onClearAll} aria-label="Clear all filters">
+          <button
+            type="button"
+            className="project-filter__clear-all"
+            onClick={onClearAll}
+            aria-label="Clear all filters"
+          >
             Clear All
           </button>
         )}
@@ -44,6 +49,7 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
             <h4 className="project-filter__category-title">Technologies</h4>
             {activeFilters.technologies.length > 0 && (
               <button
+                type="button"
                 className="project-filter__clear-category"
                 onClick={() => onClearCategory('technologies')}
                 aria-label="Clear technology filters"
@@ -55,6 +61,7 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
           <div className="project-filter__chips">
             {availableFilters.technologies.map(tech => (
               <button
+                type="button"
                 key={tech}
                 className={`project-filter__chip ${
                   activeFilters.technologies.includes(tech) ? 'project-filter__chip--active' : ''
@@ -76,6 +83,7 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
             <h4 className="project-filter__category-title">Project Type</h4>
             {activeFilters.types.length > 0 && (
               <button
+                type="button"
                 className="project-filter__clear-category"
                 onClick={() => onClearCategory('types')}
                 aria-label="Clear type filters"
@@ -87,6 +95,7 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
           <div className="project-filter__chips">
             {availableFilters.types.map(type => (
               <button
+                type="button"
                 key={type}
                 className={`project-filter__chip ${
                   activeFilters.types.includes(type) ? 'project-filter__chip--active' : ''
@@ -108,6 +117,7 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
             <h4 className="project-filter__category-title">Status</h4>
             {activeFilters.status.length > 0 && (
               <button
+                type="button"
                 className="project-filter__clear-category"
                 onClick={() => onClearCategory('status')}
                 aria-label="Clear status filters"
@@ -119,6 +129,7 @@ const ProjectFilter: React.FC<ProjectFilterProps> = ({
           <div className="project-filter__chips">
             {availableFilters.status.map(status => (
               <button
+                type="button"
                 key={status}
                 className={`project-filter__chip ${
                   activeFilters.status.includes(status) ? 'project-filter__chip--active' : ''

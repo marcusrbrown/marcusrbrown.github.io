@@ -887,8 +887,8 @@ export const ThemeCustomizer: React.FC<ThemeCustomizerProps> = ({
                   <div className="accessibility-status__issues">
                     <p className="accessibility-status__warning">Color contrast issues found:</p>
                     <ul className="accessibility-status__issues-list">
-                      {accessibilityResults.issues.map(({pair, contrast}, index) => (
-                        <li key={index} className="accessibility-status__issue">
+                      {accessibilityResults.issues.map(({pair, contrast}) => (
+                        <li key={`${pair[0]}-${pair[1]}`} className="accessibility-status__issue">
                           <strong>{pair[0]}</strong> on <strong>{pair[1]}</strong>: {contrast.ratio.toFixed(2)}:1
                           <span
                             className={`accessibility-status__grade accessibility-status__grade--${contrast.grade.toLowerCase()}`}

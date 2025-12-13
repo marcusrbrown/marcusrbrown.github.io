@@ -180,6 +180,7 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
       >
         {/* Close Button */}
         <button
+          type="button"
           className="project-preview-modal__close"
           onClick={onClose}
           aria-label="Close project preview"
@@ -192,6 +193,7 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
         {projects.length > 1 && (
           <>
             <button
+              type="button"
               className="project-preview-modal__nav project-preview-modal__nav--prev"
               onClick={navigateToPreviousProject}
               disabled={currentProjectIndex <= 0}
@@ -201,6 +203,7 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
               ← Previous
             </button>
             <button
+              type="button"
               className="project-preview-modal__nav project-preview-modal__nav--next"
               onClick={navigateToNextProject}
               disabled={currentProjectIndex >= projects.length - 1}
@@ -239,13 +242,18 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
                 {/* Image Navigation (if multiple images) */}
                 {imageSources.length > 1 && (
                   <div className="project-preview-modal__image-nav">
-                    <button onClick={navigateToPreviousImage} aria-label="Previous image" title="Previous image (↑)">
+                    <button
+                      type="button"
+                      onClick={navigateToPreviousImage}
+                      aria-label="Previous image"
+                      title="Previous image (↑)"
+                    >
                       ↑
                     </button>
                     <span className="project-preview-modal__image-counter">
                       {currentImageIndex + 1} / {imageSources.length}
                     </span>
-                    <button onClick={navigateToNextImage} aria-label="Next image" title="Next image (↓)">
+                    <button type="button" onClick={navigateToNextImage} aria-label="Next image" title="Next image (↓)">
                       ↓
                     </button>
                   </div>

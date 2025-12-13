@@ -43,7 +43,7 @@ If you prefer granular control, you can require individual workflow jobs:
 
 1. **Navigate to Repository Settings**
 
-   ```
+   ```text
    GitHub.com → Repository → Settings → Branches
    ```
 
@@ -57,13 +57,13 @@ If you prefer granular control, you can require individual workflow jobs:
 
    **Required checks to add:**
 
-   ```
+   ```text
    tests/comprehensive
    ```
 
    **Optional additional checks:**
 
-   ```
+   ```text
    Quality Gate
    Test Summary & Badge Generation
    Performance Audit (desktop)

@@ -29,16 +29,18 @@ const ThemeExample = () => {
       </div>
 
       <div style={{marginTop: '20px'}}>
-        <button onClick={toggleTheme} style={{marginRight: '10px'}}>
+        <button type="button" onClick={toggleTheme} style={{marginRight: '10px'}}>
           Toggle Theme
         </button>
-        <button onClick={switchToLight} style={{marginRight: '10px'}}>
+        <button type="button" onClick={switchToLight} style={{marginRight: '10px'}}>
           Light
         </button>
-        <button onClick={switchToDark} style={{marginRight: '10px'}}>
+        <button type="button" onClick={switchToDark} style={{marginRight: '10px'}}>
           Dark
         </button>
-        <button onClick={switchToSystem}>System</button>
+        <button type="button" onClick={switchToSystem}>
+          System
+        </button>
       </div>
     </div>
   )

@@ -51,7 +51,14 @@ const CodeBlock: React.FC<CodeBlockProps> = ({
       }
     }
 
-    highlight()
+    // Defer to next tick to avoid blocking initial render
+    const id = setTimeout(() => {
+      highlight()
+    }, 0)
+
+    return () => {
+      clearTimeout(id)
+    }
   }, [children, actualLanguage, effectiveThemeMode])
 
   if (isLoading) {

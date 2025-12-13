@@ -90,8 +90,12 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({theme, className = ''
           <section className="theme-preview__section">
             <h3 className="theme-preview__subheading">Buttons & Links</h3>
             <div className="theme-preview__buttons">
-              <button className="theme-preview__button theme-preview__button--primary">Primary Action</button>
-              <button className="theme-preview__button theme-preview__button--secondary">Secondary Action</button>
+              <button type="button" className="theme-preview__button theme-preview__button--primary">
+                Primary Action
+              </button>
+              <button type="button" className="theme-preview__button theme-preview__button--secondary">
+                Secondary Action
+              </button>
               <a href="#" className="theme-preview__link">
                 Sample Link
               </a>

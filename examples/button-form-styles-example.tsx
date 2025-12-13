@@ -61,25 +61,45 @@ const ButtonFormStylesExample: React.FC = () => {
         <h2>Button Variants</h2>
 
         <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem'}}>
-          <button className="btn btn--primary">Primary Button</button>
-          <button className="btn btn--secondary">Secondary Button</button>
-          <button className="btn btn--danger">Danger Button</button>
-          <button className="btn btn--success">Success Button</button>
-          <button className="btn btn--warning">Warning Button</button>
+          <button type="button" className="btn btn--primary">
+            Primary Button
+          </button>
+          <button type="button" className="btn btn--secondary">
+            Secondary Button
+          </button>
+          <button type="button" className="btn btn--danger">
+            Danger Button
+          </button>
+          <button type="button" className="btn btn--success">
+            Success Button
+          </button>
+          <button type="button" className="btn btn--warning">
+            Warning Button
+          </button>
         </div>
 
         <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem'}}>
-          <button className="btn btn--outline">Outline Primary</button>
-          <button className="btn btn--outline-secondary">Outline Secondary</button>
-          <button className="btn btn--primary" disabled>
+          <button type="button" className="btn btn--outline">
+            Outline Primary
+          </button>
+          <button type="button" className="btn btn--outline-secondary">
+            Outline Secondary
+          </button>
+          <button type="button" className="btn btn--primary" disabled>
             Disabled Button
           </button>
         </div>
 
         <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center'}}>
-          <button className="btn btn--primary btn--small">Small Button</button>
-          <button className="btn btn--primary">Default Button</button>
-          <button className="btn btn--primary btn--large">Large Button</button>
+          <button type="button" className="btn btn--primary btn--small">
+            Small Button
+          </button>
+          <button type="button" className="btn btn--primary">
+            Default Button
+          </button>
+          <button type="button" className="btn btn--primary btn--large">
+            Large Button
+          </button>
         </div>
       </section>
 

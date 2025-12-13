@@ -124,7 +124,7 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
                   : 'Check back later for new projects.'}
               </p>
               {hasActiveFilters && (
-                <button className="project-gallery__empty-button" onClick={clearAllFilters}>
+                <button type="button" className="project-gallery__empty-button" onClick={clearAllFilters}>
                   Clear All Filters
                 </button>
               )}
@@ -157,6 +157,7 @@ const ProjectGallery: React.FC<ProjectGalleryProps> = ({
       {maxProjects && filteredProjects.length > maxProjects && (
         <div className="project-gallery__view-more">
           <button
+            type="button"
             className={`project-gallery__view-more-button ${isExpanded ? 'project-gallery__view-more-button--expanded' : ''}`}
             onClick={handleExpandToggle}
             aria-expanded={isExpanded}

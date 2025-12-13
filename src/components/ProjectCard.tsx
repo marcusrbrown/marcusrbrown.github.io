@@ -6,6 +6,8 @@ interface ProjectCardProps extends Project {
   onPreview?: (project: Project) => void
 }
 
+const EMPTY_TOPICS: string[] = []
+
 const ProjectCard: React.FC<ProjectCardProps> = ({
   id,
   title,
@@ -14,7 +16,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   language,
   stars,
   homepage,
-  topics = [],
+  topics = EMPTY_TOPICS,
   lastUpdated,
   imageUrl,
   onPreview,
@@ -49,6 +51,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         <div className="project-card__overlay">
           <div className="project-card__overlay-content">
             <button
+              type="button"
               className="project-card__preview-btn"
               onClick={e => {
                 e.stopPropagation()

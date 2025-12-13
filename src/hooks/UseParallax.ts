@@ -89,7 +89,7 @@ export const useParallax = <T extends HTMLElement>(options: ParallaxOptions = {}
           break
       }
 
-      setRawTransform(transformValue)
+      setRawTransform(() => transformValue)
     }
 
     const throttledScroll = () => {
