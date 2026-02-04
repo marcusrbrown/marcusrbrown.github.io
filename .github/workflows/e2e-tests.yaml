@@ -45,7 +45,7 @@ jobs:
       playwright-version: ${{ steps.playwright-version.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         id: setup
@@ -58,7 +58,7 @@ jobs:
         run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[] | .dependencies | .["@playwright/test"] | .version')" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -78,7 +78,7 @@ jobs:
     needs: setup
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         uses: ./.github/actions/setup
@@ -104,13 +104,13 @@ jobs:
         browser: [chromium]
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         uses: ./.github/actions/setup
 
       - name: Cache Playwright browsers
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ needs.setup.outputs.playwright-version }}
@@ -227,7 +227,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         uses: ./.github/actions/setup
@@ -317,7 +317,7 @@ jobs:
           private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
 
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           token: ${{ steps.get-app-token.outputs.token }}
