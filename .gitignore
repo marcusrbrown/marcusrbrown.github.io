@@ -108,3 +108,9 @@ lhci-reports-*/
 # Test dashboard and badge generation outputs
 badges/
 test-dashboard/
+
+# Archived artifacts
+archived-artifacts/
+
+# Oh My OpenCode
+.sisyphus/
