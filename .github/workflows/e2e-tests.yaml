@@ -334,28 +334,21 @@ jobs:
           CURRENT_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
           # Build comment body based on test results
+          RUN_LINK="[#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
           if [[ "${{ needs.test-summary.result }}" == "success" ]]; then
-            COMMENT_BODY=$(cat <<EOF
-          ${COMMENT_MARKER}
-          ✅ **E2E Testing Passed**
-
-          All accessibility, visual, and functional tests passed successfully.
-
-          **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          **Test Date**: ${CURRENT_DATE}
-          EOF
-          )
+            COMMENT_BODY=$(printf '%s\n\n%s\n\n%s\n\n%s\n%s' \
+              "${COMMENT_MARKER}" \
+              "✅ **E2E Testing Passed**" \
+              "All accessibility, visual, and functional tests passed successfully." \
+              "**Workflow Run**: ${RUN_LINK}" \
+              "**Test Date**: ${CURRENT_DATE}")
           else
-            COMMENT_BODY=$(cat <<EOF
-          ${COMMENT_MARKER}
-          ❌ **E2E Testing Failed**
-
-          Some tests failed. Please review the test results and fix any failures before merging.
-
-          **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          **Test Date**: ${CURRENT_DATE}
-          EOF
-          )
+            COMMENT_BODY=$(printf '%s\n\n%s\n\n%s\n\n%s\n%s' \
+              "${COMMENT_MARKER}" \
+              "❌ **E2E Testing Failed**" \
+              "Some tests failed. Please review the test results and fix any failures before merging." \
+              "**Workflow Run**: ${RUN_LINK}" \
+              "**Test Date**: ${CURRENT_DATE}")
           fi
 
           # Search for existing comment using REST API (gets numeric ID)
