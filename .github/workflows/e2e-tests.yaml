@@ -45,7 +45,7 @@ jobs:
       playwright-version: ${{ steps.playwright-version.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         id: setup
@@ -58,7 +58,7 @@ jobs:
         run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[] | .dependencies | .["@playwright/test"] | .version')" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -78,7 +78,7 @@ jobs:
     needs: setup
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         uses: ./.github/actions/setup
@@ -104,16 +104,25 @@ jobs:
         browser: [chromium]
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         uses: ./.github/actions/setup
 
       - name: Cache Playwright browsers
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ needs.setup.outputs.playwright-version }}
+
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright dependencies only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
 
       - name: Download build artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -227,7 +236,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
         uses: ./.github/actions/setup
@@ -316,52 +325,43 @@ jobs:
           permission-pull-requests: write
           private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
 
-      - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          persist-credentials: false
-          token: ${{ steps.get-app-token.outputs.token }}
-
-      - name: Update or Create PR Comment
+      - name: Post PR Comment
         env:
           GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          STATUS: ${{ needs.test-summary.result }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
         run: |
-          # Configuration
-          PR_NUMBER=${{ github.event.pull_request.number }}
-          COMMENT_MARKER="<!-- E2E_TEST_NOTIFICATION_v1 -->"
+          MARKER="<!-- E2E_TEST_NOTIFICATION_v1 -->"
+          DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-          # Current timestamp
-          CURRENT_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          if [[ "$STATUS" == "success" ]]; then
+            BODY="$MARKER
 
-          # Build comment body based on test results
-          RUN_LINK="[#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
-          if [[ "${{ needs.test-summary.result }}" == "success" ]]; then
-            COMMENT_BODY=$(printf '%s\n\n%s\n\n%s\n\n%s\n%s' \
-              "${COMMENT_MARKER}" \
-              "✅ **E2E Testing Passed**" \
-              "All accessibility, visual, and functional tests passed successfully." \
-              "**Workflow Run**: ${RUN_LINK}" \
-              "**Test Date**: ${CURRENT_DATE}")
+          ✅ **E2E Testing Passed**
+
+          All accessibility, visual, and functional tests passed successfully.
+
+          **Workflow Run**: [#${RUN_NUMBER}](${RUN_URL})
+          **Test Date**: $DATE"
           else
-            COMMENT_BODY=$(printf '%s\n\n%s\n\n%s\n\n%s\n%s' \
-              "${COMMENT_MARKER}" \
-              "❌ **E2E Testing Failed**" \
-              "Some tests failed. Please review the test results and fix any failures before merging." \
-              "**Workflow Run**: ${RUN_LINK}" \
-              "**Test Date**: ${CURRENT_DATE}")
+            BODY="$MARKER
+
+          ❌ **E2E Testing Failed**
+
+          Some tests failed. Please review the test results and fix any failures before merging.
+
+          **Workflow Run**: [#${RUN_NUMBER}](${RUN_URL})
+          **Test Date**: $DATE"
           fi
 
-          # Search for existing comment using REST API (gets numeric ID)
-          echo "Checking for existing E2E test notification comment..."
-          EXISTING_COMMENT_ID=$(gh api \
-            --method GET \
-            "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-            --jq '.[] | select(.body | contains("E2E_TEST_NOTIFICATION")) | .id' \
-            | head -1)
+          COMMENT_ID=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq '[.[] | select(.body | contains("E2E_TEST_NOTIFICATION_v1"))] | last | .id // empty')
 
-          # Update existing comment or create new one
-          if [[ -n "$EXISTING_COMMENT_ID" ]]; then
-            echo "Found existing comment. Updating comment ID: ${EXISTING_COMMENT_ID}"
-            gh api \
-              --method PATCH \
-              "repos/${{ github.repository }}/issues/comments/${EXISTING_COMMENT_ID}" \
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api --method PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" -f body="$BODY"
+          else
+            gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" -f body="$BODY"
+          fi
