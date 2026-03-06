@@ -11,6 +11,14 @@ inputs:
     description: Whether to install dependencies
     required: false
     default: 'true'
+  install-playwright:
+    description: Whether to install Playwright browsers
+    required: false
+    default: 'false'
+  playwright-browsers:
+    description: Playwright browsers to install (space-separated)
+    required: false
+    default: chromium
 
 outputs:
   node-version:
@@ -19,6 +27,12 @@ outputs:
   cache-hit:
     description: Whether pnpm cache was hit
     value: ${{ steps.setup-pnpm.outputs.cache-hit }}
+  playwright-version:
+    description: The Playwright version (empty if install-playwright is false)
+    value: ${{ steps.playwright-version.outputs.version }}
+  playwright-cache-hit:
+    description: Whether Playwright browser cache was hit
+    value: ${{ steps.playwright-cache.outputs.cache-hit }}
 
 runs:
   using: composite
@@ -47,3 +61,28 @@ runs:
         echo "Node.js version: $(node --version)"
         echo "pnpm version: $(pnpm --version)"
         echo "Dependencies installed successfully"
+
+    # Playwright browser setup (opt-in)
+    - name: Get Playwright version
+      if: inputs.install-playwright == 'true'
+      id: playwright-version
+      shell: bash
+      run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[] | .devDependencies | .["@playwright/test"] | .version')" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright browsers
+      if: inputs.install-playwright == 'true'
+      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+    - name: Install Playwright browsers
+      if: inputs.install-playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: pnpm exec playwright install --with-deps ${{ inputs.playwright-browsers }}
+
+    - name: Ensure Playwright browsers installed
+      if: inputs.install-playwright == 'true'
+      shell: bash
+      run: pnpm exec playwright install ${{ inputs.playwright-browsers }}

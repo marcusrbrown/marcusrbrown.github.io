@@ -27,8 +27,6 @@ jobs:
       - name: Setup project
         id: setup
         uses: ./.github/actions/setup
-        with:
-          cache-key-suffix: ci
 
   lint:
     name: Lint Code

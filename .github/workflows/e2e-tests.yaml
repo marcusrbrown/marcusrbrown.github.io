@@ -40,34 +40,14 @@ jobs:
   setup:
     name: Setup E2E Environment
     runs-on: ubuntu-latest
-    outputs:
-      node-version: ${{ steps.setup.outputs.node-version }}
-      playwright-version: ${{ steps.playwright-version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup project
-        id: setup
         uses: ./.github/actions/setup
-
-      - name: Get Playwright version
-        id: playwright-version
-        run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[] | .devDependencies | .["@playwright/test"] | .version')" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        id: playwright-cache
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Ensure Playwright browsers installed
-        run: pnpm exec playwright install chromium
+          install-playwright: 'true'
 
   build-for-tests:
     name: Build for Testing
@@ -105,20 +85,8 @@ jobs:
 
       - name: Setup project
         uses: ./.github/actions/setup
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        id: playwright-cache
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ needs.setup.outputs.playwright-version }}
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Ensure Playwright browsers installed
-        run: pnpm exec playwright install chromium
+          install-playwright: 'true'
 
       - name: Download build artifacts
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
@@ -265,18 +233,6 @@ jobs:
           else
             echo "❌ **E2E Tests**: Some tests failed" >> $GITHUB_STEP_SUMMARY
           fi
-
-          # if [[ "${{ needs.visual-regression.result }}" == "success" ]]; then
-          #   echo "✅ **Visual Regression**: All tests passed" >> $GITHUB_STEP_SUMMARY
-          # else
-          #   echo "❌ **Visual Regression**: Visual differences detected" >> $GITHUB_STEP_SUMMARY
-          # fi
-
-          # if [[ "${{ needs.accessibility-tests.result }}" == "success" ]]; then
-          #   echo "✅ **Accessibility**: All tests passed" >> $GITHUB_STEP_SUMMARY
-          # else
-          #   echo "❌ **Accessibility**: Accessibility violations found" >> $GITHUB_STEP_SUMMARY
-          # fi
 
       - name: Generate badges
         run: pnpm run badges
