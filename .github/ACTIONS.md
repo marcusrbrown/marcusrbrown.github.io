@@ -55,21 +55,27 @@ A composite action that standardizes project setup across all workflows.
 
 - `node-version` (default: '22'): Node.js version
 - `install-dependencies` (default: 'true'): Whether to install deps
-- `cache-key-suffix` (default: ''): Additional cache key suffix
+- `install-playwright` (default: 'false'): Whether to install Playwright browsers
+- `playwright-browsers` (default: 'chromium'): Playwright browsers to install (space-separated)
 
 **Outputs:**
 
 - `node-version`: The Node.js version that was setup
 - `cache-hit`: Whether pnpm cache was hit
+- `playwright-version`: The Playwright version (empty if install-playwright is false)
+- `playwright-cache-hit`: Whether Playwright browser cache was hit
 
 **Usage:**
 
 ```yaml
 - name: Setup project
   uses: ./.github/actions/setup
+
+# With Playwright for E2E testing:
+- name: Setup project with Playwright
+  uses: ./.github/actions/setup
   with:
-    node-version: '22'
-    cache-key-suffix: ci
+    install-playwright: 'true'
 ```
 
 ## Security & Best Practices
