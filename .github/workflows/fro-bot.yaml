@@ -146,7 +146,12 @@ jobs:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           PROMPT: >-
             ${{
-              (github.event_name == 'workflow_dispatch' && (github.event.inputs.prompt || '')) || (github.event_name == 'schedule' && env.SCHEDULE_PROMPT) || (github.event_name == 'pull_request' && env.PR_REVIEW_PROMPT) || ''
+              (github.event_name == 'workflow_dispatch' && (github.event.inputs.prompt || '')) ||
+              (github.event_name == 'schedule' && env.SCHEDULE_PROMPT) ||
+              (github.event_name == 'pull_request' && env.PR_REVIEW_PROMPT) ||
+              ((github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment' || github.event_name == 'discussion_comment') && (github.event.comment.body || '')) ||
+              (github.event_name == 'issues' && (github.event.issue.body || '')) ||
+              ''
             }}
         with:
           github-token: ${{ secrets.FRO_BOT_PAT }}
