@@ -1,0 +1,202 @@
+/* src/styles/brand.css */
+
+:root {
+  /* Colors - Background */
+  --color-bg-primary: #050505;
+  --color-bg-secondary: #0a0a0a;
+
+  /* Colors - Text */
+  --color-text-primary: #f2f2f2;
+  --color-text-secondary: #a3a3a3;
+  --color-text-accent: #f5f5f5;
+
+  /* Colors - Accent & Border */
+  --color-accent: #e5e5e5;
+  --color-accent-hover: #ffffff;
+  --color-border: #262626;
+
+  /* Typography - Font Families */
+  --font-heading: 'Clash Display', 'PP Editorial New', sans-serif;
+  --font-body: 'Switzer', 'Cabinet Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Typography - Scale */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 36px;
+  --font-size-3xl: 64px;
+  --font-size-min: 12px;
+
+  /* Typography - Line Heights */
+  --line-height-tight: 1.1;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Spacing Scale (unit: 4px) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+  --space-9: 128px;
+}
+
+/* Base Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+a {
+  color: var(--color-text-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* Layout utilities */
+.container {
+  max-width: var(--breakpoint-desktop, 1440px);
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 var(--space-6);
+  }
+}
+
+@media (min-width: 1440px) {
+  .container {
+    padding: 0 var(--space-8);
+  }
+}
+
+/* Section Shell Styles */
+.brand-section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand-section:last-of-type {
+  border-bottom: none;
+}
+
+.brand-section-title {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--space-6);
+}
+
+@media (min-width: 768px) {
+  .brand-section-title {
+    font-size: var(--font-size-3xl);
+  }
+}
+
+/* Motion Scope: fade-in-on-scroll */
+.fade-in-on-scroll {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 500ms cubic-bezier(0.16, 1, 0.3, 1), transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.fade-in-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-on-scroll {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Motion Scope: text-reveal */
+.text-reveal {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 400ms ease-out, transform 400ms ease-out;
+  will-change: opacity, transform;
+}
+
+.text-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Motion Scope: subtle-hover-lift */
+.subtle-hover-lift {
+  transition: transform 200ms ease-out, filter 200ms ease-out, color 200ms ease-out;
+  will-change: transform, filter;
+  display: inline-block;
+}
+
+.subtle-hover-lift:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subtle-hover-lift {
+    transition: filter 200ms ease-out, color 200ms ease-out;
+  }
+  .subtle-hover-lift:hover {
+    transform: none;
+    filter: brightness(1.2);
+  }
+}
