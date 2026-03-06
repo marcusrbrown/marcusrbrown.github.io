@@ -10,6 +10,7 @@ const App: React.FC = () => {
     <>
       <Navigation />
       <main>
+        <h1 className="sr-only">Marcus R. Brown</h1>
         <About />
         <Experience />
         <Skills />
