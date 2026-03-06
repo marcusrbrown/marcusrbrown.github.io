@@ -11,10 +11,6 @@ inputs:
     description: Whether to install dependencies
     required: false
     default: 'true'
-  cache-key-suffix:
-    description: Additional suffix for cache keys
-    required: false
-    default: ''
 
 outputs:
   node-version:
