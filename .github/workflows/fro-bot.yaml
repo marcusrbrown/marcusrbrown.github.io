@@ -112,7 +112,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      actions: write
       contents: write
       discussions: write
       issues: write
@@ -128,7 +127,8 @@ jobs:
         (
           github.event_name == 'issues' &&
           !endsWith(github.event.issue.user.login || '', '[bot]') &&
-          (github.event.issue.user.login || '') != 'fro-bot'
+          (github.event.issue.user.login || '') != 'fro-bot' &&
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association || '')
         ) ||
         (
           github.event_name == 'pull_request' &&
@@ -164,7 +164,17 @@ jobs:
               || secrets.FRO_BOT_PAT
             }}
 
+      - name: Detect fork PR (issue_comment on PR)
+        id: fork-check
+        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        env:
+          GH_TOKEN: ${{ secrets.FRO_BOT_PAT }}
+        run: |
+          is_fork=$(gh api "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" --jq '.head.repo.fork')
+          echo "is_fork=$is_fork" >> "$GITHUB_OUTPUT"
+
       - name: Setup project dependencies
+        if: steps.fork-check.outputs.is_fork != 'true'
         uses: ./.github/actions/setup
 
       - name: Run Fro Bot
