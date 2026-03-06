@@ -1,4 +1,5 @@
 globs:
   - '!.ai/**'
+  - '!.sisyphus/**'
   - '!AGENTS.md'
   - '!CLAUDE.md'
