@@ -1,6 +1,5 @@
 import type {Theme} from '../../src/types'
 import {render, screen} from '@testing-library/react'
-
 import {describe, expect, it} from 'vitest'
 import ThemePreview from '../../src/components/ThemePreview'
 
