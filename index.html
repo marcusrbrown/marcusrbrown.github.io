@@ -1,201 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary Meta Tags -->
-    <title>Marcus R. Brown - Developer Portfolio & Blog</title>
-    <meta name="title" content="Marcus R. Brown - Developer Portfolio & Blog">
-    <meta name="description" content="Full-stack developer showcasing projects, blog posts, and GitHub repositories. Specializing in TypeScript, React, and modern web technologies.">
-    <meta name="author" content="Marcus R. Brown">
-    <meta name="keywords" content="developer, portfolio, blog, TypeScript, React, web development, GitHub">
+    <title>Marcus R. Brown</title>
+    <meta name="title" content="Marcus R. Brown" />
+    <meta
+      name="description"
+      content="Versatile Full Stack Developer and Principal Software Engineer with 20+ years of experience building distributed systems across gaming, enterprise, and blockchain."
+    />
+    <meta name="author" content="Marcus R. Brown" />
 
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://mrbro.dev/">
-    <meta property="og:title" content="Marcus R. Brown - Developer Portfolio & Blog">
-    <meta property="og:description" content="Full-stack developer showcasing projects, blog posts, and GitHub repositories.">
-    <meta property="og:image" content="https://mrbro.dev/og-image.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://mrbro.dev/">
-    <meta property="twitter:title" content="Marcus R. Brown - Developer Portfolio & Blog">
-    <meta property="twitter:description" content="Full-stack developer showcasing projects, blog posts, and GitHub repositories.">
-    <meta property="twitter:image" content="https://mrbro.dev/og-image.png">
+    <meta name="theme-color" content="#050505" />
+    <meta name="color-scheme" content="dark" />
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://marcusrbrown.com/" />
 
-    <!-- Theme -->
-    <meta name="theme-color" content="#000000">
-    <meta name="color-scheme" content="light dark">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://marcusrbrown.com/" />
+    <meta property="og:title" content="Marcus R. Brown — Principal Software Engineer" />
+    <meta property="og:description" content="Versatile Full Stack Developer and Principal Software Engineer with 20+ years of experience building distributed systems across gaming, enterprise, and blockchain." />
+    <meta property="og:site_name" content="Marcus R. Brown" />
+    <meta property="og:image" content="https://marcusrbrown.com/apple-touch-icon.png" />
 
-    <!-- Critical CSS - Inlined to prevent FOUC -->
-    <style>
-      /* Base CSS variables - defined before any content renders */
-      :root {
-        /* Default light theme */
-        --color-primary: #2563eb;
-        --color-secondary: #64748b;
-        --color-accent: #0ea5e9;
-        --color-background: #ffffff;
-        --color-surface: #f8fafc;
-        --color-text: #0f172a;
-        --color-text-secondary: #64748b;
-        --color-border: #e2e8f0;
-        --color-error: #dc2626;
-        --color-warning: #d97706;
-        --color-success: #16a34a;
-
-        /* Component-specific colors */
-        --color-header-bg: var(--color-surface);
-        --color-card-bg: var(--color-background);
-        --color-link: var(--color-primary);
-        --color-shadow: rgba(0, 0, 0, 0.1);
-
-        /* Transitions - will be overridden by themes.css */
-        --transition-theme: none;
-      }
-
-      /* Disable all transitions during initial page load */
-      .theme-preload,
-      .theme-preload *,
-      .theme-preload *::before,
-      .theme-preload *::after {
-        transition: none !important;
-        animation: none !important;
-      }
-
-      /* Base body styles to prevent layout shift */
-      body {
-        margin: 0;
-        padding: 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-        line-height: 1.6;
-        background-color: var(--color-background);
-        color: var(--color-text);
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-
-      /* Prevent flash of empty content */
-      #root {
-        min-height: 100vh;
-      }
-    </style>
-
-    <!-- Theme Preloader Script (FOUC Prevention) -->
-    <script>
-    /* Enhanced preloader script with custom theme support.
-       Prevents flash of unstyled content (FOUC) by applying theme before React loads. */
-    (function () {
-      try {
-        var root = document.documentElement;
-        var currentTheme = null;
-
-        // Add theme-preload class to disable transitions on initial load
-        root.classList.add('theme-preload');
-
-        // Helper to safely parse JSON from localStorage
-        function safeParse(value) {
-          if (!value) return null;
-          try {
-            return JSON.parse(value);
-          } catch (e) {
-            return null;
-          }
-        }
-
-        // Helper to apply theme colors to CSS custom properties
-        function applyTheme(theme) {
-          var colors = theme.colors;
-          root.style.setProperty('--color-primary', colors.primary);
-          root.style.setProperty('--color-secondary', colors.secondary);
-          root.style.setProperty('--color-accent', colors.accent);
-          root.style.setProperty('--color-background', colors.background);
-          root.style.setProperty('--color-surface', colors.surface);
-          root.style.setProperty('--color-text', colors.text);
-          root.style.setProperty('--color-text-secondary', colors.textSecondary);
-          root.style.setProperty('--color-border', colors.border);
-          root.style.setProperty('--color-error', colors.error);
-          root.style.setProperty('--color-warning', colors.warning);
-          root.style.setProperty('--color-success', colors.success);
-          root.setAttribute('data-theme', theme.mode);
-        }
-
-        // Default themes
-        var DEFAULT_LIGHT = {
-          mode: 'light',
-          colors: {
-            primary: '#2563eb',
-            secondary: '#64748b',
-            accent: '#0ea5e9',
-            background: '#ffffff',
-            surface: '#f8fafc',
-            text: '#0f172a',
-            textSecondary: '#64748b',
-            border: '#e2e8f0',
-            error: '#dc2626',
-            warning: '#d97706',
-            success: '#16a34a'
-          }
-        };
-
-        var DEFAULT_DARK = {
-          mode: 'dark',
-          colors: {
-            primary: '#3b82f6',
-            secondary: '#94a3b8',
-            accent: '#0ea5e9',
-            background: '#0f172a',
-            surface: '#1e293b',
-            text: '#f1f5f9',
-            textSecondary: '#94a3b8',
-            border: '#334155',
-            error: '#ef4444',
-            warning: '#f59e0b',
-            success: '#22c55e'
-          }
-        };
-
-        // Try to load custom theme first
-        var customThemeJson = localStorage.getItem('mrbro-dev-custom-theme');
-        var customTheme = safeParse(customThemeJson);
-
-        if (customTheme && customTheme.colors) {
-          // Use custom theme if available and valid
-          currentTheme = customTheme;
-        } else {
-          // Determine theme mode
-          var mode = localStorage.getItem('mrbro-dev-theme-mode');
-          mode = safeParse(mode) || 'system';
-
-          // Resolve actual theme based on mode
-          var isDark = mode === 'system'
-            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
-            : mode === 'dark';
-
-          currentTheme = isDark ? DEFAULT_DARK : DEFAULT_LIGHT;
-        }
-
-        // Apply theme immediately
-        applyTheme(currentTheme);
-
-      } catch (e) {
-        // Silent fallback - CSS will handle default styling
-      }
-    })();
-    </script>
-
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://mrbro.dev/">
-</head>
-<body>
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Marcus R. Brown — Principal Software Engineer" />
+    <meta name="twitter:description" content="Versatile Full Stack Developer and Principal Software Engineer with 20+ years of experience building distributed systems across gaming, enterprise, and blockchain." />
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-</body>
+  </body>
 </html>

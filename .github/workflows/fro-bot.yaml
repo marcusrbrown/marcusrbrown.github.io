@@ -35,8 +35,8 @@ concurrency:
 
 env:
   PR_REVIEW_PROMPT: |
-    You are reviewing a pull request for mrbro.dev — a React 19+ / TypeScript /
-    Vite 7+ portfolio deployed to GitHub Pages.
+    You are reviewing a pull request for marcusrbrown.github.io — a React 19+ / TypeScript /
+    Vite 7+ brand site deployed to GitHub Pages.
 
     Focus your review on:
     - Correctness and edge cases

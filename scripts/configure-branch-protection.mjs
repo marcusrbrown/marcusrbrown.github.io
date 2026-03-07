@@ -2,7 +2,7 @@
 /**
  * Branch Protection Configuration Script
  *
- * This script helps configure GitHub branch protection rules for the mrbro.dev repository.
+ * This script helps configure GitHub branch protection rules for the marcusrbrown.github.io repository.
  * It ensures all test suites are properly integrated as required status checks.
  */
 
@@ -26,8 +26,6 @@ const BRANCH_PROTECTION_CONFIG = {
     // Option 2: Individual status checks (granular control)
     individual: [
       'Quality Gate', // CI workflow
-      'Test Summary & Badge Generation', // E2E workflow
-      'Performance Audit', // Performance workflow
     ],
   },
 

@@ -1,41 +1,21 @@
 import React from 'react'
-import {Route, BrowserRouter as Router, Routes} from 'react-router-dom'
-import Footer from './components/Footer'
-import Header from './components/Header'
-import {ThemeProvider} from './contexts/ThemeContext'
-import {useSyntaxHighlighting} from './hooks/UseSyntaxHighlighting'
-import About from './pages/About'
-import Blog from './pages/Blog'
-import Home from './pages/Home'
-import Projects from './pages/Projects'
-import './styles/globals.css'
+import {Navigation} from './components/Navigation'
+import {About} from './components/sections/About'
+import {Contact} from './components/sections/Contact'
+import {Experience} from './components/sections/Experience'
+import {Skills} from './components/sections/Skills'
 
-const AppContent: React.FC = () => {
-  // Initialize syntax highlighting integration with theme system
-  useSyntaxHighlighting()
-
+export const App: React.FC = () => {
   return (
-    <Router>
-      <Header />
+    <>
+      <Navigation />
       <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/about" element={<About />} />
-        </Routes>
+        <h1 className="sr-only">Marcus R. Brown</h1>
+        <About />
+        <Experience />
+        <Skills />
+        <Contact />
       </main>
-      <Footer />
-    </Router>
+    </>
   )
 }
-
-const App: React.FC = () => {
-  return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
-  )
-}
-
-export default App
