@@ -1,11 +1,11 @@
 import React from 'react'
-import Navigation from './components/Navigation'
-import About from './components/sections/About'
-import Contact from './components/sections/Contact'
-import Experience from './components/sections/Experience'
-import Skills from './components/sections/Skills'
+import {Navigation} from './components/Navigation'
+import {About} from './components/sections/About'
+import {Contact} from './components/sections/Contact'
+import {Experience} from './components/sections/Experience'
+import {Skills} from './components/sections/Skills'
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   return (
     <>
       <Navigation />
@@ -19,5 +19,3 @@ const App: React.FC = () => {
     </>
   )
 }
-
-export default App

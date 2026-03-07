@@ -1,7 +1,7 @@
 import React from 'react'
 import {useScrollReveal} from '../../hooks/UseScrollReveal'
 
-const Skills: React.FC = () => {
+export const Skills: React.FC = () => {
   const {ref, isVisible} = useScrollReveal()
 
   return (
@@ -54,5 +54,3 @@ const Skills: React.FC = () => {
     </section>
   )
 }
-
-export default Skills

@@ -1,7 +1,7 @@
 import React from 'react'
 import {useScrollReveal} from '../../hooks/UseScrollReveal'
 
-const Contact: React.FC = () => {
+export const Contact: React.FC = () => {
   const {ref, isVisible} = useScrollReveal()
 
   return (
@@ -53,5 +53,3 @@ const Contact: React.FC = () => {
     </section>
   )
 }
-
-export default Contact

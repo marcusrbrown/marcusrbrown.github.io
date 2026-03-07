@@ -1,7 +1,7 @@
 import React from 'react'
 import {useScrollReveal} from '../../hooks/UseScrollReveal'
 
-const Experience: React.FC = () => {
+export const Experience: React.FC = () => {
   const {ref, isVisible} = useScrollReveal()
 
   return (
@@ -73,5 +73,3 @@ const Experience: React.FC = () => {
     </section>
   )
 }
-
-export default Experience

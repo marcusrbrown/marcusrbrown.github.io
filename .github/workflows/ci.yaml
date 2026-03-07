@@ -66,9 +66,6 @@ jobs:
       - name: Build project
         run: pnpm run build
 
-      - name: Analyze build output
-        run: pnpm run analyze-build
-
       - name: Check build output
         run: |
           if [ ! -d "dist" ]; then

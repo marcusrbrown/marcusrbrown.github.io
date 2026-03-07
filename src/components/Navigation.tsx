@@ -1,9 +1,9 @@
 import React from 'react'
 import '../styles/Navigation.css'
 
-const Navigation: React.FC = () => {
+export const Navigation: React.FC = () => {
   return (
-    <nav className="brand-navigation">
+    <nav className="brand-navigation" aria-label="Main navigation">
       <div className="container nav-container">
         <a href="#about" className="nav-brand subtle-hover-lift">
           MRB
@@ -34,5 +34,3 @@ const Navigation: React.FC = () => {
     </nav>
   )
 }
-
-export default Navigation
