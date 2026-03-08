@@ -36,15 +36,6 @@ Deploys to GitHub Pages at `mrbro.dev`.
 
 Automated dependency updates using Renovate bot.
 
-### 📋 Regression Watchlist Follow-ups (`.github/workflows/regression-watchlist-followups.yaml`)
-
-Runs on:
-
-- New issues titled `Regression Watchlist*`
-- Manual workflow dispatch (with `issue_number`)
-
-Creates one issue per "Recommended Follow-up Check", attempts assignment to `@copilot`, posts an `@fro-bot` triage mention on each follow-up issue, and directly dispatches the `fro-bot` workflow with a triage prompt when no immediate `fro-bot` activity is detected.
-
 ## Reusable Actions
 
 ### 📦 Setup Action (`.github/actions/setup/action.yaml`)
