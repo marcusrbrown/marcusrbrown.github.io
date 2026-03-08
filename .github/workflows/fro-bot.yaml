@@ -11,7 +11,7 @@ on:
   issues:
     types: [opened, edited]
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, ready_for_review, reopened, review_requested]
   schedule:
     - cron: '30 15 * * *'
   workflow_dispatch:
