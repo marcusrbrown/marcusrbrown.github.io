@@ -82,7 +82,7 @@ runs:
       shell: bash
       run: pnpm exec playwright install --with-deps ${{ inputs.playwright-browsers }}
 
-    - name: Ensure Playwright browsers installed
-      if: inputs.install-playwright == 'true'
+    - name: Install Playwright system deps (cache hit)
+      if: inputs.install-playwright == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
       shell: bash
-      run: pnpm exec playwright install ${{ inputs.playwright-browsers }}
+      run: pnpm exec playwright install-deps ${{ inputs.playwright-browsers }}
