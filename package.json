@@ -27,7 +27,8 @@
     "prepare": "simple-git-hooks",
     "preview": "vite preview",
     "setup-hooks": "simple-git-hooks",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged"
