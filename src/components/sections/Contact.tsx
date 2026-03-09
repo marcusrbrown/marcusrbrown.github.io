@@ -26,6 +26,7 @@ export const Contact: React.FC = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="subtle-hover-lift"
+                    aria-label="Visit Marcus R. Brown on LinkedIn"
                   >
                     LinkedIn
                   </a>
@@ -36,12 +37,19 @@ export const Contact: React.FC = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="subtle-hover-lift"
+                    aria-label="View Marcus R. Brown's GitHub profile"
                   >
                     GitHub
                   </a>
                 </li>
                 <li>
-                  <a href="https://mrbro.dev" target="_blank" rel="noopener noreferrer" className="subtle-hover-lift">
+                  <a
+                    href="https://mrbro.dev"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="subtle-hover-lift"
+                    aria-label="Visit Marcus R. Brown's portfolio at mrbro.dev"
+                  >
                     Portfolio (mrbro.dev)
                   </a>
                 </li>
