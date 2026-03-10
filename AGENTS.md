@@ -1,6 +1,6 @@
 # AGENTS.md
 
-**Generated:** 2026-03-06 | **Commit:** bc62df8 | **Branch:** main
+**Generated:** 2026-03-10 | **Commit:** f1ce08f | **Branch:** main
 
 ## Overview
 
@@ -14,6 +14,7 @@
 ├── src/
 │   ├── App.tsx                      # Root component → Navigation + 4 sections
 │   ├── main.tsx                     # Entry point (StrictMode + brand.css)
+│   ├── test-setup.ts                # Extends vitest with axe-core a11y matchers
 │   ├── components/
 │   │   ├── Navigation.tsx           # Anchor-link nav bar
 │   │   ├── sections/               # About, Experience, Skills, Contact
@@ -22,11 +23,13 @@
 │   │   ├── UseScrollReveal.ts       # IntersectionObserver scroll animation
 │   │   └── __tests__/              # Hook unit tests
 │   └── styles/                     # brand.css, Navigation.css
-├── scripts/                         # Build analysis + test automation + verification (see scripts/AGENTS.md)
+├── tests/e2e/                       # Playwright E2E tests
+├── scripts/                         # Build analysis + test automation (see scripts/AGENTS.md)
 ├── .github/
-│   ├── workflows/                   # ci, deploy, renovate, fro-bot (see .github/ACTIONS.md)
+│   ├── workflows/                   # ci, deploy, renovate, fro-bot, copilot-setup-steps
 │   └── actions/setup/               # Composite action: Node 22 + pnpm + optional Playwright
 ├── vite.config.ts                   # Build config + inline Vitest config (happy-dom)
+├── playwright.config.ts             # Playwright E2E config
 ├── eslint.config.ts                 # Flat config extending @bfra.me/eslint-config
 ├── tsconfig.json                    # Extends @bfra.me/tsconfig, strict mode
 └── package.json                     # Pure ESM, pnpm enforced via packageManager field
@@ -38,9 +41,11 @@
 |------|----------|-------|
 | Add a section | `src/components/sections/` + wire in `App.tsx` | Follow existing section pattern |
 | Add a custom hook | `src/hooks/Use*.ts` | **PascalCase filename**, test in `__tests__/` |
+| Add E2E test | `tests/e2e/*.spec.ts` + `playwright.config.ts` | Uses Playwright |
 | Modify build analysis | `scripts/analyze-build.ts` | Performance budgets defined inline |
 | CI/CD changes | `.github/workflows/` | See `.github/ACTIONS.md` for full docs |
-| Test config | `vite.config.ts` → `test:` block | No separate vitest.config — it's inline |
+| Test config (unit) | `vite.config.ts` → `test:` block | No separate vitest.config — inline |
+| Test setup/a11y | `src/test-setup.ts` | Extends vitest with `vitest-axe` matchers |
 | Shared configs | `@bfra.me/*` packages | ESLint, Prettier (120-char), TypeScript |
 
 ## Conventions
@@ -88,15 +93,19 @@ pnpm preview          # Preview production build
 pnpm lint             # ESLint (flat config)
 pnpm fix              # ESLint --fix
 pnpm test             # vitest run (happy-dom)
+pnpm test:e2e         # Playwright E2E tests
 ```
 
 ## Testing
 
 - **Unit tests**: Vitest with `happy-dom`, config inline in `vite.config.ts`
+- **Accessibility**: `vitest-axe` matchers via `src/test-setup.ts` — use `toHaveNoViolations()`
+- **E2E tests**: Playwright, config at `playwright.config.ts`, tests in `tests/e2e/`
 - **Coverage target**: 80%+ (statements, branches, functions, lines)
-- **Test location**: Co-located `__tests__/` dirs next to source
-- **Run specific test**: `pnpm test -- src/hooks/UseTheme.test.ts`
+- **Test location**: Unit tests in co-located `__tests__/` dirs; E2E in `tests/e2e/`
+- **Run specific test**: `pnpm test -- src/hooks/UseScrollReveal.test.ts`
 - **Watch mode**: `pnpm test -- --watch`
+- **Full testing guide**: See `TESTING.md`
 
 ## CI/CD
 
@@ -106,6 +115,7 @@ pnpm test             # vitest run (happy-dom)
 | `deploy.yaml` | Push to main | Build + deploy to GitHub Pages (marcusrbrown.com) |
 | `renovate.yaml` | Scheduled | Automated dependency updates |
 | `fro-bot.yaml` | PR events | AI-powered PR review |
+| `copilot-setup-steps.yaml` | Manual / Copilot | Verifies Copilot agent environment setup |
 
 Custom setup action at `.github/actions/setup/` handles Node 22 + pnpm + optional Playwright install.
 
@@ -114,6 +124,6 @@ Custom setup action at `.github/actions/setup/` handles Node 22 + pnpm + optiona
 - Domain is **marcusrbrown.com** (CNAME in `public/`)
 - Build outputs source maps (`build.sourcemap: true`)
 - `__GITHUB_PAGES__` define injected at build time
-- No Playwright/E2E tests currently configured — only Vitest unit tests
-- Many `scripts/verify-*.sh` are one-time migration/verification scripts
+- `scripts/verify-*.sh` are one-time migration/verification scripts — safe to ignore
 - Shared configs from `@bfra.me` org — ESLint, Prettier, TypeScript base configs
+- Lighthouse CI configured via `lhci.config.js` + `.lighthouseci/`
