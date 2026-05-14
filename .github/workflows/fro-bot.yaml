@@ -576,7 +576,7 @@ jobs:
         env:
           PROMPT: ${{ inputs.prompt }}
         run: |
-          if [ -z "$PROMPT" ]; then
+          if [[ ! "$PROMPT" =~ [^[:space:]] ]]; then
             echo "::error::Review mode requires a custom prompt. Provide one via the 'prompt' input, or choose a different mode."
             exit 1
           fi
