@@ -528,12 +528,13 @@ jobs:
       )
     steps:
       - name: Detect Sunday UTC for category 8 cadence
+        id: detect-sunday
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(date -u +%u)" = "7" ]; then
-            echo "IS_SUNDAY_UTC=true" >> "$GITHUB_ENV"
+            echo "is_sunday=true" >> "$GITHUB_OUTPUT"
           else
-            echo "IS_SUNDAY_UTC=false" >> "$GITHUB_ENV"
+            echo "is_sunday=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Refuse fork PR heads from comment triggers
@@ -585,7 +586,7 @@ jobs:
         uses: fro-bot/agent@1563f2987343b5e8d30ba818920d0ac563c617fa # v0.43.0
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
-          IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
+          IS_SUNDAY_UTC: ${{ steps.detect-sunday.outputs.is_sunday || 'false' }}
           PROMPT: >-
             ${{
               (github.event_name == 'workflow_dispatch' && inputs.mode == 'review' && inputs.prompt)
