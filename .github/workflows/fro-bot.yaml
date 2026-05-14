@@ -39,8 +39,12 @@ concurrency:
       github.event.pull_request.number ||
       github.event.discussion.number ||
       (
-        (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-        && 'ops'
+        github.event_name == 'schedule'
+        && format('ops-{0}', github.event.schedule)
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch'
+        && format('ops-{0}', inputs.mode || 'autoheal')
       ) ||
       github.run_id
     }}
@@ -527,6 +531,16 @@ jobs:
         )
       )
     steps:
+      - name: Validate review mode inputs
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'review'
+        env:
+          PROMPT: ${{ inputs.prompt }}
+        run: |
+          if [[ ! "$PROMPT" =~ [^[:space:]] ]]; then
+            echo "::error::Review mode requires a custom prompt. Provide one via the 'prompt' input, or choose a different mode."
+            exit 1
+          fi
+
       - name: Detect Sunday UTC for category 8 cadence
         id: detect-sunday
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -565,22 +579,25 @@ jobs:
       - name: Setup project dependencies
         uses: ./.github/actions/setup
         with:
+          install-dependencies: >-
+            ${{
+              (
+                github.event_name == 'schedule'
+                && github.event.schedule == env.AUTOHEAL_CRON
+              )
+              || (
+                github.event_name == 'workflow_dispatch'
+                && (inputs.mode == 'autoheal' || !inputs.mode)
+              )
+              || (github.event_name == 'pull_request')
+              || 'false'
+            }}
           install-playwright: >-
             ${{
               (github.event_name == 'schedule' && github.event.schedule == env.AUTOHEAL_CRON)
               || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal')
               || 'false'
             }}
-
-      - name: Validate review mode inputs
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'review'
-        env:
-          PROMPT: ${{ inputs.prompt }}
-        run: |
-          if [[ ! "$PROMPT" =~ [^[:space:]] ]]; then
-            echo "::error::Review mode requires a custom prompt. Provide one via the 'prompt' input, or choose a different mode."
-            exit 1
-          fi
 
       - name: Run Fro Bot
         uses: fro-bot/agent@1563f2987343b5e8d30ba818920d0ac563c617fa # v0.43.0
