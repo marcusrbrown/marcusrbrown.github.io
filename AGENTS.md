@@ -114,7 +114,7 @@ pnpm test:e2e         # Playwright E2E tests
 | `ci.yaml` | PRs to main, pushes to non-main | Lint + test + build + type-check + cross-platform matrix |
 | `deploy.yaml` | Push to main | Build + deploy to GitHub Pages (marcusrbrown.com) |
 | `renovate.yaml` | Scheduled | Automated dependency updates |
-| `fro-bot.yaml` | PR events | AI-powered PR review |
+| `fro-bot.yaml` | PR events, scheduled (03:30/15:30 UTC), `workflow_dispatch` | AI PR review, daily maintenance & autoheal reports |
 | `copilot-setup-steps.yaml` | Manual / Copilot | Verifies Copilot agent environment setup |
 
 Custom setup action at `.github/actions/setup/` handles Node 22 + pnpm + optional Playwright install.

@@ -38,12 +38,17 @@ concurrency:
       github.event.issue.number ||
       github.event.pull_request.number ||
       github.event.discussion.number ||
-      (github.event_name == 'schedule' && github.event.schedule) ||
+      (
+        (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        && 'ops'
+      ) ||
       github.run_id
     }}
   cancel-in-progress: false
 
 env:
+  AUTOHEAL_CRON: '30 3 * * *'
+  MAINTENANCE_CRON: '30 15 * * *'
   PR_REVIEW_PROMPT: |
     You are reviewing a pull request for marcusrbrown.github.io — a React 19+ / TypeScript /
     Vite 7+ brand site deployed to GitHub Pages.
@@ -487,11 +492,10 @@ jobs:
   fro-bot:
     name: Fro Bot
     runs-on: ubuntu-latest
+    # Write operations (issues, PRs, branches) use FRO_BOT_PAT.
+    # GITHUB_TOKEN is restricted to read-only to limit blast radius.
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      discussions: write
+      contents: read
     if: >-
       (
         github.event.pull_request == null ||
@@ -562,7 +566,7 @@ jobs:
         with:
           install-playwright: >-
             ${{
-              (github.event_name == 'schedule' && github.event.schedule == '30 3 * * *')
+              (github.event_name == 'schedule' && github.event.schedule == env.AUTOHEAL_CRON)
               || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal')
               || 'false'
             }}
@@ -588,8 +592,8 @@ jobs:
               || (github.event_name == 'workflow_dispatch' && inputs.mode == 'maintenance' && env.MAINTENANCE_PROMPT)
               || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal' && env.AUTOHEAL_PROMPT)
               || (github.event_name == 'workflow_dispatch' && !inputs.mode && env.AUTOHEAL_PROMPT)
-              || (github.event_name == 'schedule' && github.event.schedule == '30 15 * * *' && env.MAINTENANCE_PROMPT)
-              || (github.event_name == 'schedule' && github.event.schedule == '30 3 * * *' && env.AUTOHEAL_PROMPT)
+              || (github.event_name == 'schedule' && github.event.schedule == env.MAINTENANCE_CRON && env.MAINTENANCE_PROMPT)
+              || (github.event_name == 'schedule' && github.event.schedule == env.AUTOHEAL_CRON && env.AUTOHEAL_PROMPT)
               || (github.event_name == 'pull_request' && env.PR_REVIEW_PROMPT)
               || ''
             }}
