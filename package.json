@@ -20,6 +20,7 @@
   "type": "module",
   "main": "src/main.tsx",
   "scripts": {
+    "analyze-build": "tsx scripts/analyze-build.ts",
     "build": "tsc && vite build",
     "dev": "vite",
     "fix": "eslint --fix",
