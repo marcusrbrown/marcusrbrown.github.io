@@ -199,28 +199,20 @@ const themeSelectionSchema = {
   ],
 }
 
-const validationIdentityProperties = {
-  issueNumber: {type: 'integer', minimum: 1, maximum: 2_000_000_000},
-  fingerprint: {type: 'string', pattern: '^[a-f0-9]{32}$'},
-  variantKey: {type: 'string', pattern: '^[a-f0-9]{32}$'},
-  route: {enum: [...AUDIT_ROUTES]},
-  semanticTarget: {type: 'string', minLength: 1, maxLength: 200},
-  findingClass: {enum: ['broken-image', 'layout', 'overflow', 'visibility', 'hit-target', 'content']},
-  failureSignature: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
-  variant: {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      viewport: {enum: [...AUDIT_VIEWPORTS]},
-      theme: themeSelectionSchema,
-      state: {type: 'string', minLength: 1, maxLength: 200},
-    },
-    required: ['viewport', 'theme', 'state'],
-  },
-  target: targetSchema,
-  observedAt: {type: 'string', format: 'date-time'},
+const findingClassEnumSchema = {
+  enum: ['broken-image', 'layout', 'overflow', 'visibility', 'hit-target', 'content'],
 }
-const validationEvidenceSchema = {
+const auditVariantSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    viewport: {enum: [...AUDIT_VIEWPORTS]},
+    theme: themeSelectionSchema,
+    state: {type: 'string', minLength: 1, maxLength: 200},
+  },
+  required: ['viewport', 'theme', 'state'],
+}
+const evidencePairSchema = {
   type: 'array',
   minItems: 2,
   maxItems: 2,
@@ -235,6 +227,18 @@ const validationEvidenceSchema = {
     },
     required: ['role', 'path', 'alt', 'caption'],
   },
+}
+const validationIdentityProperties = {
+  issueNumber: {type: 'integer', minimum: 1, maximum: 2_000_000_000},
+  fingerprint: {type: 'string', pattern: '^[a-f0-9]{32}$'},
+  variantKey: {type: 'string', pattern: '^[a-f0-9]{32}$'},
+  route: {enum: [...AUDIT_ROUTES]},
+  semanticTarget: {type: 'string', minLength: 1, maxLength: 200},
+  findingClass: findingClassEnumSchema,
+  failureSignature: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
+  variant: auditVariantSchema,
+  target: targetSchema,
+  observedAt: {type: 'string', format: 'date-time'},
 }
 const responsiveCounterpartResultSchema = {
   oneOf: [
@@ -260,19 +264,10 @@ const responsiveCounterpartSchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    variant: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        viewport: {enum: [...AUDIT_VIEWPORTS]},
-        theme: themeSelectionSchema,
-        state: {type: 'string', minLength: 1, maxLength: 200},
-      },
-      required: ['viewport', 'theme', 'state'],
-    },
+    variant: auditVariantSchema,
     target: targetSchema,
     result: responsiveCounterpartResultSchema,
-    evidence: validationEvidenceSchema,
+    evidence: evidencePairSchema,
   },
   required: ['variant', 'target', 'result', 'evidence'],
 }
@@ -281,7 +276,7 @@ const validationSchema = {
     {
       type: 'object',
       additionalProperties: false,
-      properties: {...validationIdentityProperties, status: {const: 'clean'}, evidence: validationEvidenceSchema},
+      properties: {...validationIdentityProperties, status: {const: 'clean'}, evidence: evidencePairSchema},
       required: [...Object.keys(validationIdentityProperties), 'status', 'evidence'],
     },
     {
@@ -316,7 +311,7 @@ const schema = {
         additionalProperties: false,
         properties: {
           route: {enum: [...AUDIT_ROUTES]},
-          findingClass: {enum: ['broken-image', 'layout', 'overflow', 'visibility', 'hit-target', 'content']},
+          findingClass: findingClassEnumSchema,
           responsive: {enum: ['not-applicable', 'required', 'uncertain']},
           semanticTarget: {type: 'string', minLength: 1, maxLength: 200},
           target: targetSchema,
@@ -328,16 +323,7 @@ const schema = {
             maxItems: 20,
             items: {type: 'string', minLength: 1, maxLength: 500},
           },
-          variant: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              viewport: {enum: [...AUDIT_VIEWPORTS]},
-              theme: themeSelectionSchema,
-              state: {type: 'string', minLength: 1, maxLength: 200},
-            },
-            required: ['viewport', 'theme', 'state'],
-          },
+          variant: auditVariantSchema,
           observations: {
             type: 'array',
             minItems: 2,
@@ -354,22 +340,7 @@ const schema = {
               required: ['kind', 'status', 'signature', 'observedAt'],
             },
           },
-          evidence: {
-            type: 'array',
-            minItems: 2,
-            maxItems: 2,
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                role: {enum: ['context', 'crop']},
-                path: {type: 'string', minLength: 1, maxLength: 500},
-                alt: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
-                caption: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
-              },
-              required: ['role', 'path', 'alt', 'caption'],
-            },
-          },
+          evidence: evidencePairSchema,
           counterpart: responsiveCounterpartSchema,
         },
         required: [

@@ -12,7 +12,6 @@ export const normalizeIdentityText = (value: string): string =>
     .trim()
     .replaceAll(/\s+/g, ' ')
     .toLowerCase()
-const normalize = normalizeIdentityText
 const digest = (value: string): string => createHash('sha256').update(value).digest('hex').slice(0, 32)
 
 export const findingFingerprint = (input: {
@@ -33,8 +32,8 @@ export const variantKey = (variant: AuditVariant): string =>
       variant.viewport,
       variant.theme.kind,
       variant.theme.kind === 'mode' ? variant.theme.mode : variant.theme.presetId,
-      normalize(variant.state),
+      normalizeIdentityText(variant.state),
     ].join('|'),
   )
 export const operationKey = (runId: string, fingerprint: string, variant: string, checkpoint: string): string =>
-  digest([runId, fingerprint, variant, checkpoint].map(normalize).join('|'))
+  digest([runId, fingerprint, variant, checkpoint].map(normalizeIdentityText).join('|'))

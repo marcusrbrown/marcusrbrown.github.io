@@ -54,6 +54,23 @@ export interface Candidate {
 const candidateVariantKey = (candidate: Candidate): string => variantKey(candidate.variant)
 const candidateFingerprint = (candidate: Candidate): string => findingFingerprint(candidate)
 
+const buildCandidateReplayRequest = (
+  candidate: Candidate,
+  variant: AuditVariant = candidate.variant,
+): ActiveVariantReplayRequest => ({
+  issueNumber: 1,
+  fingerprint: candidateFingerprint(candidate),
+  variantKey: candidateVariantKey(candidate),
+  route: candidate.route,
+  semanticTarget: candidate.semanticTarget,
+  findingClass: candidate.findingClass,
+  failureSignature: candidate.failureSignature,
+  responsive: candidate.responsive,
+  variant,
+  target: candidate.target,
+  reproduction: candidate.reproduction,
+})
+
 export interface CandidateBundle {
   version: 1
   runId: string
@@ -484,23 +501,7 @@ export const finalizeCandidate = async (
   const counterpart =
     candidate.responsive === 'not-applicable'
       ? {}
-      : await buildCounterpart(
-          {
-            issueNumber: 1,
-            fingerprint: candidateFingerprint(candidate),
-            variantKey: candidateVariantKey(candidate),
-            route: candidate.route,
-            semanticTarget: candidate.semanticTarget,
-            findingClass: candidate.findingClass,
-            failureSignature: candidate.failureSignature,
-            responsive: candidate.responsive,
-            variant: candidate.variant,
-            target: candidate.target,
-            reproduction: candidate.reproduction,
-          },
-          counterpartReplay,
-          counterpartCapture,
-        )
+      : await buildCounterpart(buildCandidateReplayRequest(candidate), counterpartReplay, counterpartCapture)
   if (counterpart.diagnostic || (candidate.responsive !== 'not-applicable' && !counterpart.value))
     return {diagnostic: counterpart.diagnostic ?? 'responsive counterpart finalization failed'}
   const observations: Finding['observations'] = [
@@ -555,42 +556,10 @@ export const finalizeCandidateBundle = async (
       () => options.replay(candidate),
       () => options.capture(candidate),
       candidateCounterpartReplay
-        ? variant =>
-            candidateCounterpartReplay(
-              {
-                issueNumber: 1,
-                fingerprint: candidateFingerprint(candidate),
-                variantKey: candidateVariantKey(candidate),
-                route: candidate.route,
-                semanticTarget: candidate.semanticTarget,
-                findingClass: candidate.findingClass,
-                failureSignature: candidate.failureSignature,
-                responsive: candidate.responsive,
-                variant,
-                target: candidate.target,
-                reproduction: candidate.reproduction,
-              },
-              variant,
-            )
+        ? variant => candidateCounterpartReplay(buildCandidateReplayRequest(candidate, variant), variant)
         : undefined,
       candidateCounterpartCapture
-        ? variant =>
-            candidateCounterpartCapture(
-              {
-                issueNumber: 1,
-                fingerprint: candidateFingerprint(candidate),
-                variantKey: candidateVariantKey(candidate),
-                route: candidate.route,
-                semanticTarget: candidate.semanticTarget,
-                findingClass: candidate.findingClass,
-                failureSignature: candidate.failureSignature,
-                responsive: candidate.responsive,
-                variant,
-                target: candidate.target,
-                reproduction: candidate.reproduction,
-              },
-              variant,
-            )
+        ? variant => candidateCounterpartCapture(buildCandidateReplayRequest(candidate, variant), variant)
         : undefined,
     )
     if (result.finding) findings.push(result.finding)
@@ -616,26 +585,17 @@ export const finalizeCandidateBundle = async (
     if (result.diagnostic) diagnostics.push(result.diagnostic)
     if (result.validation) validations.push(result.validation)
   }
+  const manifestCommon = {
+    version: 1 as const,
+    runId: bundle.runId,
+    generatedAt: bundle.generatedAt,
+    findings,
+    validations,
+  }
   const manifestInput =
     bundle.runKind === 'scheduled'
-      ? {
-          version: 1 as const,
-          runId: bundle.runId,
-          generatedAt: bundle.generatedAt,
-          runKind: 'scheduled' as const,
-          rotatingPresetId: bundle.rotatingPresetId as AuditPresetId,
-          findings,
-          validations,
-        }
-      : {
-          version: 1 as const,
-          runId: bundle.runId,
-          generatedAt: bundle.generatedAt,
-          runKind: 'manual' as const,
-          issueNumber: bundle.issueNumber as number,
-          findings,
-          validations,
-        }
+      ? {...manifestCommon, runKind: 'scheduled' as const, rotatingPresetId: bundle.rotatingPresetId as AuditPresetId}
+      : {...manifestCommon, runKind: 'manual' as const, issueNumber: bundle.issueNumber as number}
   if (diagnostics.length > MAX_DIAGNOSTICS) throw new Error('live-audit diagnostics exceed bounded limit')
   return {
     manifest: parseAuditManifest(manifestInput),
