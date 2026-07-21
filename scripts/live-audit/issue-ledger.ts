@@ -7,6 +7,7 @@ import {
   type AuditRoute,
   type AuditThemeSelection,
   type AuditViewport,
+  type Finding,
   type FindingClass,
   type TargetDescriptor,
 } from './contract'
@@ -44,6 +45,7 @@ export interface IssueLedger {
   route: AuditRoute
   semanticTarget: string
   findingClass: FindingClass
+  responsive: Finding['responsive']
   failureSignature: string
   variants: LedgerVariant[]
   replay: LedgerReplay[]
@@ -84,6 +86,7 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
       'route',
       'semanticTarget',
       'findingClass',
+      'responsive',
       'failureSignature',
       'variants',
       'replay',
@@ -98,6 +101,7 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
     !['broken-image', 'layout', 'overflow', 'visibility', 'hit-target', 'content'].includes(
       String(value.findingClass),
     ) ||
+    !['not-applicable', 'required', 'uncertain'].includes(String(value.responsive)) ||
     !isSafeText(value.failureSignature)
   )
     throw new Error('invalid issue ledger envelope')

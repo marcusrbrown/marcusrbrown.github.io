@@ -9,6 +9,7 @@ const ledger: IssueLedger = {
   route: '/projects',
   semanticTarget: 'card',
   findingClass: 'broken-image',
+  responsive: 'uncertain',
   failureSignature: 'broken image',
   variants: [
     {
@@ -72,6 +73,26 @@ describe('live audit identity and issue ledger', () => {
     expect(parsed.humanBody).toContain('Human footer')
     expect(() => parseIssueLedger('no ledger here')).toThrow()
     expect(() => parseIssueLedger(`${renderIssueLedger(ledger)}\n${renderIssueLedger(ledger)}`)).toThrow()
+  })
+
+  it('requires a closed responsive classification on the ledger envelope', () => {
+    const {responsive: _responsive, ...missingResponsive} = ledger
+    expect(() => renderIssueLedger(missingResponsive as IssueLedger)).toThrow()
+    for (const responsive of ['sideways', '', null, undefined, 42]) {
+      expect(() => renderIssueLedger({...ledger, responsive} as IssueLedger)).toThrow()
+    }
+  })
+
+  it('preserves responsive classification while updating variant clean counts', () => {
+    const parsed = parseIssueLedger(renderIssueLedger(ledger)).ledger
+    const variant = parsed.variants.at(0)
+    if (!variant) throw new Error('fixture variant missing')
+    variant.cleanCount = 2
+    const updated = parseIssueLedger(renderIssueLedger(parsed)).ledger
+    expect(updated.responsive).toBe('uncertain')
+    const updatedVariant = updated.variants.at(0)
+    if (!updatedVariant) throw new Error('updated variant missing')
+    expect(updatedVariant.cleanCount).toBe(2)
   })
 
   it('strips controls and rejects oversized ledger state', () => {

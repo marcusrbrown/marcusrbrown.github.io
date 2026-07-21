@@ -60,10 +60,19 @@ export interface EvidenceReference {
   caption: string
 }
 
-export interface Finding {
+export type ResponsiveCounterpartResult =
+  {status: 'clean'; observedAt: string} | {status: 'failure'; failureSignature: string; observedAt: string}
+
+export interface ResponsiveCounterpart {
+  variant: AuditVariant
+  target: TargetDescriptor
+  result: ResponsiveCounterpartResult
+  evidence: [EvidenceReference, EvidenceReference]
+}
+
+interface FindingFields {
   route: AuditRoute
   findingClass: FindingClass
-  responsive: 'not-applicable' | 'required' | 'uncertain'
   semanticTarget: string
   target: TargetDescriptor
   failureSignature: string
@@ -73,6 +82,12 @@ export interface Finding {
   observations: [AuditObservation, AuditObservation]
   evidence: [EvidenceReference, EvidenceReference]
 }
+
+export type Finding = FindingFields &
+  (
+    | {responsive: 'not-applicable'; counterpart?: never}
+    | {responsive: 'required' | 'uncertain'; counterpart: ResponsiveCounterpart}
+  )
 
 interface ManifestCommon {
   version: typeof AUDIT_CONTRACT_VERSION
@@ -221,6 +236,46 @@ const validationEvidenceSchema = {
     required: ['role', 'path', 'alt', 'caption'],
   },
 }
+const responsiveCounterpartResultSchema = {
+  oneOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {status: {const: 'clean'}, observedAt: {type: 'string', format: 'date-time'}},
+      required: ['status', 'observedAt'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        status: {const: 'failure'},
+        failureSignature: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
+        observedAt: {type: 'string', format: 'date-time'},
+      },
+      required: ['status', 'failureSignature', 'observedAt'],
+    },
+  ],
+}
+const responsiveCounterpartSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    variant: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        viewport: {enum: [...AUDIT_VIEWPORTS]},
+        theme: themeSelectionSchema,
+        state: {type: 'string', minLength: 1, maxLength: 200},
+      },
+      required: ['viewport', 'theme', 'state'],
+    },
+    target: targetSchema,
+    result: responsiveCounterpartResultSchema,
+    evidence: validationEvidenceSchema,
+  },
+  required: ['variant', 'target', 'result', 'evidence'],
+}
 const validationSchema = {
   oneOf: [
     {
@@ -315,6 +370,7 @@ const schema = {
               required: ['role', 'path', 'alt', 'caption'],
             },
           },
+          counterpart: responsiveCounterpartSchema,
         },
         required: [
           'route',
@@ -328,6 +384,15 @@ const schema = {
           'variant',
           'observations',
           'evidence',
+        ],
+        oneOf: [
+          {
+            properties: {responsive: {const: 'not-applicable'}, counterpart: false},
+          },
+          {
+            properties: {responsive: {enum: ['required', 'uncertain']}, counterpart: responsiveCounterpartSchema},
+            required: ['counterpart'],
+          },
         ],
       },
     },
@@ -370,6 +435,11 @@ const validateEvidencePair = (evidence: [EvidenceReference, EvidenceReference]):
   if (textValues.some(value => !hasSafeText(value)))
     throw new AuditContractError('evidence contains unsafe or empty text')
 }
+const sameTheme = (left: AuditThemeSelection, right: AuditThemeSelection): boolean =>
+  left.kind === right.kind &&
+  (left.kind === 'mode'
+    ? left.mode === (right as {kind: 'mode'; mode: AuditTheme}).mode
+    : left.presetId === (right as {kind: 'preset'; presetId: AuditPresetId}).presetId)
 
 export const parseTargetDescriptor = (input: unknown): TargetDescriptor => {
   if (!validateTarget(input))
@@ -395,6 +465,24 @@ export const parseThemeSelection = (input: unknown): AuditThemeSelection => {
   return selection
 }
 
+const validateResponsiveCounterpart = (finding: Finding): void => {
+  if (finding.responsive === 'not-applicable') return
+  const counterpart = finding.counterpart
+  if (counterpart.variant.viewport === finding.variant.viewport)
+    throw new AuditContractError('responsive counterpart must use the opposite viewport')
+  if (
+    !sameTheme(counterpart.variant.theme, finding.variant.theme) ||
+    counterpart.variant.state !== finding.variant.state
+  )
+    throw new AuditContractError('responsive counterpart must preserve theme and state')
+  if (!hasSafeText(counterpart.variant.state, 200)) throw new AuditContractError('invalid responsive counterpart state')
+  parseThemeSelection(counterpart.variant.theme)
+  parseTargetDescriptor(counterpart.target)
+  validateEvidencePair(counterpart.evidence)
+  if (counterpart.result.status === 'failure' && !hasSafeText(counterpart.result.failureSignature))
+    throw new AuditContractError('invalid responsive counterpart failure signature')
+}
+
 const semanticValidate = (manifest: AuditManifest): void => {
   if (!hasSafeText(manifest.runId, 200)) throw new AuditContractError('run ID contains unsafe or empty text')
   for (const finding of manifest.findings) {
@@ -409,6 +497,7 @@ const semanticValidate = (manifest: AuditManifest): void => {
     )
       throw new AuditContractError('observations have mismatched signatures')
     validateEvidencePair(finding.evidence)
+    validateResponsiveCounterpart(finding)
     if (!hasSafeText(finding.semanticTarget, 200))
       throw new AuditContractError('semantic target contains unsafe or empty text')
     const textValues = [

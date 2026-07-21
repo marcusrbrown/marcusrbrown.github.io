@@ -1,6 +1,11 @@
 import {describe, expect, it} from 'vitest'
 
-import {parseAuditManifest, type AuditManifest, type Finding} from '../../scripts/live-audit/contract'
+import {
+  parseAuditManifest,
+  type AuditManifest,
+  type Finding,
+  type ResponsiveCounterpart,
+} from '../../scripts/live-audit/contract'
 import {findingFingerprint, variantKey} from '../../scripts/live-audit/identity'
 import {presetThemes} from '../../src/utils/preset-themes'
 
@@ -9,6 +14,19 @@ const observation = (signature = 'broken image'): Finding['observations'][number
   status: 'failure',
   signature,
   observedAt: '2026-07-20T03:30:00.000Z',
+})
+
+const responsiveCounterpart = (status: 'clean' | 'failure' = 'clean'): ResponsiveCounterpart => ({
+  variant: {viewport: 'desktop', theme: {kind: 'preset', presetId: 'dracula'}, state: 'default'},
+  target: {kind: 'test-id', value: 'project-card-1'},
+  result:
+    status === 'clean'
+      ? {status: 'clean', observedAt: '2026-07-20T03:31:00.000Z'}
+      : {status: 'failure', failureSignature: 'broken image', observedAt: '2026-07-20T03:31:00.000Z'},
+  evidence: [
+    {role: 'context', path: 'screenshots/counterpart-context.png', alt: 'Counterpart context', caption: 'Context'},
+    {role: 'crop', path: 'screenshots/counterpart-crop.png', alt: 'Counterpart crop', caption: 'Crop'},
+  ],
 })
 
 const validManifest = (): AuditManifest => ({
@@ -34,12 +52,27 @@ const validManifest = (): AuditManifest => ({
         {role: 'context', path: 'screenshots/context.png', alt: 'Project context', caption: 'Context'},
         {role: 'crop', path: 'screenshots/crop.png', alt: 'Project crop', caption: 'Crop'},
       ],
+      counterpart: responsiveCounterpart(),
     },
   ],
 })
 
 const firstFinding = (manifest: AuditManifest): Finding => {
   const finding = manifest.findings.at(0)
+  if (!finding) throw new Error('fixture finding missing')
+  return finding
+}
+
+const withCounterpart = (manifest: AuditManifest, counterpart: unknown): unknown => {
+  const result = structuredClone(manifest) as unknown as {findings: Record<string, unknown>[]}
+  const finding = result.findings.at(0)
+  if (!finding) throw new Error('fixture finding missing')
+  finding.counterpart = counterpart
+  return result
+}
+
+const rawFinding = (manifest: Record<string, unknown>): Record<string, unknown> => {
+  const finding = (manifest.findings as Record<string, unknown>[]).at(0)
   if (!finding) throw new Error('fixture finding missing')
   return finding
 }
@@ -150,7 +183,74 @@ describe('live audit contract', () => {
   it.each(['not-applicable', 'required', 'uncertain'] as const)('accepts responsive classification %s', responsive => {
     const manifest = structuredClone(validManifest())
     firstFinding(manifest).responsive = responsive
+    if (responsive === 'not-applicable')
+      delete (firstFinding(manifest) as unknown as Record<string, unknown>).counterpart
     expect(firstFinding(parseAuditManifest(manifest)).responsive).toBe(responsive)
+  })
+
+  it('requires a counterpart for required and uncertain responsive findings', () => {
+    for (const responsive of ['required', 'uncertain'] as const) {
+      const manifest = structuredClone(validManifest())
+      firstFinding(manifest).responsive = responsive
+      delete (firstFinding(manifest) as unknown as Record<string, unknown>).counterpart
+      expect(() => parseAuditManifest(manifest)).toThrow()
+    }
+  })
+
+  it('accepts clean and failure counterpart results for a required finding', () => {
+    for (const result of [responsiveCounterpart('clean'), responsiveCounterpart('failure')]) {
+      const manifest = withCounterpart(validManifest(), result) as Record<string, unknown>
+      const finding = rawFinding(manifest)
+      finding.responsive = 'required'
+      expect(parseAuditManifest(manifest).findings[0]).toMatchObject({counterpart: result})
+    }
+  })
+
+  it('rejects counterpart evidence for not-applicable findings', () => {
+    const manifest = withCounterpart(validManifest(), responsiveCounterpart()) as Record<string, unknown>
+    rawFinding(manifest).responsive = 'not-applicable'
+    expect(() => parseAuditManifest(manifest)).toThrow()
+  })
+
+  it('requires an opposite viewport and matching theme and state for counterpart evidence', () => {
+    for (const variant of [
+      {viewport: 'mobile', theme: {kind: 'preset', presetId: 'dracula'}, state: 'default'},
+      {viewport: 'desktop', theme: {kind: 'preset', presetId: 'nord'}, state: 'default'},
+      {viewport: 'desktop', theme: {kind: 'preset', presetId: 'dracula'}, state: 'expanded'},
+    ]) {
+      const manifest = withCounterpart(validManifest(), {...responsiveCounterpart(), variant}) as Record<
+        string,
+        unknown
+      >
+      rawFinding(manifest).responsive = 'required'
+      expect(() => parseAuditManifest(manifest)).toThrow()
+    }
+  })
+
+  it('rejects malformed counterpart target, result, evidence, dates, and unknown keys', () => {
+    const invalidCounterparts = [
+      {...responsiveCounterpart(), target: {kind: 'css', value: '.secret'}},
+      {...responsiveCounterpart(), result: {status: 'failure', observedAt: '2026-07-20T03:31:00.000Z'}},
+      {
+        ...responsiveCounterpart(),
+        result: {...responsiveCounterpart('failure').result, failureSignature: 'bad\u0000signature'},
+      },
+      {
+        ...responsiveCounterpart(),
+        result: {status: 'clean', failureSignature: 'impossible', observedAt: '2026-07-20T03:31:00.000Z'},
+      },
+      {...responsiveCounterpart(), result: {status: 'clean', observedAt: 'not-a-date'}},
+      {
+        ...responsiveCounterpart(),
+        evidence: [responsiveCounterpart().evidence[0], {...responsiveCounterpart().evidence[1], role: 'context'}],
+      },
+      {...responsiveCounterpart(), unexpected: true},
+    ]
+    for (const counterpart of invalidCounterparts) {
+      const manifest = withCounterpart(validManifest(), counterpart) as Record<string, unknown>
+      rawFinding(manifest).responsive = 'required'
+      expect(() => parseAuditManifest(manifest)).toThrow()
+    }
   })
 
   it.each([
@@ -331,7 +431,9 @@ describe('live audit contract', () => {
       {kind: 'preset', presetId: 'dracula'},
     ] as const) {
       const manifest = structuredClone(validManifest())
-      firstFinding(manifest).variant.theme = theme
+      const finding = firstFinding(manifest)
+      finding.variant.theme = theme
+      if (finding.responsive !== 'not-applicable') finding.counterpart.variant.theme = theme
       expect(parseAuditManifest(manifest)).toBeTruthy()
     }
     const mixed = structuredClone(validManifest())
