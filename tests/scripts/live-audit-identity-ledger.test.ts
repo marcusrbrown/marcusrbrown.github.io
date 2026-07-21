@@ -30,6 +30,21 @@ const ledger: IssueLedger = {
   operations: [{key: 'op-1', checkpoint: 'issue', completedAt: '2026-07-20T03:30:00.000Z'}],
   transition: {kind: 'open', source: 'reporter'},
 }
+const transitionOperation = {
+  key: 'transition-op-1',
+  checkpoint: 'transition' as const,
+  completedAt: '2026-07-20T03:31:00.000Z',
+}
+const reporterClosedLedger: IssueLedger = {
+  ...ledger,
+  operations: [...ledger.operations, transitionOperation],
+  transition: {
+    kind: 'closed' as const,
+    source: 'reporter' as const,
+    operationKey: transitionOperation.key,
+    completedAt: transitionOperation.completedAt,
+  },
+}
 
 describe('live audit identity and issue ledger', () => {
   it('keeps finding identity stable across wording, run IDs, and screenshot names', () => {
@@ -75,12 +90,113 @@ describe('live audit identity and issue ledger', () => {
     expect(() => parseIssueLedger(`${renderIssueLedger(ledger)}\n${renderIssueLedger(ledger)}`)).toThrow()
   })
 
+  it('round trips reporter transition provenance and preserves the surrounding body exactly', () => {
+    const human = '  Human heading\n\nKeep this byte-for-byte.\n'
+    const body = `${human}${renderIssueLedger(reporterClosedLedger)}\n${human}`
+    const parsed = parseIssueLedger(body)
+
+    expect(parsed.ledger).toEqual(reporterClosedLedger)
+    expect(parsed.humanBody).toBe(`${human}\n${human}`)
+  })
+
+  it('requires one matching transition operation for reporter close and reopen states', () => {
+    for (const kind of ['closed', 'reopened'] as const) {
+      const withKind: IssueLedger = {
+        ...reporterClosedLedger,
+        transition: {
+          kind,
+          source: 'reporter',
+          operationKey: transitionOperation.key,
+          completedAt: transitionOperation.completedAt,
+        } as IssueLedger['transition'],
+      }
+      expect(() => renderIssueLedger(withKind)).not.toThrow()
+      expect(() => renderIssueLedger({...withKind, operations: ledger.operations})).toThrow()
+      expect(() =>
+        renderIssueLedger({
+          ...withKind,
+          operations: [
+            ...ledger.operations,
+            transitionOperation,
+            {...transitionOperation, key: 'another-transition-op'},
+          ],
+        }),
+      ).toThrow()
+      expect(() =>
+        renderIssueLedger({
+          ...withKind,
+          operations: [{...transitionOperation, completedAt: '2026-07-20T03:32:00.000Z'}, ...ledger.operations],
+        }),
+      ).toThrow()
+    }
+  })
+
+  it('keeps reporter-open and human transitions representable without reporter provenance', () => {
+    expect(() => renderIssueLedger(ledger)).not.toThrow()
+    expect(() =>
+      renderIssueLedger({
+        ...ledger,
+        transition: {kind: 'closed' as const, source: 'human' as const},
+      }),
+    ).not.toThrow()
+    expect(() =>
+      renderIssueLedger({
+        ...ledger,
+        transition: {kind: 'reopened' as const, source: 'human' as const},
+      }),
+    ).not.toThrow()
+  })
+
   it('requires a closed responsive classification on the ledger envelope', () => {
     const {responsive: _responsive, ...missingResponsive} = ledger
     expect(() => renderIssueLedger(missingResponsive as IssueLedger)).toThrow()
     for (const responsive of ['sideways', '', null, undefined, 42]) {
       expect(() => renderIssueLedger({...ledger, responsive} as IssueLedger)).toThrow()
     }
+  })
+
+  it('round trips a reporter-owned pending reopen without replacing close provenance', () => {
+    const pending = {
+      ...reporterClosedLedger,
+      operations: [...reporterClosedLedger.operations, {key: 'reopen-op-1', checkpoint: 'transition-pending'}],
+      transition: {
+        kind: 'closed-pending-reopen',
+        source: 'reporter',
+        operationKey: transitionOperation.key,
+        completedAt: transitionOperation.completedAt,
+        reopenOperationKey: 'reopen-op-1',
+      },
+    } as unknown as IssueLedger
+    expect(() => renderIssueLedger(pending)).not.toThrow()
+    expect(parseIssueLedger(renderIssueLedger(pending)).ledger).toEqual(pending)
+    expect(() =>
+      renderIssueLedger({
+        ...pending,
+        transition: {kind: 'closed-pending-reopen', source: 'human'},
+      } as unknown as IssueLedger),
+    ).toThrow()
+  })
+
+  it('round trips a committed reopen while retaining the prior close checkpoint', () => {
+    const reopenOperation = {
+      key: 'reopen-op-1',
+      checkpoint: 'transition' as const,
+      completedAt: '2026-07-20T03:32:00.000Z',
+    }
+    const reopened = {
+      ...reporterClosedLedger,
+      operations: [reopenOperation],
+      transition: {
+        kind: 'reopened' as const,
+        source: 'reporter' as const,
+        operationKey: reopenOperation.key,
+        completedAt: '2026-07-20T03:32:00.000Z',
+        previousCloseOperationKey: transitionOperation.key,
+        previousCloseCompletedAt: transitionOperation.completedAt,
+      },
+    }
+    expect(() => renderIssueLedger(reopened as unknown as IssueLedger)).not.toThrow()
+    expect(parseIssueLedger(renderIssueLedger(reopened as unknown as IssueLedger)).ledger).toEqual(reopened)
   })
 
   it('preserves responsive classification while updating variant clean counts', () => {
@@ -126,6 +242,41 @@ describe('live audit identity and issue ledger', () => {
     ['unknown replay key', {...ledger, replay: [{...ledger.replay[0], unexpected: true}]}],
     ['unknown operation key', {...ledger, operations: [{...ledger.operations[0], unexpected: true}]}],
     ['unknown transition key', {...ledger, transition: {...ledger.transition, unexpected: true}}],
+    [
+      'reporter transition missing checkpoint identity',
+      {...ledger, transition: {kind: 'closed' as const, source: 'reporter' as const}},
+    ],
+    [
+      'human transition masquerading as reporter provenance',
+      {
+        ...ledger,
+        transition: {
+          kind: 'closed' as const,
+          source: 'human' as const,
+          operationKey: transitionOperation.key,
+          completedAt: transitionOperation.completedAt,
+        },
+      },
+    ],
+    [
+      'unexpected open transition provenance',
+      {...ledger, transition: {...ledger.transition, operationKey: transitionOperation.key}},
+    ],
+    [
+      'invalid reporter transition key',
+      {
+        ...reporterClosedLedger,
+        transition: {...reporterClosedLedger.transition, operationKey: ''},
+      },
+    ],
+    [
+      'invalid reporter transition date',
+      {
+        ...reporterClosedLedger,
+        transition: {...reporterClosedLedger.transition, completedAt: 'yesterday'},
+      },
+    ],
+    ['orphan transition operation', {...ledger, operations: [...ledger.operations, transitionOperation]}],
     ['unknown checkpoint', {...ledger, operations: [{...ledger.operations[0], checkpoint: 'wat'}]}],
     ['bad date', {...ledger, operations: [{...ledger.operations[0], completedAt: 'yesterday'}]}],
     ['unsafe target', {...ledger, replay: [{...ledger.replay[0], target: {kind: 'css', value: '.unsafe'}}]}],

@@ -9,6 +9,14 @@ import {
 import {findingFingerprint, variantKey} from '../../scripts/live-audit/identity'
 import {presetThemes} from '../../src/utils/preset-themes'
 
+const evidence = (role: 'context' | 'crop', path: string, alt: string, caption: string) => ({
+  role,
+  path,
+  alt,
+  caption,
+  integrity: {path, sha256: '0'.repeat(64), width: 1, height: 1, bytes: 1},
+})
+
 const observation = (signature = 'broken image'): Finding['observations'][number] => ({
   kind: 'candidate',
   status: 'failure',
@@ -24,8 +32,8 @@ const responsiveCounterpart = (status: 'clean' | 'failure' = 'clean'): Responsiv
       ? {status: 'clean', observedAt: '2026-07-20T03:31:00.000Z'}
       : {status: 'failure', failureSignature: 'broken image', observedAt: '2026-07-20T03:31:00.000Z'},
   evidence: [
-    {role: 'context', path: 'screenshots/counterpart-context.png', alt: 'Counterpart context', caption: 'Context'},
-    {role: 'crop', path: 'screenshots/counterpart-crop.png', alt: 'Counterpart crop', caption: 'Crop'},
+    evidence('context', 'screenshots/counterpart-context.png', 'Counterpart context', 'Context'),
+    evidence('crop', 'screenshots/counterpart-crop.png', 'Counterpart crop', 'Crop'),
   ],
 })
 
@@ -49,8 +57,8 @@ const validManifest = (): AuditManifest => ({
       variant: {viewport: 'mobile', theme: {kind: 'preset', presetId: 'dracula'}, state: 'default'},
       observations: [observation(), {...observation(), kind: 'replay'}],
       evidence: [
-        {role: 'context', path: 'screenshots/context.png', alt: 'Project context', caption: 'Context'},
-        {role: 'crop', path: 'screenshots/crop.png', alt: 'Project crop', caption: 'Crop'},
+        evidence('context', 'screenshots/context.png', 'Project context', 'Context'),
+        evidence('crop', 'screenshots/crop.png', 'Project crop', 'Crop'),
       ],
       counterpart: responsiveCounterpart(),
     },
@@ -103,8 +111,8 @@ const validCleanValidation = () => ({
   target: {kind: 'test-id' as const, value: 'project-card-1'},
   observedAt: '2026-07-20T03:30:00.000Z',
   evidence: [
-    {role: 'context' as const, path: 'validations/context.png', alt: 'Validation context', caption: 'Context'},
-    {role: 'crop' as const, path: 'validations/crop.png', alt: 'Validation crop', caption: 'Crop'},
+    evidence('context', 'validations/context.png', 'Validation context', 'Context'),
+    evidence('crop', 'validations/crop.png', 'Validation crop', 'Crop'),
   ],
 })
 
@@ -204,6 +212,19 @@ describe('live audit contract', () => {
       finding.responsive = 'required'
       expect(parseAuditManifest(manifest).findings[0]).toMatchObject({counterpart: result})
     }
+  })
+
+  it('rejects a counterpart failure whose identity differs from the primary', () => {
+    const manifest = withCounterpart(validManifest(), {
+      ...responsiveCounterpart('failure'),
+      result: {
+        status: 'failure',
+        failureSignature: 'different failure',
+        observedAt: '2026-07-20T03:31:00.000Z',
+      },
+    }) as Record<string, unknown>
+    rawFinding(manifest).responsive = 'required'
+    expect(() => parseAuditManifest(manifest)).toThrow(/signature|disagrees/)
   })
 
   it('rejects counterpart evidence for not-applicable findings', () => {
@@ -411,6 +432,29 @@ describe('live audit contract', () => {
       firstFinding(manifest).evidence = evidence as Finding['evidence']
       expect(() => parseAuditManifest(manifest)).toThrow()
     }
+  })
+
+  it('requires canonical integrity metadata for every evidence reference', () => {
+    const manifest = structuredClone(validManifest())
+    delete (manifest.findings[0]?.evidence[0] as unknown as Record<string, unknown>).integrity
+    expect(() => parseAuditManifest(manifest)).toThrow(/integrity/)
+  })
+
+  it('rejects unknown, mismatched, and duplicate integrity entries', () => {
+    const unknown = structuredClone(validManifest())
+    ;(unknown.findings[0]?.evidence[0].integrity as unknown as Record<string, unknown>).unexpected = true
+    expect(() => parseAuditManifest(unknown)).toThrow()
+
+    const mismatched = structuredClone(validManifest())
+    firstFinding(mismatched).evidence[0].integrity.path = 'other.png'
+    expect(() => parseAuditManifest(mismatched)).toThrow(/integrity|match/)
+
+    const duplicate = structuredClone(validManifest())
+    const duplicateFinding = firstFinding(duplicate)
+    const first = duplicateFinding.evidence[0]
+    duplicateFinding.evidence[1].path = first.path
+    duplicateFinding.evidence[1].integrity.path = first.path
+    expect(() => parseAuditManifest(duplicate)).toThrow(/duplicated/)
   })
 
   it('rejects clean or infrastructure disagreement for a confirmed failure', () => {

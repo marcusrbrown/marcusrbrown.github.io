@@ -27,12 +27,18 @@ import {
   EVIDENCE_RELEASE_TAG,
   evidenceAssetName,
   getOrCreateEvidenceRelease,
+  inspectEvidenceRelease,
+  listEvidenceAssets,
+  planEvidenceAsset,
   publishEvidenceAsset,
   verifyPublicPng,
   type EvidenceRelease,
 } from '../../scripts/live-audit/release-evidence'
 
-const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
+const png = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
 const result = (stdout: string, exitCode = 0, stderr = ''): GhCommandResult => ({stdout, stderr, exitCode})
 const rawAssetPayload = (asset: {
@@ -267,6 +273,247 @@ describe('durable evidence release transport', () => {
     await expect(getOrCreateEvidenceRelease(created, {owner: 'example', repo: 'repo'})).resolves.toMatchObject(release)
   })
 
+  it('inspects a missing release without creating or mutating anything', async () => {
+    const runner = fakeRunner([result('', 1, 'HTTP 404 Not Found')])
+    await expect(inspectEvidenceRelease(runner, {owner: 'example', repo: 'repo'})).resolves.toEqual({status: 'missing'})
+    const calls = (runner.run as ReturnType<typeof vi.fn>).mock.calls
+    expect(calls).toHaveLength(1)
+    expect(callArgs(calls, 0)).toEqual(['api', 'repos/example/repo/releases/tags/live-audit-evidence'])
+  })
+
+  it('lists existing release assets through the repository-qualified endpoint', async () => {
+    const rawAsset = {
+      id: 9,
+      name: 'existing.png',
+      state: 'uploaded',
+      size: png.length,
+      content_type: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browser_download_url: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
+    }
+    const runner = fakeRunner([result(JSON.stringify([[rawAsset]]))])
+    await expect(listEvidenceAssets(runner, {owner: 'example', repo: 'repo'}, release)).resolves.toMatchObject([
+      {name: rawAsset.name, digest: rawAsset.digest},
+    ])
+    expect(callArgs((runner.run as ReturnType<typeof vi.fn>).mock.calls, 0)).toEqual([
+      'api',
+      'repos/example/repo/releases/42/assets',
+      '--paginate',
+      '--slurp',
+    ])
+  })
+
+  it('plans exact asset reuse without any release mutation', async () => {
+    const asset = {
+      id: 9,
+      name: 'existing.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
+    }
+    const verify = vi.fn().mockResolvedValue({ok: true, bytes: png, contentType: 'image/png', sha256: sha256(png)})
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [asset],
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: verify,
+      }),
+    ).resolves.toMatchObject({kind: 'reuse', asset})
+    expect(verify).toHaveBeenCalledOnce()
+  })
+
+  it('plans a new upload when no named asset exists', async () => {
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [],
+        assetName: 'new.png',
+        expectedBytes: png,
+        verifyPublicImage: vi.fn(),
+      }),
+    ).resolves.toMatchObject({kind: 'upload', assetName: 'new.png', expectedBytes: png})
+  })
+
+  it.each([
+    ['starter', {state: 'starter', size: png.length, contentType: 'application/octet-stream'}],
+    ['zero-byte', {state: 'uploaded', size: 0, contentType: 'image/png'}],
+  ])('plans delete-plus-upload replacement for a positively incomplete %s asset', async (_name, incomplete) => {
+    const asset = {
+      id: 9,
+      name: 'existing.png',
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
+      ...incomplete,
+      digest: `sha256:${sha256(png)}`,
+    }
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [asset],
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: vi.fn(),
+      }),
+    ).resolves.toMatchObject({
+      kind: 'replace',
+      asset,
+      assetName: asset.name,
+      expectedBytes: png,
+      delete: true,
+      upload: true,
+    })
+  })
+
+  it.each([
+    ['wrong digest', {state: 'uploaded', size: png.length, contentType: 'image/png', digest: 'sha256:wrong'}],
+    ['wrong type', {state: 'uploaded', size: png.length, contentType: 'text/plain', digest: `sha256:${sha256(png)}`}],
+    [
+      'wrong size',
+      {state: 'uploaded', size: png.length - 1, contentType: 'image/png', digest: `sha256:${sha256(png)}`},
+    ],
+  ])('plans an error for a nonzero uploaded asset with %s', async (_name, mismatch) => {
+    const asset = {
+      id: 9,
+      name: 'existing.png',
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
+      ...mismatch,
+    }
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [asset],
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: vi.fn(),
+      }),
+    ).resolves.toMatchObject({kind: 'error', asset})
+  })
+
+  it('plans an error for duplicate immutable-name assets', async () => {
+    const asset = {
+      id: 9,
+      name: 'existing.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
+    }
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [asset, {...asset, id: 10}],
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: vi.fn(),
+      }),
+    ).resolves.toMatchObject({kind: 'error', reason: 'multiple release assets share the requested name'})
+  })
+
+  it('plans a hard failure rather than deletion or upload when public reuse verification fails', async () => {
+    const asset = {
+      id: 9,
+      name: 'existing.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
+    }
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [asset],
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: vi.fn().mockResolvedValue({ok: false, reason: 'CDN timeout'}),
+      }),
+    ).resolves.toMatchObject({kind: 'error', asset, reason: 'CDN timeout'})
+  })
+
+  it('does not plan reuse for a metadata match outside the expected release namespace', async () => {
+    const asset = {
+      id: 9,
+      name: 'existing.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/other/releases/download/live-audit-evidence/existing.png',
+    }
+    const verify = vi.fn()
+    await expect(
+      planEvidenceAsset({
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assets: [asset],
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: verify,
+      }),
+    ).resolves.toMatchObject({kind: 'error', asset, reason: 'existing asset URL is outside the release namespace'})
+    expect(verify).not.toHaveBeenCalled()
+  })
+
+  it('fails closed for malformed release and asset inspection responses', async () => {
+    await expect(inspectEvidenceRelease(fakeRunner([result('{}')]), {owner: 'example', repo: 'repo'})).rejects.toThrow(
+      /release|fields|shape/,
+    )
+    await expect(
+      listEvidenceAssets(
+        fakeRunner([result(JSON.stringify([{missing: true}]))]),
+        {owner: 'example', repo: 'repo'},
+        release,
+      ),
+    ).rejects.toThrow(/asset|shape|truncated/)
+    await expect(
+      inspectEvidenceRelease(
+        fakeRunner([
+          result(
+            JSON.stringify({
+              id: 42,
+              tag_name: EVIDENCE_RELEASE_TAG,
+              upload_url: release.uploadUrl,
+              draft: true,
+              prerelease: false,
+              assets: [],
+            }),
+          ),
+        ]),
+        {owner: 'example', repo: 'repo'},
+      ),
+    ).rejects.toThrow(/published|stable/)
+    await expect(
+      inspectEvidenceRelease(
+        fakeRunner([
+          result(
+            JSON.stringify({
+              id: 42,
+              tag_name: EVIDENCE_RELEASE_TAG,
+              upload_url: release.uploadUrl,
+              draft: false,
+              prerelease: true,
+              assets: [],
+            }),
+          ),
+        ]),
+        {owner: 'example', repo: 'repo'},
+      ),
+    ).rejects.toThrow(/published|stable/)
+    await expect(
+      inspectEvidenceRelease(fakeRunner([result('', 1, 'permission denied')]), {owner: 'example', repo: 'repo'}),
+    ).rejects.toThrow(/lookup|exit code/)
+  })
+
   it('rejects draft or prerelease releases that would invalidate durable links', async () => {
     const runner = fakeRunner([
       result(
@@ -387,12 +634,7 @@ describe('durable evidence release transport', () => {
   it.each([
     ['starter', {state: 'starter', size: 0, contentType: 'application/octet-stream'}],
     ['zero-byte', {state: 'uploaded', size: 0, contentType: 'image/png'}],
-    ['hash mismatch', {state: 'uploaded', size: png.length, contentType: 'image/png', digest: 'sha256:wrong'}],
-    [
-      'content mismatch',
-      {state: 'uploaded', size: png.length, contentType: 'text/plain', digest: `sha256:${sha256(png)}`},
-    ],
-  ])('removes only an invalid %s collision before retrying', async (_name, invalid) => {
+  ])('removes only a positively incomplete %s collision before retrying', async (_name, invalid) => {
     const collision = {
       id: 10,
       name: 'op-fp-v-context.png',
@@ -427,6 +669,63 @@ describe('durable evidence release transport', () => {
     const secondCall = calls.at(1)
     if (!secondCall) throw new Error('delete call missing')
     expect(secondCall[0]).toContain('--method')
+  })
+
+  it.each([
+    ['hash mismatch', {state: 'uploaded', size: png.length, contentType: 'image/png', digest: 'sha256:wrong'}],
+    [
+      'content mismatch',
+      {state: 'uploaded', size: png.length, contentType: 'text/plain', digest: `sha256:${sha256(png)}`},
+    ],
+    [
+      'size mismatch',
+      {state: 'uploaded', size: png.length - 1, contentType: 'image/png', digest: `sha256:${sha256(png)}`},
+    ],
+  ])('does not delete or upload a nonzero uploaded %s collision', async (_name, invalid) => {
+    const collision = {
+      id: 10,
+      name: 'op-fp-v-context.png',
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/op-fp-v-context.png',
+      ...invalid,
+    }
+    const runner = fakeRunner([result(JSON.stringify([rawAssetPayload(collision)]))])
+    const verify = vi.fn()
+    await expect(
+      publishEvidenceAsset({
+        runner,
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assetName: collision.name,
+        expectedBytes: png,
+        verifyPublicImage: verify,
+      }),
+    ).rejects.toThrow(/metadata|collision|immutable|expected PNG/)
+    expect(runner.run).toHaveBeenCalledOnce()
+    expect(verify).not.toHaveBeenCalled()
+  })
+
+  it('does not delete or upload duplicate immutable-name collisions', async () => {
+    const asset = {
+      id: 10,
+      name: 'duplicate.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/duplicate.png',
+    }
+    const runner = fakeRunner([result(JSON.stringify([rawAssetPayload(asset), rawAssetPayload({...asset, id: 11})]))])
+    await expect(
+      publishEvidenceAsset({
+        runner,
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: vi.fn(),
+      }),
+    ).rejects.toThrow(/multiple|duplicate|collision/)
+    expect(runner.run).toHaveBeenCalledOnce()
   })
 
   it('reconciles duplicate-name upload responses by rereading exact asset state', async () => {
@@ -506,6 +805,76 @@ describe('durable evidence release transport', () => {
         verifyPublicImage: vi.fn(),
       }),
     ).rejects.toThrow(/delete/)
+  })
+
+  it('fails without deleting an exact durable asset when public verification is transient', async () => {
+    const asset = {
+      id: 10,
+      name: 'exact-name.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/repo/releases/download/live-audit-evidence/exact-name.png',
+    }
+    const runner = fakeRunner([result(JSON.stringify([rawAssetPayload(asset)]))])
+    await expect(
+      publishEvidenceAsset({
+        runner,
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: vi.fn().mockResolvedValue({ok: false, reason: 'CDN timeout'}),
+      }),
+    ).rejects.toThrow(/refusing deletion|publicly verified/)
+    expect(runner.run).toHaveBeenCalledOnce()
+  })
+
+  it('does not reuse a metadata match outside the expected release namespace', async () => {
+    const asset = {
+      id: 10,
+      name: 'exact-name.png',
+      state: 'uploaded',
+      size: png.length,
+      contentType: 'image/png',
+      digest: `sha256:${sha256(png)}`,
+      browserDownloadUrl: 'https://github.com/example/other/releases/download/live-audit-evidence/exact-name.png',
+    }
+    const runner = fakeRunner([result(JSON.stringify([rawAssetPayload(asset)]))])
+    const verify = vi.fn().mockResolvedValue({ok: true, bytes: png, contentType: 'image/png', sha256: sha256(png)})
+    await expect(
+      publishEvidenceAsset({
+        runner,
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assetName: asset.name,
+        expectedBytes: png,
+        verifyPublicImage: verify,
+      }),
+    ).rejects.toThrow(/metadata|namespace|collision|expected PNG/)
+    expect(verify).not.toHaveBeenCalled()
+    expect(runner.run).toHaveBeenCalledOnce()
+  })
+
+  it('rejects the former truncated PNG fixture before any asset API write', async () => {
+    const truncated = Buffer.alloc(24)
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(truncated)
+    truncated.write('IHDR', 12, 'ascii')
+    truncated.writeUInt32BE(1, 16)
+    truncated.writeUInt32BE(1, 20)
+    const run = vi.fn()
+    await expect(
+      publishEvidenceAsset({
+        runner: {run},
+        repository: {owner: 'example', repo: 'repo'},
+        release,
+        assetName: 'truncated.png',
+        expectedBytes: truncated,
+        verifyPublicImage: vi.fn(),
+      }),
+    ).rejects.toThrow(/PNG|chunk|truncated/)
+    expect(run).not.toHaveBeenCalled()
   })
 
   it('rejects unsafe public verification responses', async () => {
@@ -629,7 +998,7 @@ describe('issue transport boundaries', () => {
       result(JSON.stringify(issuePayload)),
       result(
         JSON.stringify([
-          [{event: 'closed', created_at: '2026-07-20T03:30:00Z', actor: {login: 'github-actions[bot]'}}],
+          [{id: 1, event: 'closed', created_at: '2026-07-20T03:30:00Z', actor: {login: 'github-actions[bot]'}}],
         ]),
       ),
     ])
@@ -667,7 +1036,7 @@ describe('issue transport boundaries', () => {
   })
 
   it('uses slurped pagination and rejects incomplete or truncated search responses', async () => {
-    const event = {event: 'closed', created_at: '2026-07-20T03:30:00Z', actor: {login: 'bot'}}
+    const event = {id: 2, event: 'closed', created_at: '2026-07-20T03:30:00Z', actor: {login: 'bot'}}
     const comment = {id: 1, body: 'validation', user: {login: 'maintainer'}, created_at: '2026-07-20T03:30:00Z'}
     const paginated = fakeRunner([
       result(JSON.stringify([[event], [event]])),
@@ -735,6 +1104,8 @@ describe('issue transport boundaries', () => {
     const run = vi.fn().mockResolvedValue(result('{}'))
     await setIssueState({run}, {owner: 'example', repo: 'repo'}, 204, 'closed', 'not_planned')
     expect(callInput(run.mock.calls, 0)).toContain('not_planned')
+    await setIssueState({run}, {owner: 'example', repo: 'repo'}, 204, 'open', 'reopened')
+    expect(callInput(run.mock.calls, 1)).toContain('reopened')
   })
 
   it('merges over a fresh issue body and rereads the patched issue', async () => {

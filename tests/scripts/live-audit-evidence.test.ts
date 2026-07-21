@@ -1,13 +1,14 @@
 import type {IssueLedger} from '../../scripts/live-audit/issue-ledger'
 import {Buffer} from 'node:buffer'
 
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {parseAuditManifest} from '../../scripts/live-audit/contract'
 import {
   AUDIT_ORIGIN,
   buildActiveReplayRequests,
   buildCoreMatrix,
   chooseRotatingPreset,
+  computeEvidenceIntegrity,
   finalizeActiveVariant,
   finalizeCandidateBundle,
   navigateAuditRoute,
@@ -19,6 +20,23 @@ import {
   type CandidateBundle,
 } from '../../scripts/live-audit/evidence'
 import {findingFingerprint, variantKey} from '../../scripts/live-audit/identity'
+import {EVIDENCE_RELEASE_TAG, publishEvidenceAsset, verifyPublicPng} from '../../scripts/live-audit/release-evidence'
+
+const validPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
+const indexed16BitPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABEAMAAAB4W+j4AAAAA1BMVEX/AAAZ4gk3AAAAC0lEQVR4nGNgYAAAAAMAAbitOmMAAAAASUVORK5CYII=',
+  'base64',
+)
+const evidence = (role: 'context' | 'crop', path: string, alt: string, caption: string) => ({
+  role,
+  path,
+  alt,
+  caption,
+  integrity: {path, sha256: '0'.repeat(64), width: 1, height: 1, bytes: 1},
+})
 
 describe('live-audit evidence finalization', () => {
   it('builds the complete deterministic core matrix and rotates presets by slot', () => {
@@ -77,6 +95,7 @@ describe('live-audit evidence finalization', () => {
 
   it('finalizes candidates sequentially and derives operations from results', async () => {
     const order: string[] = []
+    let counterpartCaptureCount = 0
     const candidate = {
       route: '/projects' as const,
       findingClass: 'layout' as const,
@@ -105,13 +124,13 @@ describe('live-audit evidence finalization', () => {
         return {status: 'failure', signature: 'overflow', observedAt: '2026-07-20T03:30:01.000Z'}
       },
       capture: async value => ({
-        context: {role: 'context', path: `${value.semanticTarget}-context.png`, alt: 'x', caption: 'x'},
-        crop: {role: 'crop', path: `${value.semanticTarget}-crop.png`, alt: 'x', caption: 'x'},
+        context: evidence('context', `${value.semanticTarget}-context.png`, 'x', 'x'),
+        crop: evidence('crop', `${value.semanticTarget}-crop.png`, 'x', 'x'),
       }),
       counterpartReplay: async () => ({status: 'clean', signature: '', observedAt: '2026-07-20T03:30:02.000Z'}),
       counterpartCapture: async () => ({
-        context: {role: 'context', path: 'counter-context.png', alt: 'x', caption: 'x'},
-        crop: {role: 'crop', path: 'counter-crop.png', alt: 'x', caption: 'x'},
+        context: evidence('context', `counter-context-${counterpartCaptureCount++}.png`, 'x', 'x'),
+        crop: evidence('crop', `counter-crop-${counterpartCaptureCount}.png`, 'x', 'x'),
       }),
     })
     expect(order).toEqual(['target', 'second'])
@@ -159,6 +178,35 @@ describe('live-audit evidence finalization', () => {
     )
     expect(result.validation?.status).toBe('infrastructure-error')
     expect(result.finding).toBeUndefined()
+    const bundleResult = await finalizeCandidateBundle(
+      {
+        version: 1,
+        runId: 'infrastructure-bundle',
+        runKind: 'manual',
+        issueNumber: 204,
+        generatedAt: '2026-07-20T03:30:00.000Z',
+        candidates: [],
+        diagnostics: [],
+        exploration: {steps: 0, durationMs: 0},
+      },
+      {
+        replay: async () => ({status: 'clean', signature: '', observedAt: '2026-07-20T03:30:00.000Z'}),
+        capture: async () => {
+          throw new Error('not called')
+        },
+        activeRequests: requests,
+        activeReplay: async () => ({
+          status: 'infrastructure-error',
+          signature: 'timeout',
+          observedAt: '2026-07-20T03:30:01.000Z',
+        }),
+        activeCapture: async () => {
+          throw new Error('not called')
+        },
+      },
+    )
+    expect(bundleResult.manifest.validations).toHaveLength(0)
+    expect(bundleResult.diagnostics.join(' ')).toContain('timeout')
   })
 
   it('performs one clean active replay and exactly two matching recurrent replays', async () => {
@@ -177,8 +225,8 @@ describe('live-audit evidence finalization', () => {
     }
     let calls = 0
     const capture = async () => ({
-      context: {role: 'context' as const, path: 'context.png', alt: 'context', caption: 'context'},
-      crop: {role: 'crop' as const, path: 'crop.png', alt: 'crop', caption: 'crop'},
+      context: evidence('context', 'context.png', 'context', 'context'),
+      crop: evidence('crop', 'crop.png', 'crop', 'crop'),
     })
     const recurrent = await finalizeActiveVariant(
       request,
@@ -188,7 +236,10 @@ describe('live-audit evidence finalization', () => {
       },
       capture,
       async () => ({status: 'clean', signature: '', observedAt: '2026-07-20T03:30:03.000Z'}),
-      capture,
+      async () => ({
+        context: evidence('context', 'counter-context.png', 'counter context', 'counter context'),
+        crop: evidence('crop', 'counter-crop.png', 'counter crop', 'counter crop'),
+      }),
     )
     expect(calls).toBe(2)
     expect(recurrent.finding).toBeDefined()
@@ -278,6 +329,18 @@ describe('live-audit evidence finalization', () => {
     )
     expect(counterpartCaptureFailure.finding).toBeUndefined()
     expect(counterpartCaptureFailure.diagnostic).toMatch(/counterpart/)
+    const counterpartSignatureMismatch = await finalizeActiveVariant(
+      request,
+      async () => ({status: 'failure', signature: 'overflow', observedAt: '2026-07-20T03:36:00.000Z'}),
+      capture,
+      async () => ({status: 'failure', signature: 'different failure', observedAt: '2026-07-20T03:36:01.000Z'}),
+      async () => ({
+        context: evidence('context', 'counter-mismatch-context.png', 'context', 'context'),
+        crop: evidence('crop', 'counter-mismatch-crop.png', 'crop', 'crop'),
+      }),
+    )
+    expect(counterpartSignatureMismatch.finding).toBeUndefined()
+    expect(counterpartSignatureMismatch.diagnostic).toMatch(/signature|counterpart/)
   })
 
   it('derives active replay requests only from the ledger and preserves the variant key', () => {
@@ -365,6 +428,150 @@ describe('live-audit evidence finalization', () => {
     expect(callbacks).toBe(0)
   })
 
+  it('binds manual candidate counterpart validation to the enclosing issue', async () => {
+    const candidate = {
+      route: '/projects' as const,
+      findingClass: 'layout' as const,
+      responsive: 'required' as const,
+      semanticTarget: 'target',
+      target: {kind: 'test-id' as const, value: 'target'},
+      failureSignature: 'overflow',
+      description: 'Overflow',
+      reproduction: ['Open projects'],
+      variant: {viewport: 'mobile' as const, theme: {kind: 'mode' as const, mode: 'dark' as const}, state: 'core'},
+      observation: {status: 'failure' as const, signature: 'overflow', observedAt: '2026-07-20T03:30:00.000Z'},
+    }
+    let issueNumber = 0
+    const result = await finalizeCandidateBundle(
+      {
+        version: 1,
+        runId: 'manual',
+        runKind: 'manual',
+        issueNumber: 204,
+        generatedAt: '2026-07-20T03:30:00.000Z',
+        candidates: [candidate],
+        diagnostics: [],
+        exploration: {steps: 0, durationMs: 0},
+      },
+      {
+        replay: async () => ({status: 'failure', signature: 'overflow', observedAt: '2026-07-20T03:30:01.000Z'}),
+        capture: async () => ({
+          context: evidence('context', 'primary-context.png', 'context', 'context'),
+          crop: evidence('crop', 'primary-crop.png', 'crop', 'crop'),
+        }),
+        counterpartReplay: async request => {
+          issueNumber = request.issueNumber
+          return {status: 'clean', signature: '', observedAt: '2026-07-20T03:30:02.000Z'}
+        },
+        counterpartCapture: async () => ({
+          context: evidence('context', 'counter-context.png', 'context', 'context'),
+          crop: evidence('crop', 'counter-crop.png', 'crop', 'crop'),
+        }),
+      },
+    )
+    expect(issueNumber).toBe(204)
+    expect(result.manifest.findings).toHaveLength(1)
+  })
+
+  it('suppresses contradictory candidate and validation terminals for one variant', async () => {
+    const candidate = {
+      route: '/projects' as const,
+      findingClass: 'layout' as const,
+      responsive: 'not-applicable' as const,
+      semanticTarget: 'target',
+      target: {kind: 'test-id' as const, value: 'target'},
+      failureSignature: 'overflow',
+      description: 'Overflow',
+      reproduction: ['Open projects'],
+      variant: {viewport: 'mobile' as const, theme: {kind: 'mode' as const, mode: 'dark' as const}, state: 'core'},
+      observation: {status: 'failure' as const, signature: 'overflow', observedAt: '2026-07-20T03:30:00.000Z'},
+    }
+    const fingerprint = findingFingerprint(candidate)
+    const request: ActiveVariantReplayRequest = {
+      issueNumber: 204,
+      fingerprint,
+      variantKey: variantKey(candidate.variant),
+      route: candidate.route,
+      semanticTarget: candidate.semanticTarget,
+      findingClass: candidate.findingClass,
+      failureSignature: candidate.failureSignature,
+      responsive: candidate.responsive,
+      variant: candidate.variant,
+      target: candidate.target,
+      reproduction: candidate.reproduction,
+    }
+    const result = await finalizeCandidateBundle(
+      {
+        version: 1,
+        runId: 'conflict',
+        runKind: 'manual',
+        issueNumber: 204,
+        generatedAt: '2026-07-20T03:30:00.000Z',
+        candidates: [candidate],
+        diagnostics: [],
+        exploration: {steps: 0, durationMs: 0},
+      },
+      {
+        replay: async () => ({status: 'failure', signature: 'overflow', observedAt: '2026-07-20T03:30:01.000Z'}),
+        capture: async () => ({
+          context: evidence('context', 'candidate-context.png', 'context', 'context'),
+          crop: evidence('crop', 'candidate-crop.png', 'crop', 'crop'),
+        }),
+        activeRequests: [request],
+        activeReplay: async () => ({status: 'clean', signature: '', observedAt: '2026-07-20T03:30:02.000Z'}),
+        activeCapture: async () => ({
+          context: evidence('context', 'validation-context.png', 'context', 'context'),
+          crop: evidence('crop', 'validation-crop.png', 'crop', 'crop'),
+        }),
+      },
+    )
+    expect(result.manifest.findings).toHaveLength(0)
+    expect(result.manifest.validations).toHaveLength(0)
+    expect(result.diagnostics.join(' ')).toMatch(/conflict|terminal|candidate|validation/i)
+  })
+
+  it('suppresses duplicate terminal validations for one fingerprint and variant', async () => {
+    const request: ActiveVariantReplayRequest = {
+      issueNumber: 204,
+      fingerprint: findingFingerprint({route: '/projects', semanticTarget: 'target', failureSignature: 'overflow'}),
+      variantKey: variantKey({viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'}),
+      route: '/projects',
+      semanticTarget: 'target',
+      findingClass: 'layout',
+      failureSignature: 'overflow',
+      responsive: 'not-applicable',
+      variant: {viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'},
+      target: {kind: 'test-id', value: 'target'},
+      reproduction: ['Open projects'],
+    }
+    const result = await finalizeCandidateBundle(
+      {
+        version: 1,
+        runId: 'duplicate-validations',
+        runKind: 'manual',
+        issueNumber: 204,
+        generatedAt: '2026-07-20T03:30:00.000Z',
+        candidates: [],
+        diagnostics: [],
+        exploration: {steps: 0, durationMs: 0},
+      },
+      {
+        replay: async () => ({status: 'clean', signature: '', observedAt: '2026-07-20T03:30:00.000Z'}),
+        capture: async () => {
+          throw new Error('not called')
+        },
+        activeRequests: [request, {...request}],
+        activeReplay: async () => ({status: 'clean', signature: '', observedAt: '2026-07-20T03:30:01.000Z'}),
+        activeCapture: async () => ({
+          context: evidence('context', 'validation-context.png', 'context', 'context'),
+          crop: evidence('crop', 'validation-crop.png', 'crop', 'crop'),
+        }),
+      },
+    )
+    expect(result.manifest.validations).toHaveLength(0)
+    expect(result.diagnostics.join(' ')).toMatch(/duplic|conflict|terminal/i)
+  })
+
   it('fails closed when derived diagnostics exceed the bounded limit', async () => {
     const bundle: CandidateBundle = {
       version: 1,
@@ -420,13 +627,93 @@ describe('live-audit evidence finalization', () => {
     await expect(navigateAuditRoute(page, '/')).rejects.toThrow(/off origin/)
   })
 
-  it('validates decoded PNG signatures and dimensions', () => {
+  it('rejects a signature-and-IHDR-only truncated PNG', () => {
     const png = Buffer.alloc(24)
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png)
     png.write('IHDR', 12, 'ascii')
     png.writeUInt32BE(1, 16)
     png.writeUInt32BE(2, 20)
-    expect(validatePng(png)).toEqual({width: 1, height: 2})
-    expect(() => validatePng(Buffer.alloc(24))).toThrow()
+    expect(() => validatePng(png)).toThrow()
+  })
+
+  it('validates complete PNG structure, CRCs, and decompressed scanlines', () => {
+    expect(validatePng(validPng)).toEqual({width: 1, height: 1})
+  })
+
+  it('rejects 16-bit indexed-color PNG encoding', () => {
+    expect(() => validatePng(indexed16BitPng)).toThrow(/encoding|bit depth|color type/)
+  })
+
+  it('rejects corrupt chunks, missing terminal chunks, and oversized dimensions', () => {
+    const corrupt = Buffer.from(validPng)
+    const corruptIndex = corrupt.length - 20
+    corrupt[corruptIndex] = (corrupt.at(corruptIndex) ?? 0) ^ 1
+    expect(() => validatePng(corrupt)).toThrow(/CRC|IDAT|invalid/)
+    expect(() => validatePng(validPng.subarray(0, -12))).toThrow(/incomplete|truncated/)
+    const oversized = Buffer.from(validPng)
+    oversized.writeUInt32BE(10_001, 16)
+    expect(() => validatePng(oversized)).toThrow(/dimension|CRC/)
+  })
+
+  it('derives canonical evidence integrity from validated PNG bytes', () => {
+    expect(computeEvidenceIntegrity('screenshots/image.png', validPng)).toEqual({
+      path: 'screenshots/image.png',
+      sha256: '431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460',
+      width: 1,
+      height: 1,
+      bytes: validPng.byteLength,
+    })
+    expect(() => computeEvidenceIntegrity('../image.png', validPng)).toThrow(/path|safe/)
+  })
+
+  it('rejects a public PNG response that contains only a signature and IHDR', async () => {
+    const truncated = Buffer.alloc(24)
+    validPng.subarray(0, 8).copy(truncated)
+    truncated.write('IHDR', 12, 'ascii')
+    truncated.writeUInt32BE(1, 16)
+    truncated.writeUInt32BE(1, 20)
+    await expect(
+      verifyPublicPng(
+        'https://github.com/example/repo/releases/download/live-audit-evidence/image.png',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          url: 'https://github.com/example/repo/releases/download/live-audit-evidence/image.png',
+          headers: new Headers({'content-type': 'image/png'}),
+          arrayBuffer: async () => truncated.buffer,
+        }),
+        {owner: 'example', repo: 'repo', tag: EVIDENCE_RELEASE_TAG, assetName: 'image.png'},
+      ),
+    ).resolves.toMatchObject({ok: false})
+  })
+
+  it('does not delete an exact durable asset when public verification is transiently unavailable', async () => {
+    const asset = {
+      id: 7,
+      name: 'exact.png',
+      state: 'uploaded',
+      size: validPng.byteLength,
+      content_type: 'image/png',
+      digest: `sha256:${computeEvidenceIntegrity('exact.png', validPng).sha256}`,
+      browser_download_url: 'https://github.com/example/repo/releases/download/live-audit-evidence/exact.png',
+    }
+    const run = vi.fn().mockResolvedValue({stdout: JSON.stringify([asset]), stderr: '', exitCode: 0})
+    await expect(
+      publishEvidenceAsset({
+        runner: {run},
+        repository: {owner: 'example', repo: 'repo'},
+        release: {
+          id: 42,
+          tagName: EVIDENCE_RELEASE_TAG,
+          uploadUrl: 'upload',
+          isDraft: false,
+          isPrerelease: false,
+          assets: [],
+        },
+        assetName: asset.name,
+        expectedBytes: validPng,
+        verifyPublicImage: vi.fn().mockResolvedValue({ok: false, reason: 'CDN timeout'}),
+      }),
+    ).rejects.toThrow(/matching|public/)
+    expect(run).toHaveBeenCalledOnce()
   })
 })

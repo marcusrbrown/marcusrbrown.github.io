@@ -18,9 +18,29 @@ export const ISSUE_LEDGER_END = '<!-- /live-audit-ledger -->'
 export const MAX_LEDGER_BYTES = 32_000
 export const MAX_LEDGER_TEXT = 2_000
 
-export type LedgerCheckpoint = 'validate' | 'asset' | 'issue' | 'evidence' | 'transition'
-export type LedgerTransition = 'open' | 'closed' | 'reopened'
+export type LedgerCheckpoint =
+  'validate' | 'asset' | 'issue' | 'evidence' | 'initial-create' | 'transition' | 'transition-pending'
 export type LedgerTransitionSource = 'reporter' | 'human'
+export type LedgerTransition =
+  | {kind: 'open'; source: LedgerTransitionSource}
+  | {kind: 'closed' | 'reopened'; source: 'human'}
+  | {kind: 'closed'; source: 'reporter'; operationKey: string; completedAt: string}
+  | {kind: 'reopened'; source: 'reporter'; operationKey: string; completedAt: string}
+  | {
+      kind: 'reopened'
+      source: 'reporter'
+      operationKey: string
+      completedAt: string
+      previousCloseOperationKey: string
+      previousCloseCompletedAt: string
+    }
+  | {
+      kind: 'closed-pending-reopen'
+      source: 'reporter'
+      operationKey: string
+      completedAt: string
+      reopenOperationKey: string
+    }
 
 export interface LedgerVariant {
   key: string
@@ -34,11 +54,9 @@ export interface LedgerReplay {
   target: TargetDescriptor
   reproduction: string[]
 }
-export interface LedgerOperation {
-  key: string
-  checkpoint: LedgerCheckpoint
-  completedAt: string
-}
+export type LedgerOperation =
+  | {key: string; checkpoint: Exclude<LedgerCheckpoint, 'transition-pending'>; completedAt: string}
+  | {key: string; checkpoint: 'transition-pending'}
 export interface IssueLedger {
   version: 1
   fingerprint: string
@@ -50,7 +68,7 @@ export interface IssueLedger {
   variants: LedgerVariant[]
   replay: LedgerReplay[]
   operations: LedgerOperation[]
-  transition: {kind: LedgerTransition; source: LedgerTransitionSource}
+  transition: LedgerTransition
 }
 export interface ParsedIssueLedger {
   ledger: IssueLedger
@@ -121,11 +139,57 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
   )
     throw new Error('invalid issue ledger collections')
   if (
-    !hasExactKeys(value.transition, ['kind', 'source']) ||
-    !['open', 'closed', 'reopened'].includes(String(value.transition.kind)) ||
+    !isRecord(value.transition) ||
+    !['open', 'closed', 'closed-pending-reopen', 'reopened'].includes(String(value.transition.kind)) ||
     !['reporter', 'human'].includes(String(value.transition.source))
   )
     throw new Error('invalid issue ledger transition')
+  const transition = value.transition
+  if (transition.kind === 'closed-pending-reopen' && transition.source !== 'reporter')
+    throw new Error('pending reopen transition must be reporter-owned')
+  const hasReporterProvenance =
+    (transition.kind === 'closed' || transition.kind === 'reopened') && transition.source === 'reporter'
+  const hasPendingReopen = transition.kind === 'closed-pending-reopen' && transition.source === 'reporter'
+  if (hasReporterProvenance) {
+    const hasPreviousClose =
+      transition.kind === 'reopened' &&
+      'previousCloseOperationKey' in transition &&
+      'previousCloseCompletedAt' in transition
+    if (hasPreviousClose) {
+      if (
+        !hasExactKeys(transition, [
+          'kind',
+          'source',
+          'operationKey',
+          'completedAt',
+          'previousCloseOperationKey',
+          'previousCloseCompletedAt',
+        ]) ||
+        !isSafeText(transition.operationKey) ||
+        !isSafeText(transition.previousCloseOperationKey) ||
+        transition.operationKey === transition.previousCloseOperationKey ||
+        !isDateTime(transition.completedAt) ||
+        !isDateTime(transition.previousCloseCompletedAt)
+      )
+        throw new Error('invalid issue ledger transition provenance')
+    } else if (
+      !hasExactKeys(transition, ['kind', 'source', 'operationKey', 'completedAt']) ||
+      !isSafeText(transition.operationKey) ||
+      !isDateTime(transition.completedAt)
+    )
+      throw new Error('invalid issue ledger transition provenance')
+  } else if (hasPendingReopen) {
+    if (
+      !hasExactKeys(transition, ['kind', 'source', 'operationKey', 'completedAt', 'reopenOperationKey']) ||
+      !isSafeText(transition.operationKey) ||
+      !isSafeText(transition.reopenOperationKey) ||
+      transition.operationKey === transition.reopenOperationKey ||
+      !isDateTime(transition.completedAt)
+    )
+      throw new Error('invalid pending reporter transition provenance')
+  } else if (!hasExactKeys(transition, ['kind', 'source'])) {
+    throw new Error('invalid issue ledger transition')
+  }
   const variantKeys = new Set<string>()
   for (const variant of value.variants) {
     if (
@@ -165,17 +229,56 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
     if (!replayKeys.has(variantKey)) throw new Error('issue ledger variant is missing its replay')
   }
   const operationKeys = new Set<string>()
+  const transitionOperations: LedgerOperation[] = []
+  const pendingTransitionOperations: LedgerOperation[] = []
   for (const operation of value.operations) {
     if (
       !isRecord(operation) ||
-      !hasExactKeys(operation, ['key', 'checkpoint', 'completedAt']) ||
       !isSafeText(operation.key, 200) ||
       operationKeys.has(operation.key) ||
-      !['validate', 'asset', 'issue', 'evidence', 'transition'].includes(String(operation.checkpoint)) ||
-      !isDateTime(operation.completedAt)
+      !['validate', 'asset', 'issue', 'evidence', 'initial-create', 'transition', 'transition-pending'].includes(
+        String(operation.checkpoint),
+      )
     )
       throw new Error('invalid issue ledger operation')
+    if (operation.checkpoint === 'transition-pending') {
+      if (!hasExactKeys(operation, ['key', 'checkpoint'])) throw new Error('invalid pending transition operation')
+      pendingTransitionOperations.push(operation as unknown as LedgerOperation)
+    } else {
+      if (!hasExactKeys(operation, ['key', 'checkpoint', 'completedAt']) || !isDateTime(operation.completedAt))
+        throw new Error('invalid issue ledger operation')
+      if (operation.checkpoint === 'transition') transitionOperations.push(operation as unknown as LedgerOperation)
+    }
     operationKeys.add(operation.key)
+  }
+  if (hasReporterProvenance) {
+    const operation = transitionOperations[0]
+    if (
+      transitionOperations.length !== 1 ||
+      !operation ||
+      operation.checkpoint !== 'transition' ||
+      operation.key !== transition.operationKey ||
+      operation.completedAt !== transition.completedAt
+    )
+      throw new Error('issue ledger transition provenance does not match its operation')
+    if (pendingTransitionOperations.length > 0) throw new Error('unexpected pending transition operation')
+  } else if (hasPendingReopen) {
+    const operation = transitionOperations[0]
+    const pendingOperation = pendingTransitionOperations[0]
+    if (
+      transitionOperations.length !== 1 ||
+      !operation ||
+      operation.checkpoint !== 'transition' ||
+      operation.key !== transition.operationKey ||
+      operation.completedAt !== transition.completedAt ||
+      pendingTransitionOperations.length !== 1 ||
+      !pendingOperation ||
+      pendingOperation.checkpoint !== 'transition-pending' ||
+      pendingOperation.key !== transition.reopenOperationKey
+    )
+      throw new Error('pending reporter transition provenance does not match its operations')
+  } else if (transitionOperations.length > 0 || pendingTransitionOperations.length > 0) {
+    throw new Error('issue ledger has an orphan transition operation')
   }
 }
 

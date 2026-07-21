@@ -3,10 +3,10 @@ import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
+import {validatePng} from './evidence'
 import {GhRunnerError, parseGhJson, type GhRunner} from './github-runner'
 
 export const EVIDENCE_RELEASE_TAG = 'live-audit-evidence'
-const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 export interface EvidenceAsset {
   readonly id: number
@@ -28,6 +28,9 @@ export interface EvidenceRelease {
   readonly assets: readonly EvidenceAsset[]
 }
 
+export type EvidenceReleaseLookup =
+  {readonly status: 'missing'} | {readonly status: 'found'; readonly release: EvidenceRelease}
+
 export interface PublicImageResult {
   readonly ok: boolean
   readonly bytes?: Uint8Array
@@ -47,6 +50,20 @@ export interface AssetPublishResult {
   readonly reused: boolean
   readonly asset: EvidenceAsset
 }
+
+export type EvidenceAssetPlan =
+  | {readonly kind: 'reuse'; readonly asset: EvidenceAsset}
+  | {readonly kind: 'upload'; readonly assetName: string; readonly expectedBytes: Uint8Array}
+  | {
+      readonly kind: 'replace'
+      readonly asset: EvidenceAsset
+      readonly assetName: string
+      readonly expectedBytes: Uint8Array
+      readonly reason: string
+      readonly delete: true
+      readonly upload: true
+    }
+  | {readonly kind: 'error'; readonly asset?: EvidenceAsset; readonly reason: string}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -75,7 +92,9 @@ const parseAssetList = (value: unknown): EvidenceAsset[] => {
     ? value
     : value.length <= 100 && value.every(page => Array.isArray(page))
       ? value.flat()
-      : []
+      : (() => {
+          throw new GhRunnerError('GitHub asset response has an unexpected shape or was truncated')
+        })()
   if (rawAssets.length > 1_000 || !rawAssets.every(isRawAsset))
     throw new GhRunnerError('GitHub asset response has an unexpected shape or was truncated')
   return rawAssets.map(toAsset)
@@ -105,36 +124,61 @@ const toRelease = (value: unknown): EvidenceRelease => {
   }
 }
 
-export const getOrCreateEvidenceRelease = async (
-  runner: GhRunner,
-  repository: {readonly owner: string; readonly repo: string},
-): Promise<EvidenceRelease> => {
-  const endpoint = `repos/${repository.owner}/${repository.repo}/releases/tags/${EVIDENCE_RELEASE_TAG}`
-  const existing = await runner.run(['api', endpoint])
-  let release: EvidenceRelease
-  if (existing.exitCode === 0) release = toRelease(parseGhJson(existing, isRecord))
-  else if (existing.stderr.includes('404')) {
-    const created = await runner.run(
-      ['api', `repos/${repository.owner}/${repository.repo}/releases`, '--method', 'POST', '--input', '-'],
-      {
-        input: JSON.stringify({
-          tag_name: EVIDENCE_RELEASE_TAG,
-          name: EVIDENCE_RELEASE_TAG,
-          body: 'Machine-managed live audit evidence. Do not rename or delete referenced assets.',
-          draft: false,
-          prerelease: false,
-        }),
-      },
-    )
-    release = toRelease(parseGhJson(created, isRecord))
-  } else throw new GhRunnerError(`GitHub release lookup failed with exit code ${existing.exitCode ?? 'unknown'}`)
+const assertStableRelease = (release: EvidenceRelease): EvidenceRelease => {
   if (release.tagName !== EVIDENCE_RELEASE_TAG || release.isDraft || release.isPrerelease || release.isPrivate)
     throw new GhRunnerError('evidence release must be published and stable')
   return release
 }
+const isNotFound = (result: {readonly exitCode: number | null; readonly stderr: string}): boolean =>
+  result.exitCode !== 0 && /\b404\b/.test(result.stderr)
+const releaseEndpoint = (repository: {readonly owner: string; readonly repo: string}): string =>
+  `repos/${repository.owner}/${repository.repo}/releases/tags/${EVIDENCE_RELEASE_TAG}`
+const acceptsUnknown = (_value: unknown): _value is unknown => true
+
+export const inspectEvidenceRelease = async (
+  runner: GhRunner,
+  repository: {readonly owner: string; readonly repo: string},
+): Promise<EvidenceReleaseLookup> => {
+  const existing = await runner.run(['api', releaseEndpoint(repository)])
+  if (existing.exitCode === 0)
+    return {status: 'found', release: assertStableRelease(toRelease(parseGhJson(existing, isRecord)))}
+  if (isNotFound(existing)) return {status: 'missing'}
+  throw new GhRunnerError(`GitHub release lookup failed with exit code ${existing.exitCode ?? 'unknown'}`)
+}
+
+export const listEvidenceAssets = async (
+  runner: GhRunner,
+  repository: {readonly owner: string; readonly repo: string},
+  release: EvidenceRelease,
+): Promise<readonly EvidenceAsset[]> => {
+  assertStableRelease(release)
+  const endpoint = `repos/${repository.owner}/${repository.repo}/releases/${release.id}/assets`
+  const listed = await runner.run(['api', endpoint, '--paginate', '--slurp'])
+  return parseAssetList(parseGhJson(listed, acceptsUnknown))
+}
+
+export const getOrCreateEvidenceRelease = async (
+  runner: GhRunner,
+  repository: {readonly owner: string; readonly repo: string},
+): Promise<EvidenceRelease> => {
+  const inspected = await inspectEvidenceRelease(runner, repository)
+  if (inspected.status === 'found') return inspected.release
+  const created = await runner.run(
+    ['api', `repos/${repository.owner}/${repository.repo}/releases`, '--method', 'POST', '--input', '-'],
+    {
+      input: JSON.stringify({
+        tag_name: EVIDENCE_RELEASE_TAG,
+        name: EVIDENCE_RELEASE_TAG,
+        body: 'Machine-managed live audit evidence. Do not rename or delete referenced assets.',
+        draft: false,
+        prerelease: false,
+      }),
+    },
+  )
+  return assertStableRelease(toRelease(parseGhJson(created, isRecord)))
+}
 
 const digest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
-const acceptsUnknown = (_value: unknown): _value is unknown => true
 export const evidenceAssetName = (input: {
   readonly operationKey: string
   readonly fingerprint: string
@@ -143,7 +187,6 @@ export const evidenceAssetName = (input: {
   readonly bytes: Uint8Array
 }): string =>
   `${input.operationKey}-${input.fingerprint}-${input.variantKey}-${input.role}-${digest(input.bytes).slice(0, 16)}.png`
-const isPng = (bytes: Uint8Array): boolean => PNG_MAGIC.every((byte, index) => bytes[index] === byte)
 const allowedImageOrigin = (value: string): boolean => {
   try {
     const origin = new URL(value).hostname
@@ -223,8 +266,13 @@ export const verifyPublicPng = async (
     if (Number.isFinite(contentLength) && contentLength > maxBytes)
       return {ok: false, reason: 'public image exceeded byte limit'}
     const bytes = await readResponseBytes(response, maxBytes, signal)
-    if (!contentType.toLowerCase().startsWith('image/png') || !isPng(bytes))
+    if (!contentType.toLowerCase().startsWith('image/png'))
       return {ok: false, reason: 'public response was not a PNG image'}
+    try {
+      validatePng(bytes, maxBytes)
+    } catch (error) {
+      return {ok: false, reason: error instanceof Error ? error.message : 'public PNG is invalid'}
+    }
     const sha256 = digest(bytes)
     if (expected.expectedSha256 !== undefined && expected.expectedSha256 !== sha256)
       return {ok: false, reason: 'public image hash mismatch'}
@@ -240,6 +288,86 @@ const assetMatches = (asset: EvidenceAsset, expectedBytes: Uint8Array): boolean 
   asset.contentType.toLowerCase() === 'image/png' &&
   asset.digest === `sha256:${digest(expectedBytes)}`
 
+const isSafeAssetName = (value: string): boolean => /^[A-Za-z0-9][\w.-]{0,200}\.png$/.test(value)
+const assertExpectedPng = (bytes: Uint8Array): void => {
+  try {
+    validatePng(bytes)
+  } catch (error) {
+    throw new GhRunnerError(error instanceof Error ? error.message : 'expected evidence is not a valid PNG')
+  }
+}
+type CollisionClassification =
+  | {readonly kind: 'absent'}
+  | {readonly kind: 'replace'; readonly asset: EvidenceAsset; readonly reason: string}
+  | {readonly kind: 'verify'; readonly asset: EvidenceAsset}
+  | {readonly kind: 'error'; readonly asset?: EvidenceAsset; readonly reason: string}
+const classifyCollision = (
+  assets: readonly EvidenceAsset[],
+  assetName: string,
+  expectedBytes: Uint8Array,
+  expectedUrl: PublicImageExpectation,
+): CollisionClassification => {
+  const namedAssets = assets.filter(asset => asset.name === assetName)
+  if (namedAssets.length > 1)
+    return {kind: 'error', asset: namedAssets[0], reason: 'multiple release assets share the requested name'}
+  const collision = namedAssets[0]
+  if (!collision) return {kind: 'absent'}
+  if (collision.state === 'starter' || collision.size === 0)
+    return {kind: 'replace', asset: collision, reason: 'existing asset is positively incomplete'}
+  if (!assetMatches(collision, expectedBytes))
+    return {kind: 'error', asset: collision, reason: 'existing asset metadata does not match expected PNG'}
+  if (!isExpectedReleaseUrl(collision.browserDownloadUrl, expectedUrl))
+    return {kind: 'error', asset: collision, reason: 'existing asset URL is outside the release namespace'}
+  return {kind: 'verify', asset: collision}
+}
+
+export const planEvidenceAsset = async (input: {
+  readonly repository: {readonly owner: string; readonly repo: string}
+  readonly release: EvidenceRelease
+  readonly assets: readonly EvidenceAsset[]
+  readonly assetName: string
+  readonly expectedBytes: Uint8Array
+  readonly verifyPublicImage: (url: string) => Promise<PublicImageResult>
+}): Promise<EvidenceAssetPlan> => {
+  assertStableRelease(input.release)
+  if (!isSafeAssetName(input.assetName)) throw new GhRunnerError('unsafe evidence asset name')
+  assertExpectedPng(input.expectedBytes)
+  const expectedUrl = {
+    owner: input.repository.owner,
+    repo: input.repository.repo,
+    tag: input.release.tagName,
+    assetName: input.assetName,
+  }
+  const classification = classifyCollision(input.assets, input.assetName, input.expectedBytes, expectedUrl)
+  if (classification.kind === 'absent')
+    return {kind: 'upload', assetName: input.assetName, expectedBytes: input.expectedBytes}
+  if (classification.kind === 'replace')
+    return {
+      kind: 'replace',
+      asset: classification.asset,
+      assetName: input.assetName,
+      expectedBytes: input.expectedBytes,
+      reason: classification.reason,
+      delete: true,
+      upload: true,
+    }
+  if (classification.kind === 'error')
+    return {kind: 'error', asset: classification.asset, reason: classification.reason}
+  let verified: PublicImageResult
+  try {
+    verified = await input.verifyPublicImage(classification.asset.browserDownloadUrl)
+  } catch (error) {
+    return {
+      kind: 'error',
+      asset: classification.asset,
+      reason: error instanceof Error ? error.message : 'public verification failed',
+    }
+  }
+  if (!verified.ok || verified.sha256 !== digest(input.expectedBytes))
+    return {kind: 'error', asset: classification.asset, reason: verified.reason ?? 'public verification failed'}
+  return {kind: 'reuse', asset: classification.asset}
+}
+
 export const publishEvidenceAsset = async (input: {
   readonly runner: GhRunner
   readonly repository: {readonly owner: string; readonly repo: string}
@@ -248,16 +376,28 @@ export const publishEvidenceAsset = async (input: {
   readonly expectedBytes: Uint8Array
   readonly verifyPublicImage: (url: string) => Promise<PublicImageResult>
 }): Promise<AssetPublishResult> => {
-  if (!/^[A-Za-z0-9][\w.-]{0,200}\.png$/.test(input.assetName)) throw new GhRunnerError('unsafe evidence asset name')
+  assertStableRelease(input.release)
+  if (!isSafeAssetName(input.assetName)) throw new GhRunnerError('unsafe evidence asset name')
+  assertExpectedPng(input.expectedBytes)
   const assetEndpoint = `repos/${input.repository.owner}/${input.repository.repo}/releases/${input.release.id}/assets`
   const listed = await input.runner.run(['api', assetEndpoint, '--paginate', '--slurp'])
   const assets = parseAssetList(parseGhJson(listed, acceptsUnknown))
-  const collision = assets.find(asset => asset.name === input.assetName)
-  if (collision && assetMatches(collision, input.expectedBytes)) {
-    const verified = await input.verifyPublicImage(collision.browserDownloadUrl)
-    if (verified.ok && verified.sha256 === digest(input.expectedBytes)) return {reused: true, asset: collision}
+  const expectedUrl = {
+    owner: input.repository.owner,
+    repo: input.repository.repo,
+    tag: input.release.tagName,
+    assetName: input.assetName,
   }
-  if (collision) {
+  const classification = classifyCollision(assets, input.assetName, input.expectedBytes, expectedUrl)
+  if (classification.kind === 'verify') {
+    const verified = await input.verifyPublicImage(classification.asset.browserDownloadUrl)
+    if (verified.ok && verified.sha256 === digest(input.expectedBytes))
+      return {reused: true, asset: classification.asset}
+    throw new GhRunnerError('existing durable evidence asset could not be publicly verified; refusing deletion')
+  }
+  if (classification.kind === 'error') throw new GhRunnerError(classification.reason)
+  if (classification.kind === 'replace') {
+    const collision = classification.asset
     const deleted = await input.runner.run([
       'api',
       `repos/${input.repository.owner}/${input.repository.repo}/releases/assets/${collision.id}`,
@@ -285,7 +425,11 @@ export const publishEvidenceAsset = async (input: {
       parseGhJson(await input.runner.run(['api', assetEndpoint, '--paginate', '--slurp']), acceptsUnknown),
     )
     const asset = after.find(candidate => candidate.name === input.assetName)
-    if (!asset || !assetMatches(asset, input.expectedBytes))
+    if (
+      !asset ||
+      !assetMatches(asset, input.expectedBytes) ||
+      !isExpectedReleaseUrl(asset.browserDownloadUrl, expectedUrl)
+    )
       throw new GhRunnerError('uploaded evidence asset could not be verified')
     const verified = await input.verifyPublicImage(asset.browserDownloadUrl)
     if (!verified.ok || verified.sha256 !== digest(input.expectedBytes))

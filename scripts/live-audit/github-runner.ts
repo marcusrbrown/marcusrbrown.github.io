@@ -174,7 +174,8 @@ export interface GitHubIssue {
   readonly updatedAt: string
 }
 export interface GitHubCloseEvent {
-  readonly event: 'closed'
+  readonly id: number
+  readonly event: 'closed' | 'reopened'
   readonly createdAt: string
   readonly actor: string | null
 }
@@ -198,6 +199,13 @@ const assertIssueNumber = (issueNumber: number): void => {
 }
 const assertActor = (actor: string): void => {
   if (!/^[A-Z0-9][\w.-]{0,99}$/i.test(actor)) throw new GhRunnerError('invalid actor identifier')
+}
+const assertLifecycleActor = (actor: string): void => {
+  if (actor.endsWith('[bot]')) {
+    assertActor(actor.slice(0, -'[bot]'.length))
+    return
+  }
+  assertActor(actor)
 }
 const isIssue = (value: unknown): value is Record<string, unknown> => {
   if (
@@ -239,6 +247,41 @@ const flattenRecordPages = (
   return items
 }
 
+const LABELED_ISSUE_STATES = ['open', 'closed'] as const
+const MAX_LABELED_ISSUES = 1_000
+
+export const listLabeledIssues = async (
+  runner: GhRunner,
+  repository: GitHubRepository,
+  label: string,
+): Promise<readonly GitHubIssue[]> => {
+  assertRepository(repository)
+  if (!/^[A-Z0-9][\w.-]{0,99}$/i.test(label)) throw new GhRunnerError('invalid issue label')
+
+  const issues = new Map<number, GitHubIssue>()
+  for (const state of LABELED_ISSUE_STATES) {
+    const result = await runner.run([
+      'api',
+      `repos/${repository.owner}/${repository.repo}/issues?labels=${label}&state=${state}&per_page=100`,
+      '--paginate',
+      '--slurp',
+    ])
+    const raw = flattenRecordPages(parseGhJson(result, isUnknownArray), 'labeled issues')
+    for (const item of raw) {
+      if ('pull_request' in item) continue
+      if (!isIssue(item)) throw new GhRunnerError('GitHub labeled issue response has an unexpected shape')
+      const issue = toIssue(item)
+      assertIssueNumber(issue.number)
+      if (issue.state !== state || !issue.labels.includes(label)) continue
+      if (issues.has(issue.number)) continue
+      if (issues.size >= MAX_LABELED_ISSUES)
+        throw new GhRunnerError('labeled issue response was truncated or exceeded bounded result limit')
+      issues.set(issue.number, issue)
+    }
+  }
+  return [...issues.values()]
+}
+
 export const getIssue = async (
   runner: GhRunner,
   repository: GitHubRepository,
@@ -266,13 +309,29 @@ export const getIssueCloseEvents = async (
     '--slurp',
   ])
   const raw = flattenRecordPages(parseGhJson(result, isUnknownArray), 'issue events')
-  return raw
-    .filter(event => event.event === 'closed' && typeof event.created_at === 'string')
-    .map(event => ({
-      event: 'closed',
-      createdAt: event.created_at as string,
-      actor: isRecord(event.actor) && typeof event.actor.login === 'string' ? event.actor.login : null,
-    }))
+  const events: GitHubCloseEvent[] = []
+  for (const event of raw) {
+    if (typeof event.event !== 'string') throw new GhRunnerError('GitHub issue lifecycle event has an unexpected shape')
+    if (event.event !== 'closed' && event.event !== 'reopened') continue
+    if (typeof event.id !== 'number' || !Number.isSafeInteger(event.id) || event.id < 1)
+      throw new GhRunnerError('GitHub issue lifecycle event has an invalid id')
+    if (typeof event.created_at !== 'string' || !Number.isFinite(Date.parse(event.created_at)))
+      throw new GhRunnerError('GitHub issue lifecycle event has an invalid timestamp')
+    if (!Object.prototype.hasOwnProperty.call(event, 'actor'))
+      throw new GhRunnerError('GitHub issue lifecycle event has an unexpected shape')
+    let actor: string | null
+    if (event.actor === null) actor = null
+    else if (isRecord(event.actor) && typeof event.actor.login === 'string') {
+      assertLifecycleActor(event.actor.login)
+      actor = event.actor.login
+    } else throw new GhRunnerError('GitHub issue lifecycle event has an unexpected actor shape')
+    events.push({id: event.id, event: event.event, createdAt: event.created_at, actor})
+  }
+  return events.sort((left, right) => {
+    const byTimestamp = Date.parse(left.createdAt) - Date.parse(right.createdAt)
+    if (byTimestamp !== 0) return byTimestamp
+    return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+  })
 }
 
 export const searchIssues = async (
@@ -443,7 +502,7 @@ export const setIssueState = async (
   repository: GitHubRepository,
   issueNumber: number,
   state: 'open' | 'closed',
-  stateReason: 'completed' | 'not_planned' | 'duplicate',
+  stateReason: 'completed' | 'not_planned' | 'duplicate' | 'reopened',
 ): Promise<void> => {
   assertRepository(repository)
   assertIssueNumber(issueNumber)

@@ -58,6 +58,15 @@ export interface EvidenceReference {
   path: string
   alt: string
   caption: string
+  integrity: EvidenceIntegrity
+}
+
+export interface EvidenceIntegrity {
+  path: string
+  sha256: string
+  width: number
+  height: number
+  bytes: number
 }
 
 export type ResponsiveCounterpartResult =
@@ -224,8 +233,20 @@ const evidencePairSchema = {
       path: {type: 'string', minLength: 1, maxLength: 500},
       alt: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
       caption: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
+      integrity: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          path: {type: 'string', minLength: 1, maxLength: 500},
+          sha256: {type: 'string', pattern: '^[a-f0-9]{64}$'},
+          width: {type: 'integer', minimum: 1, maximum: 10000},
+          height: {type: 'integer', minimum: 1, maximum: 10000},
+          bytes: {type: 'integer', minimum: 1, maximum: 5_000_000},
+        },
+        required: ['path', 'sha256', 'width', 'height', 'bytes'],
+      },
     },
-    required: ['role', 'path', 'alt', 'caption'],
+    required: ['role', 'path', 'alt', 'caption', 'integrity'],
   },
 }
 const validationIdentityProperties = {
@@ -389,7 +410,13 @@ const hasSafeText = (value: string, maxLength = MAX_AUDIT_TEXT): boolean =>
   value.length <= maxLength && cleanText(value) === value && cleanText(value).length > 0
 const isIdentityKey = (value: string): boolean => /^[a-f0-9]{32}$/.test(value)
 const isSafeRelativePath = (value: string): boolean => {
-  if (value.startsWith('/') || value.includes('\\') || value.split('/').includes('..')) return false
+  const parts = value.split('/')
+  if (
+    value.startsWith('/') ||
+    value.includes('\\') ||
+    parts.some(part => part.length === 0 || part === '.' || part === '..')
+  )
+    return false
   return !/(?:^|\/)(?:tmp|temp|runner|home|var)(?:\/|$)/i.test(value)
 }
 const validateEvidencePair = (evidence: [EvidenceReference, EvidenceReference]): void => {
@@ -402,6 +429,8 @@ const validateEvidencePair = (evidence: [EvidenceReference, EvidenceReference]):
     throw new AuditContractError('evidence requires one context and one crop')
   if (evidence.some(item => !isSafeRelativePath(item.path)))
     throw new AuditContractError('evidence path is not safely contained')
+  if (evidence.some(item => item.integrity.path !== item.path || !isSafeRelativePath(item.integrity.path)))
+    throw new AuditContractError('evidence integrity path does not match the reference')
   const textValues = evidence.flatMap(item => [item.path, item.alt, item.caption])
   if (textValues.some(value => !hasSafeText(value)))
     throw new AuditContractError('evidence contains unsafe or empty text')
@@ -452,6 +481,11 @@ const validateResponsiveCounterpart = (finding: Finding): void => {
   validateEvidencePair(counterpart.evidence)
   if (counterpart.result.status === 'failure' && !hasSafeText(counterpart.result.failureSignature))
     throw new AuditContractError('invalid responsive counterpart failure signature')
+  if (
+    counterpart.result.status === 'failure' &&
+    normalizeIdentityText(counterpart.result.failureSignature) !== normalizeIdentityText(finding.failureSignature)
+  )
+    throw new AuditContractError('responsive counterpart failure signature disagrees')
 }
 
 const semanticValidate = (manifest: AuditManifest): void => {
@@ -494,6 +528,17 @@ const semanticValidate = (manifest: AuditManifest): void => {
   ) {
     throw new AuditContractError('invalid manual manifest metadata')
   }
+  const evidencePaths = new Set<string>()
+  const assertUniqueEvidence = (evidence: readonly EvidenceReference[]): void => {
+    for (const reference of evidence) {
+      if (evidencePaths.has(reference.path)) throw new AuditContractError('evidence path is duplicated')
+      evidencePaths.add(reference.path)
+    }
+  }
+  for (const finding of manifest.findings) {
+    assertUniqueEvidence(finding.evidence)
+    if (finding.responsive !== 'not-applicable') assertUniqueEvidence(finding.counterpart.evidence)
+  }
   for (const validation of manifest.validations) {
     if (
       !Number.isInteger(validation.issueNumber) ||
@@ -518,8 +563,10 @@ const semanticValidate = (manifest: AuditManifest): void => {
     if (!hasSafeText(validation.variant.state, 200)) throw new AuditContractError('invalid validation variant state')
     parseThemeSelection(validation.variant.theme)
     parseTargetDescriptor(validation.target)
-    if (validation.status === 'clean') validateEvidencePair(validation.evidence)
-    else if (!hasSafeText(validation.diagnostic, 500)) throw new AuditContractError('invalid validation diagnostic')
+    if (validation.status === 'clean') {
+      validateEvidencePair(validation.evidence)
+      assertUniqueEvidence(validation.evidence)
+    } else if (!hasSafeText(validation.diagnostic, 500)) throw new AuditContractError('invalid validation diagnostic')
   }
 }
 

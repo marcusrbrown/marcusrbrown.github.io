@@ -3,6 +3,7 @@ import {Buffer} from 'node:buffer'
 import {createHash} from 'node:crypto'
 import {mkdir, readFile, stat} from 'node:fs/promises'
 import path from 'node:path'
+import {inflateSync} from 'node:zlib'
 
 import {
   AUDIT_PRESET_IDS,
@@ -20,6 +21,8 @@ import {
   type AuditThemeSelection,
   type AuditVariant,
   type AuditViewport,
+  type EvidenceIntegrity,
+  type EvidenceReference,
   type Finding,
   type ResponsiveCounterpart,
   type TargetDescriptor,
@@ -57,8 +60,9 @@ const candidateFingerprint = (candidate: Candidate): string => findingFingerprin
 const buildCandidateReplayRequest = (
   candidate: Candidate,
   variant: AuditVariant = candidate.variant,
+  issueNumber = 1,
 ): ActiveVariantReplayRequest => ({
-  issueNumber: 1,
+  issueNumber,
   fingerprint: candidateFingerprint(candidate),
   variantKey: candidateVariantKey(candidate),
   route: candidate.route,
@@ -268,19 +272,158 @@ export const buildCoreMatrix = (presetId: AuditPresetId): CoreMatrixState[] => {
   )
 }
 
+export const MAX_PNG_DIMENSION = 10_000
+const MAX_PNG_DECOMPRESSED_BYTES = 50_000_000
+const PNG_CRC_TABLE = Array.from({length: 256}, (_, value) => {
+  let crc = value
+  for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) === 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1
+  return crc >>> 0
+})
+const crc32 = (bytes: Uint8Array): number => {
+  let crc = 0xffffffff
+  for (const byte of bytes) crc = (PNG_CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8)
+  return (crc ^ 0xffffffff) >>> 0
+}
+const pngChannels = (colorType: number): number => {
+  if (colorType === 0 || colorType === 3) return 1
+  if (colorType === 2) return 3
+  if (colorType === 4) return 2
+  if (colorType === 6) return 4
+  throw new Error('evidence PNG has an unsupported color type')
+}
+const validBitDepth = (colorType: number, bitDepth: number): boolean => {
+  if (colorType === 3) return [1, 2, 4, 8].includes(bitDepth)
+  if (colorType === 0) return [1, 2, 4, 8, 16].includes(bitDepth)
+  return [8, 16].includes(bitDepth)
+}
+
 export const validatePng = (bytes: Uint8Array, maxBytes = MAX_EVIDENCE_BYTES): {width: number; height: number} => {
   const buffer = Buffer.from(bytes)
   if (buffer.length > maxBytes) throw new Error('evidence PNG exceeds size limit')
-  if (
-    buffer.length < 24 ||
-    !PNG_SIGNATURE.every((byte, index) => buffer[index] === byte) ||
-    buffer.toString('ascii', 12, 16) !== 'IHDR'
-  )
+  if (buffer.length < PNG_SIGNATURE.length || !PNG_SIGNATURE.every((byte, index) => buffer[index] === byte))
     throw new Error('evidence is not a PNG')
-  const width = buffer.readUInt32BE(16)
-  const height = buffer.readUInt32BE(20)
-  if (width === 0 || height === 0) throw new Error('evidence PNG has zero dimensions')
+
+  let offset = PNG_SIGNATURE.length
+  let width = 0
+  let height = 0
+  let bitDepth = 0
+  let colorType = 0
+  let interlace = 0
+  let seenHeader = false
+  let seenPalette = false
+  let seenData = false
+  let dataEnded = false
+  let seenEnd = false
+  const idat: Buffer[] = []
+
+  while (offset < buffer.length) {
+    if (buffer.length - offset < 12) throw new Error('evidence PNG has a truncated chunk')
+    const length = buffer.readUInt32BE(offset)
+    if (length > buffer.length - offset - 12) throw new Error('evidence PNG has a truncated chunk')
+    const typeBytes = buffer.subarray(offset + 4, offset + 8)
+    if (!typeBytes.every(byte => (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a)))
+      throw new Error('evidence PNG has an invalid chunk type')
+    const type = typeBytes.toString('ascii')
+    const data = buffer.subarray(offset + 8, offset + 8 + length)
+    const expectedCrc = buffer.readUInt32BE(offset + 8 + length)
+    const crcInput = Buffer.allocUnsafe(4 + length)
+    typeBytes.copy(crcInput, 0)
+    data.copy(crcInput, 4)
+    if (crc32(crcInput) !== expectedCrc) throw new Error('evidence PNG has an invalid chunk CRC')
+
+    if (!seenHeader && type !== 'IHDR') throw new Error('evidence PNG must begin with IHDR')
+    if (type === 'IHDR') {
+      if (seenHeader || length !== 13) throw new Error('evidence PNG has an invalid IHDR')
+      width = data.readUInt32BE(0)
+      height = data.readUInt32BE(4)
+      bitDepth = data[8] ?? 0
+      colorType = data[9] ?? 0
+      const compression = data[10]
+      const filter = data[11]
+      interlace = data[12] ?? 255
+      if (
+        width === 0 ||
+        height === 0 ||
+        width > MAX_PNG_DIMENSION ||
+        height > MAX_PNG_DIMENSION ||
+        !validBitDepth(colorType, bitDepth) ||
+        compression !== 0 ||
+        filter !== 0 ||
+        interlace !== 0
+      )
+        throw new Error('evidence PNG has invalid image dimensions or encoding')
+      seenHeader = true
+    } else if (type === 'PLTE') {
+      if (
+        seenPalette ||
+        seenData ||
+        length === 0 ||
+        length % 3 !== 0 ||
+        length > 768 ||
+        colorType === 0 ||
+        colorType === 4
+      )
+        throw new Error('evidence PNG has an invalid palette')
+      seenPalette = true
+      if (colorType === 3 && length / 3 > 2 ** bitDepth) throw new Error('evidence PNG palette exceeds bit depth')
+    } else if (type === 'IDAT') {
+      if (dataEnded || !seenHeader || (colorType === 3 && !seenPalette))
+        throw new Error('evidence PNG has IDAT in an invalid position')
+      seenData = true
+      idat.push(Buffer.from(data))
+    } else if (type === 'IEND') {
+      if (length !== 0 || !seenData || seenEnd) throw new Error('evidence PNG has an invalid IEND')
+      seenEnd = true
+      offset += 12
+      if (offset !== buffer.length) throw new Error('evidence PNG has trailing data')
+      break
+    } else if ((typeBytes[0] ?? 0) < 0x61) {
+      throw new Error('evidence PNG has an unsupported critical chunk')
+    }
+
+    if (type !== 'IDAT' && seenData) dataEnded = true
+    offset += 12 + length
+  }
+
+  if (!seenHeader || !seenData || !seenEnd) throw new Error('evidence PNG is incomplete')
+  if (colorType === 3 && !seenPalette) throw new Error('evidence PNG is missing its palette')
+  const bitsPerPixel = pngChannels(colorType) * bitDepth
+  const rowBytes = Math.ceil((width * bitsPerPixel) / 8)
+  const scanlineBytes = (rowBytes + 1) * height
+  if (scanlineBytes > MAX_PNG_DECOMPRESSED_BYTES) throw new Error('evidence PNG decompressed data exceeds size limit')
+  let scanlines: Buffer
+  try {
+    scanlines = inflateSync(Buffer.concat(idat), {maxOutputLength: scanlineBytes + 1})
+  } catch {
+    throw new Error('evidence PNG IDAT stream is invalid')
+  }
+  if (scanlines.length !== scanlineBytes) throw new Error('evidence PNG IDAT stream is truncated or oversized')
+  for (let row = 0; row < height; row += 1) {
+    const filter = scanlines[row * (rowBytes + 1)]
+    if (filter === undefined || filter > 4) throw new Error('evidence PNG has an invalid scanline filter')
+  }
   return {width, height}
+}
+
+export const computeEvidenceIntegrity = (relativePath: string, bytes: Uint8Array): EvidenceIntegrity => {
+  const pathParts = relativePath.split('/')
+  if (
+    relativePath.length === 0 ||
+    relativePath.length > 500 ||
+    relativePath.startsWith('/') ||
+    relativePath.includes('\\') ||
+    pathParts.some(part => part.length === 0 || part === '.' || part === '..') ||
+    /(?:^|\/)(?:tmp|temp|runner|home|var)(?:\/|$)/i.test(relativePath)
+  )
+    throw new Error('evidence integrity path is unsafe')
+  const dimensions = validatePng(bytes)
+  return {
+    path: relativePath,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    width: dimensions.width,
+    height: dimensions.height,
+    bytes: bytes.byteLength,
+  }
 }
 
 const locatorFor = (page: Page, target: TargetDescriptor) => {
@@ -296,8 +439,8 @@ const locatorFor = (page: Page, target: TargetDescriptor) => {
 }
 
 export interface CapturedEvidence {
-  context: {role: 'context'; path: string; alt: string; caption: string}
-  crop: {role: 'crop'; path: string; alt: string; caption: string}
+  context: EvidenceReference
+  crop: EvidenceReference
 }
 
 export interface EvidenceIdentity {
@@ -352,6 +495,11 @@ const buildCounterpart = async (
     return {diagnostic: 'responsive counterpart replay failed'}
   }
   if (observation.status === 'infrastructure-error') return {diagnostic: 'responsive counterpart replay failed'}
+  if (
+    observation.status === 'failure' &&
+    normalizeIdentityText(observation.signature) !== normalizeIdentityText(request.failureSignature)
+  )
+    return {diagnostic: 'responsive counterpart failure signature disagrees'}
   try {
     const evidence = await capture(variant)
     return {
@@ -548,6 +696,30 @@ export const finalizeCandidateBundle = async (
   const findings: Finding[] = []
   const diagnostics = [...bundle.diagnostics]
   const validations: (ValidationClean | ValidationInfrastructureError)[] = []
+  const candidateIssueNumber = bundle.runKind === 'manual' ? bundle.issueNumber : 1
+  type Terminal =
+    {kind: 'finding'; value: Finding} | {kind: 'validation'; value: ValidationClean | ValidationInfrastructureError}
+  const terminals = new Map<string, Terminal>()
+  const blockedTerminals = new Set<string>()
+  const registerTerminal = (key: string, terminal: Terminal): boolean => {
+    if (blockedTerminals.has(key)) return false
+    const existing = terminals.get(key)
+    if (!existing) {
+      terminals.set(key, terminal)
+      return true
+    }
+    blockedTerminals.add(key)
+    terminals.delete(key)
+    if (existing.kind === 'finding') {
+      const index = findings.indexOf(existing.value)
+      if (index !== -1) findings.splice(index, 1)
+    } else {
+      const index = validations.indexOf(existing.value)
+      if (index !== -1) validations.splice(index, 1)
+    }
+    diagnostics.push(`conflicting terminal outcomes for ${key}`)
+    return false
+  }
   for (const candidate of bundle.candidates) {
     const candidateCounterpartReplay = options.counterpartReplay
     const candidateCounterpartCapture = options.counterpartCapture
@@ -556,13 +728,18 @@ export const finalizeCandidateBundle = async (
       () => options.replay(candidate),
       () => options.capture(candidate),
       candidateCounterpartReplay
-        ? variant => candidateCounterpartReplay(buildCandidateReplayRequest(candidate, variant), variant)
+        ? variant =>
+            candidateCounterpartReplay(buildCandidateReplayRequest(candidate, variant, candidateIssueNumber), variant)
         : undefined,
       candidateCounterpartCapture
-        ? variant => candidateCounterpartCapture(buildCandidateReplayRequest(candidate, variant), variant)
+        ? variant =>
+            candidateCounterpartCapture(buildCandidateReplayRequest(candidate, variant, candidateIssueNumber), variant)
         : undefined,
     )
-    if (result.finding) findings.push(result.finding)
+    if (result.finding) {
+      const key = `${findingFingerprint(result.finding)}:${variantKey(result.finding.variant)}`
+      if (registerTerminal(key, {kind: 'finding', value: result.finding})) findings.push(result.finding)
+    }
     if (result.diagnostic) diagnostics.push(result.diagnostic)
   }
   for (const request of activeRequests) {
@@ -581,9 +758,17 @@ export const finalizeCandidateBundle = async (
       activeCounterpartReplay ? variant => activeCounterpartReplay(request, variant) : undefined,
       activeCounterpartCapture ? variant => activeCounterpartCapture(request, variant) : undefined,
     )
-    if (result.finding) findings.push(result.finding)
+    if (result.finding) {
+      const key = `${findingFingerprint(result.finding)}:${variantKey(request.variant)}`
+      if (registerTerminal(key, {kind: 'finding', value: result.finding})) findings.push(result.finding)
+    }
     if (result.diagnostic) diagnostics.push(result.diagnostic)
-    if (result.validation) validations.push(result.validation)
+    if (result.validation) {
+      const key = `${result.validation.fingerprint}:${result.validation.variantKey}`
+      if (result.validation.status === 'infrastructure-error') diagnostics.push(result.validation.diagnostic)
+      const registered = registerTerminal(key, {kind: 'validation', value: result.validation})
+      if (registered && result.validation.status === 'clean') validations.push(result.validation)
+    }
   }
   const manifestCommon = {
     version: 1 as const,
@@ -660,8 +845,8 @@ export const captureTargetEvidence = async (
   const [context, crop] = await Promise.all([readFile(contextPath), readFile(cropPath)])
   if ((await stat(contextPath)).size > MAX_EVIDENCE_BYTES || (await stat(cropPath)).size > MAX_EVIDENCE_BYTES)
     throw new Error('evidence PNG exceeds size limit')
-  validatePng(context)
-  validatePng(crop)
+  const contextIntegrity = computeEvidenceIntegrity(contextName, context)
+  const cropIntegrity = computeEvidenceIntegrity(cropName, crop)
   const label = identity
     ? `${identity.route} ${identity.viewport} ${identity.theme.kind === 'mode' ? identity.theme.mode : identity.theme.presetId} ${identity.semanticTarget}`
     : metadata
@@ -671,12 +856,14 @@ export const captureTargetEvidence = async (
       path: contextName,
       alt: `${label} context ${identity?.observedResult ?? 'failure'}`,
       caption: `${label} context role observed ${identity?.observedResult ?? 'failure'}`,
+      integrity: contextIntegrity,
     },
     crop: {
       role: 'crop',
       path: cropName,
       alt: `${label} crop ${identity?.observedResult ?? 'failure'}`,
       caption: `${label} crop role observed ${identity?.observedResult ?? 'failure'}`,
+      integrity: cropIntegrity,
     },
   }
 }
