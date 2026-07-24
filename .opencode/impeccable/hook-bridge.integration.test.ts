@@ -195,7 +195,7 @@ describe('createSpawnRunner', () => {
         `setInterval(() => {}, 1000);`, // stay alive until signaled
       ].join('\n'),
     )
-    const runner = createSpawnRunner({scriptPath, timeoutMs: 50, killGraceMs: 100})
+    const runner = createSpawnRunner({scriptPath, timeoutMs: 500, killGraceMs: 100})
     const result = await runner(payload, {worktree: worktree()})
 
     expect(result.exitCode).not.toBe(0)
