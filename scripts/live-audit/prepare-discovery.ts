@@ -293,8 +293,12 @@ const scheduledPlan = async (
   const when = input.clock()
   if (Number.isNaN(when.getTime())) return {kind: 'rejected', reason: 'invalid-clock'}
   const expectedHour = route.schedule === '30 3 * * *' ? 3 : 15
-  if (when.getUTCHours() !== expectedHour || when.getUTCMinutes() !== 30)
+  if (environment.eventName === 'schedule' && (when.getUTCHours() !== expectedHour || when.getUTCMinutes() !== 30))
     return {kind: 'rejected', reason: 'invalid-clock'}
+  const scheduledAt =
+    environment.eventName === 'workflow_dispatch'
+      ? new Date(Date.UTC(when.getUTCFullYear(), when.getUTCMonth(), when.getUTCDate(), expectedHour, 30))
+      : when
 
   let visualIssues: readonly GitHubIssue[]
   let suppressedIssues: readonly GitHubIssue[]
@@ -326,7 +330,7 @@ const scheduledPlan = async (
   try {
     const built = buildScheduledReplayPlan({
       runId: environment.runId,
-      generatedAt: when.toISOString(),
+      generatedAt: scheduledAt.toISOString(),
       exploration: input.exploration ?? DEFAULT_EXPLORATION,
       activeLedgers,
     })

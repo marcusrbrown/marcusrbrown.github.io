@@ -49,6 +49,13 @@ const parseSchedule = (event: unknown): LiveAuditEventRoute => {
   return {kind: 'scheduled', schedule}
 }
 
+const parseWorkflowDispatch = (event: unknown): LiveAuditEventRoute => {
+  if (!isRecord(event) || !isRecord(event.inputs)) return ignored('unsupported-event')
+  if (event.inputs.mode !== 'live-audit') return ignored('unsupported-event')
+  if (!Object.prototype.hasOwnProperty.call(event.inputs, 'live-audit-slot')) return ignored('invalid-event')
+  return parseSchedule({schedule: event.inputs['live-audit-slot']})
+}
+
 const isBotActor = (actor: string, user: Record<string, unknown>): boolean =>
   actor === 'fro-bot' || actor.endsWith('[bot]') || user.type === 'Bot'
 
@@ -81,6 +88,7 @@ const parseManualCandidate = (event: Record<string, unknown>): LiveAuditEventRou
 
 export const parseLiveAuditEvent = (eventName: string, event: unknown): LiveAuditEventRoute => {
   if (eventName === 'schedule') return parseSchedule(event)
+  if (eventName === 'workflow_dispatch') return parseWorkflowDispatch(event)
   if (eventName !== 'issue_comment') return ignored('unsupported-event')
   if (!isRecord(event)) return ignored('invalid-event')
   return parseManualCandidate(event)

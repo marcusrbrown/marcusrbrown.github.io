@@ -36,6 +36,13 @@ const manualCandidate = (): ManualCandidateRoute => ({
   authorAssociation: 'MEMBER',
 })
 
+const workflowDispatchEvent = (mode: string, schedule?: unknown): Record<string, unknown> => ({
+  inputs: {
+    mode,
+    ...(schedule === undefined ? {} : {'live-audit-slot': schedule}),
+  },
+})
+
 describe('live-audit event routing', () => {
   it('routes both exact scheduled cron values', () => {
     expect(parseLiveAuditEvent('schedule', {schedule: '30 3 * * *'})).toEqual({
@@ -54,6 +61,31 @@ describe('live-audit event routing', () => {
       reason: 'unsupported-schedule',
     })
     expect(parseLiveAuditEvent('workflow_dispatch', {})).toEqual({
+      kind: 'ignored',
+      reason: 'unsupported-event',
+    })
+  })
+
+  it.each(['30 3 * * *', '30 15 * * *'])('routes live-audit workflow dispatch slot %s', schedule => {
+    expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent('live-audit', schedule))).toEqual({
+      kind: 'scheduled',
+      schedule,
+    })
+  })
+
+  it('rejects invalid or missing live-audit workflow dispatch slots', () => {
+    expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent('live-audit', '0 0 * * *'))).toEqual({
+      kind: 'ignored',
+      reason: 'unsupported-schedule',
+    })
+    expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent('live-audit'))).toEqual({
+      kind: 'ignored',
+      reason: 'invalid-event',
+    })
+  })
+
+  it.each(['review', 'maintenance', 'autoheal'])('keeps generic dispatch mode %s outside live-audit routing', mode => {
+    expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent(mode, '30 3 * * *'))).toEqual({
       kind: 'ignored',
       reason: 'unsupported-event',
     })

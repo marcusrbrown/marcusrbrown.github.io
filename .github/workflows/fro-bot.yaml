@@ -26,7 +26,16 @@ on:
           - review
           - maintenance
           - autoheal
+          - live-audit
         default: autoheal
+      live-audit-slot:
+        description: Approved live-audit replay slot (UTC)
+        type: choice
+        options:
+          - '30 3 * * *'
+          - '30 15 * * *'
+        default: '30 3 * * *'
+        required: true
       prompt:
         description: Custom prompt for review mode
         required: false
@@ -479,7 +488,7 @@ jobs:
           (github.event.pull_request.user.login || '') != 'fro-bot'
         ) ||
         github.event_name == 'schedule' ||
-        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'workflow_dispatch' && inputs.mode != 'live-audit') ||
         (
           ((github.event_name == 'issue_comment' &&
             (github.event.issue.pull_request ||
@@ -606,6 +615,14 @@ jobs:
                 run_kind='scheduled'
                 ;;
             esac
+          elif [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
+            dispatch_mode="$(jq -r '.inputs.mode // empty' "$EVENT_PATH")"
+            dispatch_slot="$(jq -r '.inputs["live-audit-slot"] // empty' "$EVENT_PATH")"
+            if [[ "$dispatch_mode" == 'live-audit' &&
+              ("$dispatch_slot" == '30 3 * * *' || "$dispatch_slot" == '30 15 * * *') ]]; then
+              eligible=true
+              run_kind='scheduled'
+            fi
           elif [[ "$EVENT_NAME" == 'issue_comment' ]]; then
             issue_number="$(jq -er '.issue.number | select(type == "number" and floor == . and . > 0) | tostring' "$EVENT_PATH" 2>/dev/null || true)"
             if jq -e '
@@ -841,7 +858,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          LIVE_AUDIT_WRITE_MODE: ${{ vars.LIVE_AUDIT_WRITE_MODE || 'disabled' }}
+          LIVE_AUDIT_WRITE_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'live-audit' && 'disabled' || vars.LIVE_AUDIT_WRITE_MODE || 'disabled' }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_RUN_ID: ${{ github.run_id }}

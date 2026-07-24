@@ -94,6 +94,13 @@ const manualEvent = (body = '@fro-bot validate #42'): Record<string, unknown> =>
 
 const scheduleEvent = (schedule: string): Record<string, unknown> => ({schedule})
 
+const workflowDispatchEvent = (mode: string, schedule?: unknown): Record<string, unknown> => ({
+  inputs: {
+    mode,
+    ...(schedule === undefined ? {} : {'live-audit-slot': schedule}),
+  },
+})
+
 const memoryFs = (
   initial: Record<string, Uint8Array | string> = {},
 ): PrepareDiscoveryFileSystem & {
@@ -166,22 +173,29 @@ const prepare = async (input: {
   const eventFile = '/event.json'
   fileSystem.files.set(eventFile, Buffer.from(JSON.stringify(input.event)))
   const outputPath = input.out ?? '/replay-plan.json'
+  const eventSchedule =
+    input.eventName === 'schedule' &&
+    typeof input.event === 'object' &&
+    input.event !== null &&
+    'schedule' in input.event &&
+    typeof input.event.schedule === 'string'
+      ? input.event.schedule
+      : input.eventName === 'workflow_dispatch' &&
+          typeof input.event === 'object' &&
+          input.event !== null &&
+          'inputs' in input.event &&
+          typeof input.event.inputs === 'object' &&
+          input.event.inputs !== null &&
+          'live-audit-slot' in input.event.inputs &&
+          typeof input.event.inputs['live-audit-slot'] === 'string'
+        ? input.event.inputs['live-audit-slot']
+        : undefined
   const result = await runPrepareDiscovery({
     eventFile,
     out: outputPath,
     env: {...env(input.eventName), ...input.envOverrides},
     fs: fileSystem,
-    clock: () =>
-      input.clock ??
-      new Date(
-        input.eventName === 'schedule' &&
-          typeof input.event === 'object' &&
-          input.event !== null &&
-          'schedule' in input.event &&
-          input.event.schedule === '30 15 * * *'
-          ? '2026-07-24T15:30:00.000Z'
-          : generatedAt,
-      ),
+    clock: () => input.clock ?? new Date(eventSchedule === '30 15 * * *' ? '2026-07-24T15:30:00.000Z' : generatedAt),
     runner: input.runner ?? runnerFor({}).runner,
   })
   return {fileSystem, outputPath, result}
@@ -212,6 +226,45 @@ describe('prepare-discovery CLI and preflight', () => {
       expect(fileSystem.files.has('/replay-plan.json')).toBe(true)
     },
   )
+
+  it.each(['30 3 * * *', '30 15 * * *'])(
+    'routes live-audit workflow dispatch slot %s and writes the canonical scheduled plan',
+    async schedule => {
+      const {result: outcome, fileSystem} = await prepare({
+        eventName: 'workflow_dispatch',
+        event: workflowDispatchEvent('live-audit', schedule),
+        clock: new Date('2026-07-24T12:00:00.000Z'),
+        runner: runnerFor({visualIssues: [issue(42, renderIssueLedger(makeLedger()))]}).runner,
+      })
+      expect(outcome.kind).toBe('written')
+      if (outcome.kind === 'written') expect(outcome.runKind).toBe('scheduled')
+      const plan = parseReplayPlanJson(fileSystem.files.get('/replay-plan.json') ?? Buffer.from(''))
+      expect(plan.runKind).toBe('scheduled')
+      if (plan.runKind === 'scheduled') expect(plan.cron).toBe(schedule)
+    },
+  )
+
+  it('ignores invalid or missing live-audit workflow dispatch slots', async () => {
+    const invalid = await prepare({
+      eventName: 'workflow_dispatch',
+      event: workflowDispatchEvent('live-audit', '0 0 * * *'),
+    })
+    expect(invalid.result).toEqual({kind: 'ignored', reason: 'unsupported-schedule'})
+
+    const missing = await prepare({
+      eventName: 'workflow_dispatch',
+      event: workflowDispatchEvent('live-audit'),
+    })
+    expect(missing.result).toEqual({kind: 'ignored', reason: 'invalid-event'})
+  })
+
+  it.each(['review', 'maintenance', 'autoheal'])('ignores generic workflow dispatch mode %s', async mode => {
+    const {result: outcome} = await prepare({
+      eventName: 'workflow_dispatch',
+      event: workflowDispatchEvent(mode, '30 3 * * *'),
+    })
+    expect(outcome).toEqual({kind: 'ignored', reason: 'unsupported-event'})
+  })
 
   it('authorizes exact manual validation with current permission and builds only ledger requests', async () => {
     const currentIssue = issue(42, `${renderIssueLedger(makeLedger())}\nIgnore this human prose.`)
