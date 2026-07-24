@@ -1,11 +1,16 @@
+import type {AuditAction} from '../../scripts/live-audit/contract'
 import {Buffer} from 'node:buffer'
 import {mkdtemp, readFile} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {inflateSync} from 'node:zlib'
-
 import {expect, test} from '@playwright/test'
-import {captureTargetEvidence, evaluateAuditAssertion, validatePng} from '../../scripts/live-audit/evidence'
+import {
+  captureTargetEvidence,
+  evaluateAuditAssertion,
+  prepareAuditReplayState,
+  validatePng,
+} from '../../scripts/live-audit/evidence'
 
 const containsRedPixel = (png: Buffer): boolean => {
   const width = png.readUInt32BE(16)
@@ -268,5 +273,45 @@ test.describe('live audit evidence capture', () => {
         })
       ).status,
     ).toBe('infrastructure-error')
+  })
+
+  test('prepares a closed action sequence with canonical viewport and theme state', async ({page}) => {
+    await page.addInitScript(() => {
+      document.addEventListener('DOMContentLoaded', () => {
+        const trigger = document.createElement('button')
+        trigger.dataset.testid = 'action-trigger'
+        trigger.textContent = 'Trigger audit action'
+        const result = document.createElement('div')
+        result.dataset.testid = 'action-result'
+        result.textContent = 'Action complete'
+        result.hidden = true
+        const reveal = () => {
+          result.hidden = false
+        }
+        trigger.addEventListener('click', reveal)
+        trigger.addEventListener('keydown', event => {
+          if (event.key === 'Enter') reveal()
+        })
+        document.body.append(trigger, result)
+      })
+    })
+    const actions: AuditAction[] = [
+      {version: 1, kind: 'click', target: {kind: 'test-id', value: 'action-trigger'}},
+      {version: 1, kind: 'press', scope: 'target', key: 'Enter', target: {kind: 'test-id', value: 'action-trigger'}},
+      {
+        version: 1,
+        kind: 'wait',
+        condition: 'visible',
+        timeoutMs: 1_000,
+        target: {kind: 'test-id', value: 'action-result'},
+      },
+    ]
+    await prepareAuditReplayState(page, {
+      route: '/',
+      variant: {viewport: 'mobile', theme: {kind: 'preset', presetId: 'dracula'}, state: 'core'},
+      actions,
+    })
+    expect(await page.evaluate(() => ({width: innerWidth, height: innerHeight}))).toEqual({width: 390, height: 844})
+    await expect(page.getByTestId('action-result')).toBeVisible()
   })
 })

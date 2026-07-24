@@ -72,6 +72,7 @@ describe('live-audit evidence finalization', () => {
           route: '/projects',
           findingClass: 'layout',
           assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
+          actions: [],
           responsive: 'not-applicable',
           semanticTarget: 'target',
           target: {kind: 'test-id', value: 'target'},
@@ -105,6 +106,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects' as const,
       findingClass: 'layout' as const,
       assertion: {version: 1 as const, kind: 'viewport-containment' as const, edges: 'all' as const},
+      actions: [],
       responsive: 'uncertain' as const,
       semanticTarget: 'target',
       target: {kind: 'test-id' as const, value: 'target'},
@@ -152,6 +154,7 @@ describe('live-audit evidence finalization', () => {
       semanticTarget: 'target',
       findingClass: 'layout',
       assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
+      actions: [],
       responsive: 'not-applicable',
       failureSignature: 'overflow',
       variants: [
@@ -167,6 +170,7 @@ describe('live-audit evidence finalization', () => {
         {
           variantKey: variantKey({viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'}),
           target: {kind: 'test-id', value: 'target'},
+          actions: [],
           assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
           reproduction: ['Open projects'],
         },
@@ -185,6 +189,7 @@ describe('live-audit evidence finalization', () => {
       },
     )
     expect(result.validation?.status).toBe('infrastructure-error')
+    expect(result.validation?.actions).toEqual(request.actions)
     expect(result.finding).toBeUndefined()
     const bundleResult = await finalizeCandidateBundle(
       {
@@ -226,6 +231,7 @@ describe('live-audit evidence finalization', () => {
       semanticTarget: 'target',
       findingClass: 'layout',
       assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
+      actions: [],
       failureSignature: 'overflow',
       responsive: 'required',
       variant: {viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'},
@@ -287,6 +293,7 @@ describe('live-audit evidence finalization', () => {
       },
     )
     expect(clean.validation?.status).toBe('clean')
+    expect(clean.validation?.actions).toEqual(request.actions)
     expect(cleanCounterpartCalls).toBe(0)
     expect(calls).toBe(2)
     let disagreementCalls = 0
@@ -358,6 +365,7 @@ describe('live-audit evidence finalization', () => {
       version: 1,
       fingerprint: findingFingerprint({route: '/projects', semanticTarget: 'target', failureSignature: 'overflow'}),
       route: '/projects',
+      actions: [],
       semanticTarget: 'target',
       findingClass: 'layout',
       assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
@@ -377,6 +385,7 @@ describe('live-audit evidence finalization', () => {
           variantKey: variantKey({viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'}),
           target: {kind: 'test-id', value: 'target'},
           assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
+          actions: [],
           reproduction: ['Open projects'],
         },
       ],
@@ -387,6 +396,7 @@ describe('live-audit evidence finalization', () => {
       issueNumber: 204,
       fingerprint: ledger.fingerprint,
       assertion: ledger.assertion,
+      actions: [],
       responsive: 'not-applicable',
       reproduction: ['Open projects'],
     })
@@ -396,6 +406,7 @@ describe('live-audit evidence finalization', () => {
     const request: ActiveVariantReplayRequest = {
       issueNumber: 205,
       fingerprint: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      actions: [],
       variantKey: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       route: '/projects',
       semanticTarget: 'target',
@@ -447,6 +458,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects' as const,
       findingClass: 'layout' as const,
       assertion: {version: 1 as const, kind: 'viewport-containment' as const, edges: 'all' as const},
+      actions: [],
       responsive: 'required' as const,
       semanticTarget: 'target',
       target: {kind: 'test-id' as const, value: 'target'},
@@ -493,6 +505,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects' as const,
       findingClass: 'layout' as const,
       assertion: {version: 1 as const, kind: 'viewport-containment' as const, edges: 'all' as const},
+      actions: [],
       responsive: 'not-applicable' as const,
       semanticTarget: 'target',
       target: {kind: 'test-id' as const, value: 'target'},
@@ -511,6 +524,7 @@ describe('live-audit evidence finalization', () => {
       semanticTarget: candidate.semanticTarget,
       findingClass: candidate.findingClass,
       assertion: candidate.assertion,
+      actions: candidate.actions,
       failureSignature: candidate.failureSignature,
       responsive: candidate.responsive,
       variant: candidate.variant,
@@ -550,6 +564,7 @@ describe('live-audit evidence finalization', () => {
   it('suppresses duplicate terminal validations for one fingerprint and variant', async () => {
     const request: ActiveVariantReplayRequest = {
       issueNumber: 204,
+      actions: [],
       fingerprint: findingFingerprint({route: '/projects', semanticTarget: 'target', failureSignature: 'overflow'}),
       variantKey: variantKey({viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'}),
       route: '/projects',
@@ -602,6 +617,7 @@ describe('live-audit evidence finalization', () => {
           route: '/projects',
           findingClass: 'layout',
           assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
+          actions: [],
           responsive: 'not-applicable',
           semanticTarget: 'target',
           target: {kind: 'test-id', value: 'target'},

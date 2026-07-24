@@ -5,6 +5,7 @@ import {
   isAuditAssertionForFindingClass,
   isAuditPresetId,
   isAuditRoute,
+  parseAuditActions,
   parseAuditAssertion,
   parseTargetDescriptor,
   parseThemeSelection,
@@ -26,6 +27,8 @@ import {findingFingerprint, variantKey} from './identity'
 
 export const REPLAY_PLAN_VERSION = 1
 export const REPLAY_PLAN_CRON = '30 3 * * *'
+export const REPLAY_PLAN_CRONS = ['30 3 * * *', '30 15 * * *'] as const
+export type ReplayPlanCron = (typeof REPLAY_PLAN_CRONS)[number]
 export const MAX_REPLAY_PLAN_BYTES = 256_000
 export const MAX_REPLAY_PLAN_REPRODUCTION = 20
 
@@ -36,6 +39,7 @@ export interface ReplayPlanBuildInput {
   runId: string
   generatedAt: string
   exploration: {steps: number; durationMs: number}
+  cron?: ReplayPlanCron
   activeLedgers: readonly {issueNumber: number; ledger: IssueLedger}[]
 }
 
@@ -51,7 +55,7 @@ export interface ReplayPlanCommon {
 
 export interface ScheduledReplayPlan extends ReplayPlanCommon {
   runKind: 'scheduled'
-  cron: typeof REPLAY_PLAN_CRON
+  cron: ReplayPlanCron
   rotatingPresetId: NonNullable<AuditManifest['rotatingPresetId']>
   issueNumbers: number[]
 }
@@ -81,6 +85,10 @@ const safeText = (value: unknown, max = 2_000): value is string =>
 const dateTime = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value))
 const parseDateTime = (value: unknown): string => {
   if (!dateTime(value)) throw new Error('invalid replay plan timestamp')
+  return value
+}
+const parseCron = (value: unknown): ReplayPlanCron => {
+  if (value !== REPLAY_PLAN_CRONS[0] && value !== REPLAY_PLAN_CRONS[1]) throw new Error('invalid replay plan schedule')
   return value
 }
 const positiveIssue = (value: unknown): value is number =>
@@ -169,6 +177,7 @@ const parseRequest = (value: unknown): ActiveVariantReplayRequest => {
       'semanticTarget',
       'findingClass',
       'assertion',
+      'actions',
       'failureSignature',
       'responsive',
       'variant',
@@ -191,6 +200,7 @@ const parseRequest = (value: unknown): ActiveVariantReplayRequest => {
   const reproduction = value.reproduction.map(item => parseBoundedText(item, 500, 'reproduction step'))
   const target = parseTargetDescriptor(value.target)
   const assertion = parseAuditAssertion(value.assertion)
+  const actions = parseAuditActions(value.actions)
   const variant = parseVariant(value.variant)
   if (!isAuditAssertionForFindingClass(findingClass, assertion))
     throw new Error('replay plan assertion does not match finding class')
@@ -206,6 +216,7 @@ const parseRequest = (value: unknown): ActiveVariantReplayRequest => {
     semanticTarget,
     findingClass,
     assertion,
+    actions,
     failureSignature,
     responsive,
     variant,
@@ -279,8 +290,8 @@ export const parseReplayPlan = (input: unknown): ReplayPlan => {
     )
       throw new Error('invalid scheduled replay plan keys')
     const common = parseCommon(input)
-    if (input.cron !== REPLAY_PLAN_CRON || !Array.isArray(input.issueNumbers))
-      throw new Error('invalid scheduled replay plan schedule')
+    const cron = parseCron(input.cron)
+    if (!Array.isArray(input.issueNumbers)) throw new Error('invalid scheduled replay plan schedule')
     const rotatingPresetId = parsePresetId(input.rotatingPresetId)
     const expectedPreset = chooseRotatingPreset(new Date(common.generatedAt))
     if (rotatingPresetId !== expectedPreset) throw new Error('scheduled replay plan preset mismatch')
@@ -293,7 +304,7 @@ export const parseReplayPlan = (input: unknown): ReplayPlan => {
     return {
       ...common,
       runKind: 'scheduled',
-      cron: REPLAY_PLAN_CRON,
+      cron,
       rotatingPresetId,
       issueNumbers,
     }
@@ -366,6 +377,7 @@ const commonPlan = (
 })
 
 export const buildScheduledReplayPlan = (input: ReplayPlanBuildInput): ScheduledReplayPlan => {
+  const cron = input.cron ?? REPLAY_PLAN_CRON
   const presetId = chooseRotatingPreset(new Date(input.generatedAt))
   const activeRequests = input.activeLedgers.flatMap(({issueNumber, ledger}) =>
     buildActiveReplayRequests(issueNumber, ledger),
@@ -374,7 +386,7 @@ export const buildScheduledReplayPlan = (input: ReplayPlanBuildInput): Scheduled
   return parseReplayPlan({
     ...commonPlan(input, activeRequests, buildCoreMatrix(presetId)),
     runKind: 'scheduled',
-    cron: REPLAY_PLAN_CRON,
+    cron,
     rotatingPresetId: presetId,
     issueNumbers,
   }) as ScheduledReplayPlan

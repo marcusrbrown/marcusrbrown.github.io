@@ -6,6 +6,9 @@ import {findingFingerprint, normalizeIdentityText, variantKey} from './identity'
 
 export const AUDIT_CONTRACT_VERSION = 1
 export const AUDIT_ASSERTION_VERSION = 1
+export const AUDIT_ACTION_VERSION = 1
+export const MAX_AUDIT_ACTIONS = 20
+export const MAX_AUDIT_ACTION_TIMEOUT_MS = 30_000
 export const AUDIT_ROUTES = ['/', '/about', '/projects', '/blog'] as const
 export const AUDIT_VIEWPORTS = ['desktop', 'mobile'] as const
 export const AUDIT_THEMES = ['light', 'dark'] as const
@@ -57,6 +60,26 @@ export type AuditAssertion =
   | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'minimum-size'; width: number; height: number}
   | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'text'; operator: 'equals' | 'contains'; value: string}
 
+export type AuditActionKey =
+  'Enter' | 'Space' | 'Escape' | 'Tab' | 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | 'Home' | 'End'
+export type AuditAction =
+  | {version: typeof AUDIT_ACTION_VERSION; kind: 'click'; target: TargetDescriptor}
+  | {version: typeof AUDIT_ACTION_VERSION; kind: 'press'; scope: 'page'; key: AuditActionKey}
+  | {
+      version: typeof AUDIT_ACTION_VERSION
+      kind: 'press'
+      scope: 'target'
+      key: AuditActionKey
+      target: TargetDescriptor
+    }
+  | {
+      version: typeof AUDIT_ACTION_VERSION
+      kind: 'wait'
+      condition: 'visible' | 'hidden'
+      timeoutMs: number
+      target: TargetDescriptor
+    }
+
 export interface AuditVariant {
   viewport: AuditViewport
   theme: AuditThemeSelection
@@ -102,6 +125,7 @@ interface FindingFields {
   semanticTarget: string
   target: TargetDescriptor
   assertion: AuditAssertion
+  actions: AuditAction[]
   failureSignature: string
   description: string
   reproduction: string[]
@@ -149,6 +173,7 @@ interface ValidationIdentity {
   variant: AuditVariant
   target: TargetDescriptor
   assertion: AuditAssertion
+  actions: AuditAction[]
   observedAt: string
 }
 
@@ -291,6 +316,56 @@ const assertionSchema = {
   ],
 }
 
+const actionKeySchema = {
+  enum: ['Enter', 'Space', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'],
+}
+const actionSchema = {
+  oneOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {version: {const: AUDIT_ACTION_VERSION}, kind: {const: 'click'}, target: targetSchema},
+      required: ['version', 'kind', 'target'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ACTION_VERSION},
+        kind: {const: 'press'},
+        scope: {const: 'page'},
+        key: actionKeySchema,
+      },
+      required: ['version', 'kind', 'scope', 'key'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ACTION_VERSION},
+        kind: {const: 'press'},
+        scope: {const: 'target'},
+        key: actionKeySchema,
+        target: targetSchema,
+      },
+      required: ['version', 'kind', 'scope', 'key', 'target'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ACTION_VERSION},
+        kind: {const: 'wait'},
+        condition: {enum: ['visible', 'hidden']},
+        timeoutMs: {type: 'integer', minimum: 1, maximum: MAX_AUDIT_ACTION_TIMEOUT_MS},
+        target: targetSchema,
+      },
+      required: ['version', 'kind', 'condition', 'timeoutMs', 'target'],
+    },
+  ],
+}
+const actionsSchema = {type: 'array', maxItems: MAX_AUDIT_ACTIONS, items: actionSchema}
+
 const themeSelectionSchema = {
   oneOf: [
     {
@@ -360,6 +435,7 @@ const validationIdentityProperties = {
   variant: auditVariantSchema,
   target: targetSchema,
   assertion: assertionSchema,
+  actions: actionsSchema,
   observedAt: {type: 'string', format: 'date-time'},
 }
 const responsiveCounterpartResultSchema = {
@@ -447,6 +523,7 @@ const schema = {
           },
           variant: auditVariantSchema,
           assertion: assertionSchema,
+          actions: actionsSchema,
           observations: {
             type: 'array',
             minItems: 2,
@@ -477,6 +554,7 @@ const schema = {
           'reproduction',
           'variant',
           'assertion',
+          'actions',
           'observations',
           'evidence',
         ],
@@ -501,6 +579,7 @@ const validate = ajv.compile(schema)
 const validateTarget = ajv.compile(targetSchema)
 const validateThemeSelection = ajv.compile(themeSelectionSchema)
 const validateAssertion = ajv.compile(assertionSchema)
+const validateAction = ajv.compile(actionSchema)
 
 const cleanText = (value: string): string =>
   [...value]
@@ -579,6 +658,20 @@ export const parseAuditAssertion = (input: unknown): AuditAssertion => {
   return assertion
 }
 
+export const parseAuditAction = (input: unknown): AuditAction => {
+  if (!validateAction(input))
+    throw new AuditContractError(`invalid audit action: ${ajv.errorsText(validateAction.errors)}`)
+  const action = input as unknown as AuditAction
+  if (action.kind === 'click' || action.kind === 'wait' || (action.kind === 'press' && action.scope === 'target'))
+    parseTargetDescriptor(action.target)
+  return action
+}
+
+export const parseAuditActions = (input: unknown): AuditAction[] => {
+  if (!Array.isArray(input) || input.length > MAX_AUDIT_ACTIONS) throw new AuditContractError('invalid audit actions')
+  return input.map(parseAuditAction)
+}
+
 export const isAuditAssertionForFindingClass = (findingClass: FindingClass, assertion: AuditAssertion): boolean => {
   if (findingClass === 'broken-image') return assertion.kind === 'image-load'
   if (findingClass === 'visibility') return assertion.kind === 'visibility'
@@ -627,6 +720,7 @@ const semanticValidate = (manifest: AuditManifest): void => {
     validateEvidencePair(finding.evidence)
     validateResponsiveCounterpart(finding)
     parseAuditAssertion(finding.assertion)
+    parseAuditActions(finding.actions)
     if (!isAuditAssertionForFindingClass(finding.findingClass, finding.assertion))
       throw new AuditContractError('finding class does not match its assertion')
     if (!hasSafeText(finding.semanticTarget, 200))
@@ -690,6 +784,7 @@ const semanticValidate = (manifest: AuditManifest): void => {
     parseThemeSelection(validation.variant.theme)
     parseTargetDescriptor(validation.target)
     parseAuditAssertion(validation.assertion)
+    parseAuditActions(validation.actions)
     if (!isAuditAssertionForFindingClass(validation.findingClass, validation.assertion))
       throw new AuditContractError('validation class does not match its assertion')
     if (validation.status === 'clean') {

@@ -5,6 +5,7 @@ import {mkdir, readFile, stat} from 'node:fs/promises'
 import path from 'node:path'
 import {inflateSync} from 'node:zlib'
 
+import {presetThemes} from '../../src/utils/preset-themes'
 import {
   AUDIT_PRESET_IDS,
   AUDIT_ROUTES,
@@ -13,10 +14,12 @@ import {
   isAuditAssertionForFindingClass,
   isAuditPresetId,
   isAuditRoute,
+  parseAuditActions,
   parseAuditAssertion,
   parseAuditManifest,
   parseTargetDescriptor,
   parseThemeSelection,
+  type AuditAction,
   type AuditAssertion,
   type AuditManifest,
   type AuditPresetId,
@@ -51,6 +54,7 @@ export interface Candidate {
   semanticTarget: string
   target: TargetDescriptor
   assertion: AuditAssertion
+  actions: AuditAction[]
   failureSignature: string
   description: string
   reproduction: string[]
@@ -73,6 +77,7 @@ const buildCandidateReplayRequest = (
   semanticTarget: candidate.semanticTarget,
   findingClass: candidate.findingClass,
   assertion: candidate.assertion,
+  actions: candidate.actions,
   failureSignature: candidate.failureSignature,
   responsive: candidate.responsive,
   variant,
@@ -111,6 +116,7 @@ export interface ActiveVariantReplayRequest {
   variant: AuditVariant
   target: TargetDescriptor
   assertion: AuditAssertion
+  actions: AuditAction[]
   reproduction: string[]
 }
 
@@ -132,6 +138,7 @@ export const buildActiveReplayRequests = (issueNumber: number, ledger: IssueLedg
       semanticTarget: ledger.semanticTarget,
       findingClass: ledger.findingClass,
       assertion: ledger.assertion,
+      actions: replay.actions,
       failureSignature: ledger.failureSignature,
       responsive: ledger.responsive,
       variant: {viewport: variant.viewport, theme: variant.theme, state: variant.state},
@@ -202,7 +209,7 @@ export const parseCandidateBundle = (input: unknown): CandidateBundle => {
     if (
       !isRecord(value) ||
       Object.keys(value).sort().join(',') !==
-        'assertion,description,failureSignature,findingClass,observation,reproduction,responsive,route,semanticTarget,target,variant'
+        'actions,assertion,description,failureSignature,findingClass,observation,reproduction,responsive,route,semanticTarget,target,variant'
     )
       throw new Error('candidate contains unsupported fields')
     if (
@@ -231,10 +238,11 @@ export const parseCandidateBundle = (input: unknown): CandidateBundle => {
       throw new Error('invalid candidate')
     parseTargetDescriptor(value.target)
     const assertion = parseAuditAssertion(value.assertion)
+    const actions = parseAuditActions(value.actions)
     if (!isAuditAssertionForFindingClass(value.findingClass as Finding['findingClass'], assertion))
       throw new Error('candidate finding class does not match assertion')
     parseThemeSelection(value.variant.theme)
-    return value as unknown as Candidate
+    return {...value, actions} as unknown as Candidate
   })
   return {...input, candidates} as unknown as CandidateBundle
 }
@@ -449,6 +457,60 @@ const locatorFor = (page: Page, target: TargetDescriptor) => {
   return undefined
 }
 
+const viewportSize = (viewport: AuditViewport): {width: number; height: number} =>
+  viewport === 'desktop' ? {width: 1440, height: 900} : {width: 390, height: 844}
+
+const themeOptionName = (theme: AuditThemeSelection): string => {
+  if (theme.kind === 'mode') return theme.mode.charAt(0).toUpperCase() + theme.mode.slice(1)
+  const preset = presetThemes.find(candidate => candidate.id === theme.presetId)
+  if (!preset) throw new Error('unknown audit theme preset')
+  return preset.name
+}
+
+const resolveActionTarget = async (page: Page, target: TargetDescriptor) => {
+  const locator = locatorFor(page, target)
+  if (!locator || (await locator.count()) !== 1) throw new Error('action target is missing or ambiguous')
+  return locator
+}
+
+export const prepareAuditReplayState = async (
+  page: Page,
+  input:
+    | Pick<Candidate, 'route' | 'variant' | 'actions'>
+    | Pick<ActiveVariantReplayRequest, 'route' | 'variant' | 'actions'>,
+): Promise<void> => {
+  const actions = parseAuditActions(input.actions)
+  await page.setViewportSize(viewportSize(input.variant.viewport))
+  await navigateAuditRoute(page, input.route)
+
+  const trigger = page.getByRole('button', {name: /open theme picker/i})
+  if ((await trigger.count()) !== 1) throw new Error('theme picker trigger is missing or ambiguous')
+  await trigger.click()
+  const option = page.getByRole('option', {name: themeOptionName(input.variant.theme), exact: true})
+  if ((await option.count()) !== 1) throw new Error('theme picker option is missing or ambiguous')
+  await option.click()
+  if ((await option.getAttribute('aria-selected')) !== 'true') throw new Error('theme picker option was not selected')
+
+  for (const action of actions) {
+    if (action.kind === 'press' && action.scope === 'page') {
+      await page.keyboard.press(action.key)
+      continue
+    }
+    const locator = await resolveActionTarget(page, action.target)
+    if (action.kind === 'click') {
+      const box = await locator.boundingBox()
+      if (!box || box.width <= 0 || box.height <= 0) throw new Error('action target is detached or zero-size')
+      await locator.click()
+    } else if (action.kind === 'press') {
+      const box = await locator.boundingBox()
+      if (!box || box.width <= 0 || box.height <= 0) throw new Error('action target is detached or zero-size')
+      await locator.press(action.key)
+    } else {
+      await locator.waitFor({state: action.condition, timeout: action.timeoutMs})
+    }
+  }
+}
+
 export interface CapturedEvidence {
   context: EvidenceReference
   crop: EvidenceReference
@@ -646,6 +708,7 @@ export const finalizeActiveVariant = async (
     semanticTarget: request.semanticTarget,
     findingClass: request.findingClass,
     assertion: request.assertion,
+    actions: request.actions,
     failureSignature: request.failureSignature,
     variant: request.variant,
     target: request.target,
@@ -675,6 +738,7 @@ export const finalizeActiveVariant = async (
           semanticTarget: request.semanticTarget,
           findingClass: request.findingClass,
           assertion: request.assertion,
+          actions: request.actions,
           failureSignature: request.failureSignature,
           variant: request.variant,
           target: request.target,
@@ -714,6 +778,7 @@ export const finalizeActiveVariant = async (
       route: request.route,
       findingClass: request.findingClass,
       assertion: request.assertion,
+      actions: request.actions,
       semanticTarget: request.semanticTarget,
       target: request.target,
       failureSignature: request.failureSignature,
@@ -788,6 +853,7 @@ export const finalizeCandidate = async (
     route: candidate.route,
     findingClass: candidate.findingClass,
     assertion: candidate.assertion,
+    actions: candidate.actions,
     semanticTarget: candidate.semanticTarget,
     target: candidate.target,
     failureSignature: candidate.failureSignature,

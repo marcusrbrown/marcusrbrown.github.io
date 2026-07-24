@@ -3,9 +3,11 @@ import {Buffer} from 'node:buffer'
 import {
   isAuditAssertionForFindingClass,
   isAuditRoute,
+  parseAuditActions,
   parseAuditAssertion,
   parseTargetDescriptor,
   parseThemeSelection,
+  type AuditAction,
   type AuditAssertion,
   type AuditRoute,
   type AuditThemeSelection,
@@ -56,6 +58,7 @@ export interface LedgerReplay {
   variantKey: string
   target: TargetDescriptor
   assertion: AuditAssertion
+  actions: AuditAction[]
   reproduction: string[]
 }
 export type LedgerOperation =
@@ -68,6 +71,7 @@ export interface IssueLedger {
   semanticTarget: string
   findingClass: FindingClass
   assertion: AuditAssertion
+  actions: AuditAction[]
   responsive: Finding['responsive']
   failureSignature: string
   variants: LedgerVariant[]
@@ -110,6 +114,7 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
       'semanticTarget',
       'findingClass',
       'assertion',
+      'actions',
       'responsive',
       'failureSignature',
       'variants',
@@ -145,6 +150,7 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
   )
     throw new Error('invalid issue ledger collections')
   const assertion = parseAuditAssertion(value.assertion)
+  parseAuditActions(value.actions)
   if (!isAuditAssertionForFindingClass(value.findingClass as FindingClass, assertion))
     throw new Error('issue ledger finding class does not match assertion')
   if (
@@ -220,8 +226,9 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
   for (const replay of value.replay) {
     if (
       !isRecord(replay) ||
-      !hasExactKeys(replay, ['variantKey', 'target', 'assertion', 'reproduction']) ||
+      !hasExactKeys(replay, ['variantKey', 'target', 'assertion', 'actions', 'reproduction']) ||
       !isSafeText(replay.variantKey, 200) ||
+      !Array.isArray(replay.actions) ||
       !variantKeys.has(replay.variantKey) ||
       !Array.isArray(replay.reproduction) ||
       replay.reproduction.length === 0 ||
@@ -231,6 +238,7 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
       throw new Error('invalid issue ledger replay')
     parseTargetDescriptor(replay.target)
     parseAuditAssertion(replay.assertion)
+    parseAuditActions(replay.actions)
     const replayKey = replay.variantKey
     if (replayKeys.has(replayKey)) throw new Error('duplicate issue ledger replay')
     replayKeys.add(replayKey)

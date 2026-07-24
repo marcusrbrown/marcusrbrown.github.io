@@ -9,6 +9,7 @@ import {
   MAX_REPLAY_PLAN_BYTES,
   parseReplayPlan,
   parseReplayPlanJson,
+  REPLAY_PLAN_CRONS,
   REPLAY_PLAN_VERSION,
   serializeReplayPlan,
 } from '../../scripts/live-audit/replay-plan'
@@ -27,6 +28,7 @@ const makeLedger = (route: '/projects' | '/about' = '/projects', state = 'core')
     semanticTarget: 'card',
     findingClass: 'broken-image',
     assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
+    actions: [],
     responsive: 'not-applicable',
     failureSignature: 'broken image',
     variants: [
@@ -37,6 +39,7 @@ const makeLedger = (route: '/projects' | '/about' = '/projects', state = 'core')
         variantKey: currentVariantKey,
         target: {kind: 'test-id', value: 'card'},
         assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
+        actions: [],
         reproduction: ['Open projects'],
       },
     ],
@@ -46,6 +49,20 @@ const makeLedger = (route: '/projects' | '/about' = '/projects', state = 'core')
 }
 
 describe('versioned live-audit replay plans', () => {
+  it('preserves either approved originating schedule', () => {
+    const afternoon = buildScheduledReplayPlan({
+      runId: 'scheduled-afternoon',
+      generatedAt,
+      cron: REPLAY_PLAN_CRONS[1],
+      exploration: {steps: 0, durationMs: 0},
+      activeLedgers: [{issueNumber: 204, ledger: makeLedger()}],
+    })
+    expect(afternoon.cron).toBe('30 15 * * *')
+    const parsed = parseReplayPlan(afternoon)
+    expect(parsed.runKind).toBe('scheduled')
+    if (parsed.runKind === 'scheduled') expect(parsed.cron).toBe('30 15 * * *')
+    expect(() => parseReplayPlan({...afternoon, cron: '0 0 * * *'})).toThrow(/schedule|cron/)
+  })
   it('builds a canonical scheduled plan with the exact 24-state matrix', () => {
     const plan = buildScheduledReplayPlan({
       runId: 'scheduled-1',

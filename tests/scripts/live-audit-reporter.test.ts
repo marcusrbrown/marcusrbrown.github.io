@@ -1,4 +1,10 @@
-import type {AuditManifest, EvidenceReference, Finding, ValidationClean} from '../../scripts/live-audit/contract'
+import type {
+  AuditAction,
+  AuditManifest,
+  EvidenceReference,
+  Finding,
+  ValidationClean,
+} from '../../scripts/live-audit/contract'
 import type {GhCommandResult, GhRunner} from '../../scripts/live-audit/github-runner'
 import {Buffer} from 'node:buffer'
 import {createHash} from 'node:crypto'
@@ -9,7 +15,12 @@ import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
 import {computeEvidenceIntegrity} from '../../scripts/live-audit/evidence'
 import {findingFingerprint, operationKey, variantKey} from '../../scripts/live-audit/identity'
-import {parseIssueLedger, renderIssueLedger, type IssueLedger} from '../../scripts/live-audit/issue-ledger'
+import {
+  parseIssueLedger,
+  renderIssueLedger,
+  type IssueLedger,
+  type LedgerReplay,
+} from '../../scripts/live-audit/issue-ledger'
 import {evidenceAssetName} from '../../scripts/live-audit/release-evidence'
 import {
   classifyReporterError,
@@ -47,6 +58,7 @@ const makeFinding = (overrides: Partial<Finding> = {}): Finding => {
     semanticTarget: 'project-card-image',
     target: {kind: 'test-id', value: 'project-card-1'},
     assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
+    actions: [],
     failureSignature: 'broken image',
     description: 'Broken project image',
     reproduction: ['Open projects'],
@@ -90,6 +102,7 @@ const validationFor = (finding: Finding, issueNumber = 204): ValidationClean => 
   findingClass: finding.findingClass,
   failureSignature: finding.failureSignature,
   assertion: finding.assertion,
+  actions: finding.actions,
   variant: finding.variant,
   target: finding.target,
   observedAt: '2026-07-20T03:30:00.000Z',
@@ -128,36 +141,49 @@ const rawIssue = (input: {
   updated_at: '2026-07-20T03:30:00Z',
 })
 
-const ledgerFor = (finding: Finding, overrides: Partial<IssueLedger> = {}): IssueLedger => ({
-  version: 1,
-  fingerprint: findingFingerprint(finding),
-  route: finding.route,
-  semanticTarget: finding.semanticTarget,
-  findingClass: finding.findingClass,
-  assertion: finding.assertion,
-  responsive: finding.responsive,
-  failureSignature: finding.failureSignature,
-  variants: [
-    {
-      key: variantKey(finding.variant),
-      viewport: finding.variant.viewport,
-      theme: finding.variant.theme,
-      state: finding.variant.state,
-      cleanCount: 0,
-    },
-  ],
-  replay: [
-    {
-      variantKey: variantKey(finding.variant),
-      target: finding.target,
-      assertion: finding.assertion,
-      reproduction: finding.reproduction,
-    },
-  ],
-  operations: [],
-  transition: {kind: 'open', source: 'reporter'},
-  ...overrides,
-})
+type LedgerReplayFixture = Omit<LedgerReplay, 'actions'> & {readonly actions?: AuditAction[]}
+type LedgerFixtureOverrides = Omit<Partial<IssueLedger>, 'actions' | 'replay'> & {
+  readonly actions?: AuditAction[]
+  readonly replay?: readonly LedgerReplayFixture[]
+}
+
+const ledgerFor = (finding: Finding, overrides: LedgerFixtureOverrides = {}): IssueLedger => {
+  const actions = overrides.actions ?? finding.actions
+  const replay = (
+    overrides.replay ?? [
+      {
+        variantKey: variantKey(finding.variant),
+        target: finding.target,
+        assertion: finding.assertion,
+        reproduction: finding.reproduction,
+      },
+    ]
+  ).map(item => ({...item, actions: item.actions ?? actions}))
+  return {
+    version: 1,
+    fingerprint: findingFingerprint(finding),
+    route: finding.route,
+    semanticTarget: finding.semanticTarget,
+    findingClass: finding.findingClass,
+    assertion: finding.assertion,
+    responsive: finding.responsive,
+    failureSignature: finding.failureSignature,
+    variants: [
+      {
+        key: variantKey(finding.variant),
+        viewport: finding.variant.viewport,
+        theme: finding.variant.theme,
+        state: finding.variant.state,
+        cleanCount: 0,
+      },
+    ],
+    operations: [],
+    transition: {kind: 'open', source: 'reporter'},
+    ...overrides,
+    actions,
+    replay,
+  }
+}
 
 interface MemoryOptions {
   readonly issue?: ReturnType<typeof rawIssue>
@@ -398,6 +424,7 @@ describe('reporter sealed artifact boundary', () => {
       semanticTarget: finding.semanticTarget,
       findingClass: finding.findingClass,
       assertion: finding.assertion,
+      actions: finding.actions,
       failureSignature: finding.failureSignature,
       variant: finding.variant,
       target: finding.target,
@@ -522,6 +549,52 @@ describe('reporter reconciled lifecycle', () => {
     })
     expect(enabled.writeCount).toBe(6)
     expect(memory.writes.filter(write => write === 'issue-create')).toHaveLength(1)
+  })
+
+  it('persists non-empty finding actions through created, updated, and validated ledgers', async () => {
+    const createdActions: AuditAction[] = [
+      {version: 1, kind: 'click', target: {kind: 'test-id', value: 'project-card-1'}},
+      {version: 1, kind: 'press', scope: 'page', key: 'Enter'},
+    ]
+    const createdFinding = makeFinding({actions: createdActions})
+    const memory = memoryGithub()
+    const created = await reportAudit({
+      manifest: manifestFor({findings: [createdFinding]}),
+      ...depsFor(rootFor(), memory),
+    })
+    expect(created.status).toBe('success')
+    const createdLedger = parseIssueLedger(memory.getIssue()?.body ?? '').ledger
+    expect(createdLedger.actions).toEqual(createdActions)
+    expect(createdLedger.replay[0]?.actions).toEqual(createdActions)
+
+    const updatedActions: AuditAction[] = [
+      {
+        version: 1,
+        kind: 'wait',
+        condition: 'visible',
+        timeoutMs: 500,
+        target: {kind: 'test-id', value: 'project-card-1'},
+      },
+    ]
+    const updatedFinding = makeFinding({actions: updatedActions})
+    const updated = await reportAudit({
+      manifest: manifestFor({runId: 'actions-update', findings: [updatedFinding]}),
+      ...depsFor(rootFor(), memory),
+    })
+    expect(updated.status).toBe('success')
+    const updatedLedger = parseIssueLedger(memory.getIssue()?.body ?? '').ledger
+    expect(updatedLedger.actions).toEqual(updatedActions)
+    expect(updatedLedger.replay[0]?.actions).toEqual(updatedActions)
+
+    const validation = validationFor(updatedFinding)
+    const validated = await reportAudit({
+      manifest: manifestFor({runId: 'actions-validation', findings: [], validations: [validation]}),
+      ...depsFor(rootFor(), memory),
+    })
+    expect(validated.status).toBe('success')
+    const validatedLedger = parseIssueLedger(memory.getIssue()?.body ?? '').ledger
+    expect(validatedLedger.actions).toEqual(updatedActions)
+    expect(validatedLedger.replay[0]?.actions).toEqual(updatedActions)
   })
 
   it('keeps grouped issue and asset operations deterministic across manifest order', async () => {
@@ -1335,6 +1408,7 @@ describe('reporter validation closure', () => {
       semanticTarget: finding.semanticTarget,
       findingClass: finding.findingClass,
       assertion: finding.assertion,
+      actions: finding.actions,
       failureSignature: finding.failureSignature,
       variant: finding.variant,
       target: finding.target,

@@ -1,7 +1,10 @@
 import {describe, expect, it} from 'vitest'
 
 import {
+  AUDIT_ACTION_VERSION,
+  parseAuditAction,
   parseAuditManifest,
+  type AuditAction,
   type AuditManifest,
   type Finding,
   type ResponsiveCounterpart,
@@ -22,6 +25,54 @@ const observation = (signature = 'broken image'): Finding['observations'][number
   status: 'failure',
   signature,
   observedAt: '2026-07-20T03:30:00.000Z',
+})
+
+describe('audit actions', () => {
+  it('accepts closed click, press, and bounded wait actions', () => {
+    const actions: AuditAction[] = [
+      {version: AUDIT_ACTION_VERSION, kind: 'click', target: {kind: 'test-id', value: 'project-card-1'}},
+      {
+        version: AUDIT_ACTION_VERSION,
+        kind: 'press',
+        scope: 'target',
+        key: 'Enter',
+        target: {kind: 'role', role: 'button', name: 'Open'},
+      },
+      {version: AUDIT_ACTION_VERSION, kind: 'press', scope: 'page', key: 'ArrowRight'},
+      {
+        version: AUDIT_ACTION_VERSION,
+        kind: 'wait',
+        condition: 'visible',
+        timeoutMs: 1000,
+        target: {kind: 'text', value: 'Ready'},
+      },
+    ]
+    for (const action of actions) expect(parseAuditAction(action)).toEqual(action)
+  })
+
+  it('rejects unknown, unsafe, unbounded, and arbitrary-key actions', () => {
+    expect(() => parseAuditAction({version: 1, kind: 'click', target: {kind: 'css', value: '.x'}})).toThrow()
+    expect(() => parseAuditAction({version: 1, kind: 'press', scope: 'page', key: 'KeyA'})).toThrow()
+    expect(() =>
+      parseAuditAction({
+        version: 1,
+        kind: 'wait',
+        condition: 'visible',
+        timeoutMs: 0,
+        target: {kind: 'text', value: 'Ready'},
+      }),
+    ).toThrow()
+    expect(() =>
+      parseAuditAction({
+        version: 1,
+        kind: 'wait',
+        condition: 'visible',
+        timeoutMs: 31_000,
+        target: {kind: 'text', value: 'Ready'},
+      }),
+    ).toThrow()
+    expect(() => parseAuditAction({version: 1, kind: 'press', scope: 'page', key: 'Enter', extra: true})).toThrow()
+  })
 })
 
 const responsiveCounterpart = (status: 'clean' | 'failure' = 'clean'): ResponsiveCounterpart => ({
@@ -52,6 +103,7 @@ const validManifest = (): AuditManifest => ({
       semanticTarget: 'project-card-image',
       target: {kind: 'test-id', value: 'project-card-1'},
       assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
+      actions: [],
       failureSignature: 'broken image',
       description: 'The project image is broken.',
       reproduction: ['Open projects'],
@@ -111,6 +163,7 @@ const validCleanValidation = () => ({
   failureSignature: 'broken image',
   target: {kind: 'test-id' as const, value: 'project-card-1'},
   assertion: {version: 1, kind: 'image-load' as const, expected: 'loaded' as const},
+  actions: [],
   observedAt: '2026-07-20T03:30:00.000Z',
   evidence: [
     evidence('context', 'validations/context.png', 'Validation context', 'Context'),

@@ -495,11 +495,18 @@ const ledgerForFinding = (
     semanticTarget: finding.semanticTarget,
     findingClass: finding.findingClass,
     assertion: finding.assertion,
+    actions: finding.actions,
     responsive: finding.responsive,
     failureSignature: finding.failureSignature,
     variants: [initial],
     replay: [
-      {variantKey: key, target: finding.target, assertion: finding.assertion, reproduction: finding.reproduction},
+      {
+        variantKey: key,
+        target: finding.target,
+        assertion: finding.assertion,
+        actions: finding.actions,
+        reproduction: finding.reproduction,
+      },
     ],
     operations: [],
     transition: {kind: 'open' as const, source: 'reporter' as const},
@@ -523,12 +530,19 @@ const ledgerForFinding = (
     ]
   let replay = base.replay.map(item => {
     if (item.variantKey === key)
-      return {...item, target: finding.target, assertion: finding.assertion, reproduction: finding.reproduction}
+      return {
+        ...item,
+        target: finding.target,
+        assertion: finding.assertion,
+        actions: finding.actions,
+        reproduction: finding.reproduction,
+      }
     if (counterpartKey !== undefined && item.variantKey === counterpartKey)
       return {
         ...item,
         target: counterpartData?.target ?? finding.target,
         assertion: finding.assertion,
+        actions: finding.actions,
         reproduction: finding.reproduction,
       }
     return item
@@ -536,7 +550,13 @@ const ledgerForFinding = (
   if (!replay.some(item => item.variantKey === key))
     replay = [
       ...replay,
-      {variantKey: key, target: finding.target, assertion: finding.assertion, reproduction: finding.reproduction},
+      {
+        variantKey: key,
+        target: finding.target,
+        assertion: finding.assertion,
+        actions: finding.actions,
+        reproduction: finding.reproduction,
+      },
     ]
   if (counterpart && counterpartKey && !replay.some(item => item.variantKey === counterpartKey))
     replay = [
@@ -545,10 +565,11 @@ const ledgerForFinding = (
         variantKey: counterpartKey,
         target: counterpartData?.target ?? finding.target,
         assertion: finding.assertion,
+        actions: finding.actions,
         reproduction: finding.reproduction,
       },
     ]
-  let result: IssueLedger = {...base, variants, replay}
+  let result: IssueLedger = {...base, actions: finding.actions, variants, replay}
   const reportKey = operationKey(runId, fingerprint, key, 'report')
   result = addOperation(result, {key: reportKey, checkpoint: 'evidence', completedAt: clock})
   if (!reopen) result = reconcilePendingReopen(result, clock)
@@ -938,7 +959,14 @@ const validationLedger = (
   )
     throw new ReporterError('validation close provenance is missing from the persisted ledger')
   let next: IssueLedger = addOperation(
-    {...reconciledLedger, variants},
+    {
+      ...reconciledLedger,
+      actions: validation.actions,
+      variants,
+      replay: reconciledLedger.replay.map(item =>
+        item.variantKey === validation.variantKey ? {...item, actions: validation.actions} : item,
+      ),
+    },
     {key: operation, checkpoint: 'evidence', completedAt: clock},
   )
   if (shouldClose && next.transition.kind !== 'closed')
