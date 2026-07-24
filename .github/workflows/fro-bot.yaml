@@ -258,54 +258,17 @@ env:
        Use a clear conventional-commit title like
        `chore(lint): apply auto-fixes from autohealing run`.
 
-    4. PRODUCTION SITE REVIEW
-       Use `npx agent-browser` to review the live site at https://mrbro.dev.
-       Check each page: /, /about, /projects, /blog.
+    4. PRODUCTION SITE REVIEW (DELEGATED)
+       Do not use `agent-browser`, Playwright, or any other browser tooling
+       for visual inspection in this generic job. Do not create, edit,
+       label, close, reopen, or comment on visual-audit issues, and do not
+       mutate visual findings through any GitHub API or CLI command.
 
-       For each page:
-       a. Navigate: `npx agent-browser open "https://mrbro.dev{path}"`
-       b. Wait for load: `npx agent-browser wait --load networkidle`
-       c. Full screenshot: `npx agent-browser screenshot --full`
-       d. Snapshot interactive elements: `npx agent-browser snapshot -i`
-
-       Checks to perform:
-       - Pages load without errors or blank content.
-       - Navigation links work (click each nav ref, verify URL changes).
-       - Content sections are populated (use `npx agent-browser get text`
-         on main content areas; flag empty or placeholder text).
-       - Theme toggle functions (click toggle, screenshot before and after,
-         verify visual difference with `npx agent-browser diff screenshot`).
-       - Accessibility landmarks present (nav, main, footer visible in
-         snapshot).
-       - No broken images or missing assets.
-       - Mobile responsiveness: resize viewport to 375px width and verify
-         layout is not broken. "Broken" means: horizontal overflow, clipped
-         or overlapping text, inaccessible primary navigation, or content
-         extending beyond the viewport.
-
-       Retry logic: before creating an issue for a browser finding, rerun
-       the failing check once in a fresh page/session. Only file an issue
-       if the problem reproduces twice or is a hard failure (blank page,
-       broken navigation, missing asset, 4xx/5xx).
-
-       Before creating an issue for a finding, search open issues for an
-       existing report matching the same page and symptom. If a matching
-       open issue exists, reference it in the summary instead of creating
-       a duplicate.
-
-       For new issues, create a GitHub issue with:
-       - Page URL and description of the problem.
-       - Screenshot filename/path and a short text description of what it
-         shows. Attach an image if the environment supports uploads; lack
-         of attachment must not block issue creation.
-       - Severity: label `bug` for broken functionality, `enhancement` for
-         UX improvements.
-       Do NOT push code changes for site review findings. Issues only.
-
-       If `npx agent-browser` is not available or fails to launch, skip
-       this category and note "agent-browser unavailable" under
-       "Needs Human Attention" in the summary. Do not fail the workflow.
-       Close the browser when done: `npx agent-browser close`.
+       The dedicated live-audit-preflight, live-audit-discovery, and
+       live-audit-reporter jobs own bounded visual discovery, deterministic
+       replay, evidence publication, and visual issue mutation. Report the
+       delegated ownership in the autohealing summary when relevant, but do
+       not duplicate the audit or attempt a fallback mutation here.
 
     5. QUALITY GATES VERIFICATION
        Verify the project's quality gates pass on the default branch:
@@ -518,7 +481,9 @@ jobs:
         github.event_name == 'schedule' ||
         github.event_name == 'workflow_dispatch' ||
         (
-          (github.event_name == 'issue_comment' ||
+          ((github.event_name == 'issue_comment' &&
+            (github.event.issue.pull_request ||
+             github.event.comment.body != format('@fro-bot validate #{0}', github.event.issue.number))) ||
            github.event_name == 'pull_request_review_comment' ||
            github.event_name == 'discussion_comment') &&
           contains(github.event.comment.body || '', '@fro-bot') &&
@@ -605,3 +570,286 @@ jobs:
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
           prompt: ${{ env.PROMPT }}
           timeout: 0
+
+  live-audit-preflight:
+    name: Live audit preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      eligible: ${{ steps.preflight.outputs.eligible }}
+      run-kind: ${{ steps.preflight.outputs.run-kind }}
+      issue-number: ${{ steps.preflight.outputs.issue-number }}
+    steps:
+      - name: Check live-audit eligibility
+        id: preflight
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PATH: ${{ github.event_path }}
+          EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          eligible=false
+          run_kind=''
+          issue_number=''
+
+          if [[ "$EVENT_NAME" == 'schedule' ]]; then
+            case "$EVENT_SCHEDULE" in
+              '30 3 * * *'|'30 15 * * *')
+                eligible=true
+                run_kind='scheduled'
+                ;;
+            esac
+          elif [[ "$EVENT_NAME" == 'issue_comment' ]]; then
+            issue_number="$(jq -er '.issue.number | select(type == "number" and floor == . and . > 0) | tostring' "$EVENT_PATH" 2>/dev/null || true)"
+            if jq -e '
+              . as $event |
+              $event.action == "created" and
+              $event.issue.pull_request == null and
+              ($event.issue.number | type == "number" and floor == . and . > 0) and
+              ($event.comment.body |
+                if type == "string" then
+                  . == ("@fro-bot validate #" + ($event.issue.number | tostring))
+                else false end) and
+              ($event.comment.user.type | . != "Bot") and
+              ($event.comment.user.login |
+                if type == "string" then . != "fro-bot" else false end) and
+              ($event.comment.user.login |
+                if type == "string" then (endswith("[bot]") | not) else false end) and
+              ($event.comment.author_association == "OWNER" or
+               $event.comment.author_association == "MEMBER" or
+               $event.comment.author_association == "COLLABORATOR") and
+              ($event.comment.user.login |
+                if type == "string" then test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$") else false end)
+            ' "$EVENT_PATH" >/dev/null; then
+              actor="$(jq -er '.comment.user.login | select(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"))' "$EVENT_PATH")"
+              permission="$(gh api "repos/${REPOSITORY}/collaborators/${actor}/permission" --jq '.permission' 2>/dev/null || true)"
+              case "$permission" in
+                write|maintain|admin)
+                  eligible=true
+                  run_kind='manual'
+                  ;;
+              esac
+            fi
+          fi
+
+          {
+            echo "eligible=$eligible"
+            echo "run-kind=$run_kind"
+            echo "issue-number=$issue_number"
+          } >> "$GITHUB_OUTPUT"
+
+  live-audit-discovery:
+    name: Live audit discovery
+    needs: live-audit-preflight
+    if: needs.live-audit-preflight.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      artifact-name: ${{ steps.finalization.outputs.artifact-name }}
+      run-kind: ${{ steps.finalization.outputs.run-kind }}
+      has-operations: ${{ steps.finalization.outputs.has-operations }}
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup project dependencies and Chromium
+        uses: ./.github/actions/setup
+        with:
+          install-playwright: 'true'
+          playwright-browsers: chromium
+
+      - name: Create fixed live-audit workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$RUNNER_TEMP/live-audit/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          replay_plan="$workspace/replay-plan.json"
+          candidate_bundle="$workspace/candidate-bundle.json"
+          canonical_artifact="$workspace/artifact"
+          result="$workspace/finalization-result.json"
+          mkdir -p "$workspace"
+          test "$replay_plan" = "$workspace/replay-plan.json"
+          test "$candidate_bundle" = "$workspace/candidate-bundle.json"
+          test "$canonical_artifact" = "$workspace/artifact"
+          test "$result" = "$workspace/finalization-result.json"
+          {
+            echo "LIVE_AUDIT_WORKSPACE=$workspace"
+            echo "LIVE_AUDIT_REPLAY_PLAN=$replay_plan"
+            echo "LIVE_AUDIT_CANDIDATE_BUNDLE=$candidate_bundle"
+            echo "LIVE_AUDIT_CANONICAL_ARTIFACT=$canonical_artifact"
+            echo "LIVE_AUDIT_RESULT=$result"
+          } >> "$GITHUB_ENV"
+          {
+            echo "workspace=$workspace"
+            echo "replay-plan=$replay_plan"
+            echo "candidate-bundle=$candidate_bundle"
+            echo "canonical-artifact=$canonical_artifact"
+            echo "result=$result"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prepare read-only replay plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pnpm exec tsx scripts/live-audit/prepare-discovery.ts \
+            --event-file "$GITHUB_EVENT_PATH" \
+            --out "$LIVE_AUDIT_REPLAY_PLAN"
+
+      - name: Load fixed discovery prompt
+        id: load-prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'prompt<<LIVE_AUDIT_PROMPT'
+            cat .github/prompts/fro-bot-live-audit.md
+            echo 'LIVE_AUDIT_PROMPT'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run bounded visual discovery
+        uses: fro-bot/agent@a4976f45a51458c349eb232aa1795f6fa25d5500 # v0.93.1
+        env:
+          OPENCODE_PROMPT_ARTIFACT: 'true'
+        with:
+          auth-json: ${{ secrets.OPENCODE_AUTH_JSON }}
+          github-token: ${{ github.token }}
+          model: ${{ vars.FRO_BOT_MODEL }}
+          omo-providers: ${{ secrets.OMO_PROVIDERS }}
+          opencode-config: ${{ secrets.OPENCODE_CONFIG }}
+          prompt: ${{ steps.load-prompt.outputs.prompt }}
+          timeout: 20
+
+      - name: Verify candidate bundle and clean worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -L "$LIVE_AUDIT_CANDIDATE_BUNDLE" || ! -f "$LIVE_AUDIT_CANDIDATE_BUNDLE" ]]; then
+            echo '::error::The discovery agent did not produce a regular candidate bundle.'
+            exit 1
+          fi
+          if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+            echo '::error::The discovery agent modified the trusted repository worktree.'
+            exit 1
+          fi
+
+      - name: Finalize discovery bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec tsx scripts/live-audit/finalize-discovery.ts \
+            --plan "$LIVE_AUDIT_REPLAY_PLAN" \
+            --candidates "$LIVE_AUDIT_CANDIDATE_BUNDLE" \
+            --out "$LIVE_AUDIT_CANONICAL_ARTIFACT" \
+            --result "$LIVE_AUDIT_RESULT"
+
+      - name: Validate finalization result and close outputs
+        id: finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            type == "object" and
+            (keys | sort == ["diagnosticCount", "findingCount", "hasOperations", "manifestPath", "runKind", "status", "validationCount", "version"]) and
+            .version == 1 and
+            (.runKind == "manual" or .runKind == "scheduled") and
+            (.hasOperations | type == "boolean") and
+            (.status == "success" or .status == "warning" or .status == "failure") and
+            .manifestPath == "manifest.json"
+          ' "$LIVE_AUDIT_RESULT" >/dev/null
+          run_kind="$(jq -er '.runKind' "$LIVE_AUDIT_RESULT")"
+          has_operations="$(jq -er '.hasOperations | tostring' "$LIVE_AUDIT_RESULT")"
+          {
+            echo "artifact-name=live-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            echo "run-kind=$run_kind"
+            echo "has-operations=$has_operations"
+            echo "canonical-artifact=$LIVE_AUDIT_CANONICAL_ARTIFACT"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload canonical live-audit artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: live-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.finalization.outputs.canonical-artifact }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  live-audit-reporter:
+    name: Live audit reporter
+    needs: live-audit-discovery
+    if: >-
+      !cancelled() &&
+      needs.live-audit-discovery.result == 'success' &&
+      (
+        needs.live-audit-discovery.outputs.has-operations == 'true' ||
+        needs.live-audit-discovery.outputs.run-kind == 'manual'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      issues: write
+    concurrency:
+      group: live-audit-reporter
+      cancel-in-progress: false
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup project dependencies
+        uses: ./.github/actions/setup
+
+      - name: Create fresh reporter workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="$RUNNER_TEMP/live-audit-reporter/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -e "$workspace"
+          mkdir -p "$workspace"
+          echo "LIVE_AUDIT_REPORTER_WORKSPACE=$workspace" >> "$GITHUB_ENV"
+          echo "workspace=$workspace" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact live-audit artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ needs.live-audit-discovery.outputs.artifact-name }}
+          path: ${{ steps.workspace.outputs.workspace }}
+
+      - name: Run live-audit reporter
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIVE_AUDIT_WRITE_MODE: ${{ vars.LIVE_AUDIT_WRITE_MODE || 'disabled' }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_STEP_SUMMARY:-}"
+          pnpm exec tsx scripts/live-audit/report-audit.ts \
+            --manifest "$LIVE_AUDIT_REPORTER_WORKSPACE/manifest.json" \
+            --artifact-root "$LIVE_AUDIT_REPORTER_WORKSPACE" \
+            --result "$LIVE_AUDIT_REPORTER_WORKSPACE/reporter-result.json"
