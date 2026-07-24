@@ -1,0 +1,11 @@
+{
+  "number": 204,
+  "title": "Broken card",
+  "body": "Human-authored issue body",
+  "state": "open",
+  "state_reason": null,
+  "labels": [{"id": 1, "name": "visual-audit", "color": "5319e7", "default": false}],
+  "user": {"login": "maintainer"},
+  "comments": 1,
+  "updated_at": "2026-07-20T03:30:00Z"
+}

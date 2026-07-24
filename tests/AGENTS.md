@@ -22,6 +22,12 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 - `e2e/fixtures/` — Viewport configs + test data (2 files)
 - `e2e/utils/` — Navigation and test helpers (2 files)
 
+## Live Audit Evidence
+
+- `scripts/live-audit-*.test.ts` — Vitest coverage for the closed contract, identity/ledger, routing and preflight, replay plans, GitHub runner, evidence/finalizer, release publication, reporter lifecycle, reporter CLI, and the local trusted legacy-adoption descriptor/parser/checkpoint/retry boundary. Use the filename pattern rather than a fixed test count.
+- `scripts/fixtures/live-audit/` — Redacted real-shape GitHub issue, comment, permission, release, asset, search, and close-event fixtures.
+- `e2e/live-audit-evidence.spec.ts` — Chromium evidence spec for target-visible context/crop screenshots, closed assertion replay, and bounded action replay. It is not part of the default Vitest suite.
+
 ## Test Matrices
 
 - **Visual**: 2 themes (light/dark) × 2 breakpoints (375/1440px), ~28 tests

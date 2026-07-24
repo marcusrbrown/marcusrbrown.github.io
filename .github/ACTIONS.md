@@ -51,6 +51,19 @@ Runs on:
 
 > **Note:** The E2E workflow uses `playwright.config.ts` which sets `retries: 2` on CI, absorbing transient network flakiness automatically.
 
+### Fro Bot Live Audit Lane (`.github/workflows/fro-bot.yaml`)
+
+The existing `Fro Bot` job remains the generic required check. Its dedicated live-audit lane is report-only and runs as `live-audit-preflight` → `live-audit-discovery` / finalizer → `live-audit-reporter`:
+
+- **Triggers:** the existing `30 3 * * *` and `30 15 * * *` UTC schedules, `workflow_dispatch` with `mode: live-audit` and a closed `live-audit-slot` choice, and the exact authorized issue-local command `@fro-bot validate #N`.
+- **Write mode:** `LIVE_AUDIT_WRITE_MODE` defaults to `disabled`; `manual-only` permits approved manual writes while schedules remain dry-run; `enabled` permits both. A live-audit dispatch always forces `disabled`.
+- **Permissions:** preflight/discovery have `contents: read` and `issues: read`; the reporter alone has `contents: write` and `issues: write`, with no pull-request or discussion write permission. Discovery receives the model-auth secrets; reporter does not.
+- **Discovery token boundary:** Pinned `fro-bot/agent@v0.93.1` requires `github-token: ${{ github.token }}`. Scheduled and `workflow_dispatch` executions provide that ephemeral, job-scoped read-only token to the model/runtime; `response-mode: none` prevents intentional action responses. The dedicated lane supplies no `FRO_BOT_PAT` or new long-lived token. This is not credential-free isolation: the fixed no-GitHub-use prompt rule is defense in depth, not a hard API boundary.
+- **Handoff:** discovery writes a fixed run-scoped workspace to a canonical Actions artifact with 7-day retention. The reporter downloads that exact artifact into a fresh workspace and publishes only verified context/crop PNGs to the rolling `live-audit-evidence` release before issue mutation.
+- **Concurrency:** `live-audit-reporter` uses a non-cancelling concurrency group; GitHub permits one active and one pending reporter run, not a durable queue. A newer pending run can replace an older pending run, so displaced approved operations require visible diagnostics and a manual rerun.
+
+See the [live-audit evidence runbook](../docs/live-audit-evidence.md) for the contract, retention, lifecycle, rollout gates, and emergency disable procedure.
+
 ### 📰 Blog Refresh Workflow (`.github/workflows/blog-refresh.yaml`)
 
 Runs on:
@@ -145,7 +158,7 @@ A composite action that standardizes project setup across all workflows.
 - name: Setup project with Playwright
   uses: ./.github/actions/setup
   with:
-    install-playwright: 'true'
+    install-playwright: "true"
 ```
 
 ## Security & Best Practices

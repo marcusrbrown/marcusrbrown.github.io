@@ -1,0 +1,8 @@
+{
+  "id": 42,
+  "tag_name": "live-audit-evidence",
+  "upload_url": "https://uploads.github.com/repos/example/repo/releases/42/assets{?name,label}",
+  "draft": false,
+  "prerelease": false,
+  "assets": []
+}
