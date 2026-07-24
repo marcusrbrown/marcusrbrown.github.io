@@ -1,0 +1,391 @@
+import type {AuditManifest, EvidenceReference, Finding} from '../../scripts/live-audit/contract'
+import type {GhRunner} from '../../scripts/live-audit/github-runner'
+import {Buffer} from 'node:buffer'
+import {createHash} from 'node:crypto'
+import {mkdirSync, mkdtempSync, symlinkSync, writeFileSync} from 'node:fs'
+import {appendFile, lstat, readFile, realpath, rename, unlink, writeFile} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {
+  MAX_MANIFEST_BYTES,
+  MAX_RESULT_BYTES,
+  MAX_SUMMARY_BYTES,
+  runReportAuditCli,
+  type ReportAuditCliFileSystem,
+} from '../../scripts/live-audit/report-audit'
+
+const {reportAuditMock} = vi.hoisted(() => ({reportAuditMock: vi.fn()}))
+vi.mock('../../scripts/live-audit/reporter', () => ({
+  classifyReporterError: (error: unknown) => ({
+    status: 'failure',
+    diagnostic: {
+      code: 'contract',
+      severity: 'failure',
+      message: error instanceof Error ? error.message : 'reporter failed',
+    },
+  }),
+  reportAudit: reportAuditMock,
+}))
+
+const png = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+)
+
+const fs: ReportAuditCliFileSystem = {
+  appendFile,
+  lstat,
+  readFile,
+  realpath,
+  rename,
+  unlink,
+  writeFile,
+}
+
+const digest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex')
+
+const rootFor = (): string => {
+  const root = mkdtempSync(join(tmpdir(), 'live-audit-report-cli-'))
+  mkdirSync(join(root, 'evidence'), {recursive: true})
+  writeFileSync(join(root, 'evidence/context.png'), png)
+  writeFileSync(join(root, 'evidence/crop.png'), png)
+  return root
+}
+
+const ref = (role: 'context' | 'crop', path: string): EvidenceReference => ({
+  role,
+  path,
+  alt: `${role} evidence`,
+  caption: `${role} screenshot`,
+  integrity: {path, sha256: digest(png), width: 1, height: 1, bytes: png.byteLength},
+})
+
+const findingFor = (contextPath = 'evidence/context.png', cropPath = 'evidence/crop.png'): Finding => ({
+  route: '/projects',
+  findingClass: 'broken-image',
+  responsive: 'not-applicable',
+  semanticTarget: 'project-card-image',
+  target: {kind: 'test-id', value: 'project-card-image'},
+  assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
+  actions: [],
+  failureSignature: 'broken image',
+  description: 'Broken project image',
+  reproduction: ['Open projects'],
+  variant: {viewport: 'mobile', theme: {kind: 'preset', presetId: 'dracula'}, state: 'default'},
+  observations: [
+    {kind: 'candidate', status: 'failure', signature: 'broken image', observedAt: '2026-07-20T03:30:00.000Z'},
+    {kind: 'replay', status: 'failure', signature: 'broken image', observedAt: '2026-07-20T03:30:00.000Z'},
+  ],
+  evidence: [ref('context', contextPath), ref('crop', cropPath)],
+})
+
+const manifestFor = (overrides: Partial<AuditManifest> = {}): AuditManifest =>
+  ({
+    version: 1,
+    runId: 'run-report-cli-1',
+    generatedAt: '2026-07-20T03:30:00.000Z',
+    runKind: 'scheduled',
+    rotatingPresetId: 'dracula',
+    findings: [],
+    validations: [],
+    ...overrides,
+  }) as AuditManifest
+
+const envFor = (overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> => ({
+  GITHUB_REPOSITORY: 'example/repo',
+  GITHUB_SERVER_URL: 'https://github.com',
+  GITHUB_RUN_ID: '123456',
+  GITHUB_RUN_ATTEMPT: '2',
+  GH_TOKEN: 'super-secret-token',
+  GITHUB_STEP_SUMMARY: undefined,
+  ...overrides,
+})
+
+const writeManifest = async (root: string, manifest: unknown, name = 'manifest.json'): Promise<string> => {
+  const path = join(root, name)
+  await writeFile(path, JSON.stringify(manifest), 'utf8')
+  return path
+}
+
+const argsFor = (manifestPath: string, root: string, resultPath: string): string[] => [
+  '--manifest',
+  manifestPath,
+  '--artifact-root',
+  root,
+  '--result',
+  resultPath,
+]
+
+const emptyRunner = (): GhRunner => ({run: vi.fn(async () => ({stdout: '[]', stderr: '', exitCode: 0}))})
+
+describe('live-audit report CLI', () => {
+  beforeEach(() => {
+    reportAuditMock.mockImplementation(
+      async (input: {readonly manifest: AuditManifest; readonly writeMode?: string}) => {
+        if (input.manifest.runId === 'run-report-cli-thrown') throw new Error('reporter threw')
+        if (input.manifest.runId === 'run-report-cli-failure')
+          return {
+            manifest: input.manifest,
+            status: 'failure',
+            diagnosticDetails: [{code: 'planning', severity: 'failure', message: 'typed failure'}],
+            operations: [],
+            diagnostics: ['typed failure'],
+            writeCount: 0,
+            issueNumbers: [],
+          }
+        const warning = input.writeMode !== 'enabled'
+        return {
+          manifest: input.manifest,
+          status: warning ? 'warning' : 'success',
+          diagnosticDetails: warning
+            ? [
+                {
+                  code: input.writeMode === 'manual-only' ? 'manual-only' : 'writes-disabled',
+                  severity: 'warning',
+                  message: 'decision warning',
+                },
+              ]
+            : [],
+          operations: [],
+          diagnostics: warning ? ['decision warning'] : [],
+          writeCount: 0,
+          issueNumbers: [],
+        }
+      },
+    )
+  })
+
+  it('rejects unknown, duplicate, missing, positional, and stdin-like arguments before constructing the runner', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const runnerFactory = vi.fn(() => emptyRunner())
+    const common = {env: envFor(), fs, runnerFactory}
+
+    await expect(
+      runReportAuditCli({
+        ...common,
+        argv: [...argsFor(manifestPath, root, join(root, 'result.json')), '--unknown', 'value'],
+      }),
+    ).rejects.toThrow()
+    await expect(
+      runReportAuditCli({
+        ...common,
+        argv: [...argsFor(manifestPath, root, join(root, 'result.json')), '--result', join(root, 'other.json')],
+      }),
+    ).rejects.toThrow()
+    await expect(
+      runReportAuditCli({
+        ...common,
+        argv: ['--manifest', manifestPath, '--artifact-root', root],
+      }),
+    ).rejects.toThrow()
+    await expect(
+      runReportAuditCli({
+        ...common,
+        argv: [...argsFor(manifestPath, root, join(root, 'result.json')), 'stdin-data'],
+      }),
+    ).rejects.toThrow()
+    expect(runnerFactory).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid closed environment values before constructing the runner', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const runnerFactory = vi.fn(() => emptyRunner())
+    const values = [
+      {GITHUB_REPOSITORY: 'example'},
+      {GITHUB_SERVER_URL: 'https://github.example.com'},
+      {GITHUB_SERVER_URL: 'http://github.com'},
+      {GITHUB_RUN_ID: 'not-a-run'},
+      {GITHUB_RUN_ATTEMPT: '0'},
+      {GH_TOKEN: ''},
+      {LIVE_AUDIT_WRITE_MODE: 'sometimes'},
+    ]
+
+    for (const value of values) {
+      await expect(
+        runReportAuditCli({
+          argv: argsFor(manifestPath, root, join(root, 'result.json')),
+          env: envFor(value),
+          fs,
+          runnerFactory,
+        }),
+      ).rejects.toThrow()
+    }
+    expect(runnerFactory).not.toHaveBeenCalled()
+  })
+
+  it('rejects traversal, symlink, malformed, and oversized manifests before constructing the runner', async () => {
+    const root = rootFor()
+    const outside = mkdtempSync(join(tmpdir(), 'live-audit-report-cli-outside-'))
+    const outsideManifest = await writeManifest(outside, manifestFor())
+    const symlinkPath = join(root, 'linked-manifest.json')
+    symlinkSync(outsideManifest, symlinkPath)
+    const malformed = await writeManifest(root, '{')
+    const oversized = join(root, 'oversized.json')
+    writeFileSync(oversized, Buffer.alloc(MAX_MANIFEST_BYTES + 1, 0x20))
+    const runnerFactory = vi.fn(() => emptyRunner())
+    const invoke = (manifestPath: string) =>
+      runReportAuditCli({
+        argv: argsFor(manifestPath, root, join(root, 'result.json')),
+        env: envFor(),
+        fs,
+        runnerFactory,
+      })
+
+    await expect(invoke(join(root, '..', root.split('/').pop() ?? '', 'missing.json'))).rejects.toThrow()
+    await expect(invoke(symlinkPath)).rejects.toThrow()
+    await expect(invoke(malformed)).rejects.toThrow()
+    await expect(invoke(oversized)).rejects.toThrow()
+    expect(runnerFactory).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing', undefined, 'disabled'],
+    ['disabled', 'disabled', 'disabled'],
+    ['manual-only', 'manual-only', 'manual-only'],
+    ['enabled', 'enabled', 'enabled'],
+  ])('accepts %s write mode and always produces a decision', async (_label, configuredMode, expectedMode) => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const resultPath = join(root, `${_label}.result.json`)
+    const runner = emptyRunner()
+    const runnerFactory = vi.fn(() => runner)
+    const summaryWriter = vi.fn()
+    const exitCode = await runReportAuditCli({
+      argv: argsFor(manifestPath, root, resultPath),
+      env: envFor({LIVE_AUDIT_WRITE_MODE: configuredMode}),
+      fs,
+      runnerFactory,
+      summaryWriter,
+      fetch: vi.fn(),
+      clock: () => new Date('2026-07-20T03:30:00.000Z'),
+    })
+
+    expect(exitCode).toBe(0)
+    expect(runnerFactory).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({
+      version: 1,
+      status: expectedMode === 'enabled' ? 'success' : 'warning',
+    })
+  })
+
+  it('maps typed success, warning, and failure reporter outcomes to exit codes without diagnostic string matching', async () => {
+    const root = rootFor()
+    const successManifest = await writeManifest(root, manifestFor(), 'success.json')
+    const warningManifest = await writeManifest(root, manifestFor(), 'warning.json')
+    const failureManifest = await writeManifest(
+      root,
+      manifestFor({runId: 'run-report-cli-failure', findings: [findingFor()]}),
+      'failure.json',
+    )
+    const thrownManifest = await writeManifest(root, manifestFor({runId: 'run-report-cli-thrown'}), 'thrown.json')
+    const run = (manifestPath: string, name: string) =>
+      runReportAuditCli({
+        argv: argsFor(manifestPath, root, join(root, name)),
+        env: envFor({LIVE_AUDIT_WRITE_MODE: name === 'warning-result.json' ? 'disabled' : 'enabled'}),
+        fs,
+        runnerFactory: () => emptyRunner(),
+        summaryWriter: vi.fn(),
+        clock: () => new Date('2026-07-20T03:30:00.000Z'),
+      })
+
+    expect(await run(successManifest, 'success-result.json')).toBe(0)
+    expect(await run(warningManifest, 'warning-result.json')).toBe(0)
+    expect(await run(failureManifest, 'failure-result.json')).toBe(1)
+    expect(await run(thrownManifest, 'thrown-result.json')).toBe(1)
+    expect(JSON.parse(await readFile(join(root, 'failure-result.json'), 'utf8'))).toMatchObject({
+      status: 'failure',
+      diagnosticDetails: [{code: 'planning', severity: 'failure'}],
+    })
+    expect(JSON.parse(await readFile(join(root, 'thrown-result.json'), 'utf8'))).toMatchObject({
+      status: 'failure',
+      diagnosticDetails: [{code: 'contract', severity: 'failure'}],
+    })
+  })
+
+  it('writes a versioned closed result atomically and omits tokens and raw stderr', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const resultPath = join(root, 'report-result.json')
+    const summaryPath = join(root, 'summary.md')
+    const summaryWriter = vi.fn(async (path: string, content: string) => appendFile(path, content, 'utf8'))
+    const renameSpy = vi.spyOn(fs, 'rename')
+
+    expect(
+      await runReportAuditCli({
+        argv: argsFor(manifestPath, root, resultPath),
+        env: envFor({GITHUB_STEP_SUMMARY: summaryPath}),
+        fs,
+        runnerFactory: () => emptyRunner(),
+        summaryWriter,
+        clock: () => new Date('2026-07-20T03:30:00.000Z'),
+      }),
+    ).toBe(0)
+
+    const result = JSON.parse(await readFile(resultPath, 'utf8')) as Record<string, unknown>
+    expect(Object.keys(result).sort()).toEqual([
+      'diagnosticDetails',
+      'issueNumbers',
+      'operations',
+      'status',
+      'version',
+      'writeCount',
+    ])
+    expect(JSON.stringify(result)).not.toContain('super-secret-token')
+    expect(JSON.stringify(result)).not.toContain('raw stderr')
+    expect(renameSpy).toHaveBeenCalledTimes(1)
+    expect(summaryWriter).toHaveBeenCalledTimes(1)
+    const summary = await readFile(summaryPath, 'utf8')
+    expect(Buffer.byteLength(summary, 'utf8')).toBeLessThanOrEqual(MAX_SUMMARY_BYTES)
+    expect(Buffer.byteLength(await readFile(resultPath), 'utf8')).toBeLessThanOrEqual(MAX_RESULT_BYTES)
+  })
+
+  it('cleans up the temporary result when an atomic write fails', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const resultPath = join(root, 'failed-result.json')
+    const writes: string[] = []
+    const failingFs: ReportAuditCliFileSystem = {
+      ...fs,
+      writeFile: async (path, content) => {
+        writes.push(path)
+        if (path !== resultPath) throw new Error('write failed')
+        await writeFile(path, content)
+      },
+    }
+
+    await expect(
+      runReportAuditCli({
+        argv: argsFor(manifestPath, root, resultPath),
+        env: envFor(),
+        fs: failingFs,
+        runnerFactory: () => emptyRunner(),
+      }),
+    ).rejects.toThrow('write failed')
+    expect(writes).toHaveLength(1)
+    await expect(readFile(resultPath)).rejects.toThrow()
+  })
+
+  it('builds the production workflow URL with an optional attempt and validates repository identity', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const resultPath = join(root, 'result.json')
+    const runner = emptyRunner()
+    const runnerFactory = vi.fn(() => runner)
+
+    await expect(
+      runReportAuditCli({
+        argv: argsFor(manifestPath, root, resultPath),
+        env: envFor({GITHUB_RUN_ATTEMPT: undefined}),
+        fs,
+        runnerFactory,
+      }),
+    ).resolves.toBe(0)
+    expect(runnerFactory).toHaveBeenCalledWith(expect.objectContaining({GITHUB_SERVER_URL: 'https://github.com'}))
+    expect(reportAuditMock.mock.calls.at(-1)?.[0].workflowRunUrl).toBe(
+      'https://github.com/example/repo/actions/runs/123456',
+    )
+  })
+})
