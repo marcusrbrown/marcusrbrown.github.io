@@ -139,6 +139,9 @@ jobs:
       - name: Setup project
         uses: ./.github/actions/setup
 
+      - name: Check React Router RSC advisory boundary
+        run: pnpm run security:react-router-rsc
+
       - name: Check for security vulnerabilities
         run: pnpm audit --audit-level moderate
 

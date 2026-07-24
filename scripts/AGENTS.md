@@ -1,6 +1,6 @@
 # scripts/
 
-19 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, and project preview refresh, plus the `live-audit/` module.
+20 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
 
 ## Execution
 
@@ -53,6 +53,12 @@
 | Script | Role |
 | --- | --- |
 | `project-preview-refresh.ts` | Fetches and atomically publishes GitHub social cards, with fail-safe refresh and R9 pruning |
+
+### Security Boundary
+
+| Script | Role |
+| --- | --- |
+| `check-react-router-rsc-boundary.ts` | Fail-closed tracked-source guard for the exact React Router RSC advisory exception boundary |
 
 ### Live Audit Evidence (`live-audit/`)
 

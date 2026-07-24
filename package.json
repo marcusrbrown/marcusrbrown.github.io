@@ -31,6 +31,7 @@
     "setup-hooks": "simple-git-hooks",
     "analyze-build": "tsx scripts/analyze-build.ts",
     "blog-refresh": "tsx scripts/blog-refresh.ts",
+    "security:react-router-rsc": "tsx scripts/check-react-router-rsc-boundary.ts",
     "project-preview-refresh": "tsx scripts/project-preview-refresh.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
