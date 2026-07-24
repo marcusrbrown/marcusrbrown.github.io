@@ -49,6 +49,40 @@ describe('live-audit finalizer CLI', () => {
       integrity: computeEvidenceIntegrity(path, png),
     })) as [Finding['evidence'][number], Finding['evidence'][number]],
   })
+  const makeCandidate = (finding: Finding) => {
+    const {observations: _observations, evidence: _evidence, ...candidateFields} = finding
+    return {
+      ...candidateFields,
+      observation: {
+        status: 'failure' as const,
+        signature: finding.failureSignature,
+        observedAt: '2026-07-24T03:30:00.000Z',
+      },
+    }
+  }
+  const makeActiveRequest = (variant: {
+    viewport: 'desktop' | 'mobile'
+    theme: {kind: 'mode'; mode: 'light'}
+    state: 'core'
+  }) => ({
+    issueNumber: 42,
+    fingerprint: findingFingerprint({
+      route: '/projects',
+      semanticTarget: 'test-id:project-card-1',
+      failureSignature: 'image-load:broken',
+    }),
+    variantKey: variantKey(variant),
+    route: '/projects' as const,
+    semanticTarget: 'test-id:project-card-1',
+    findingClass: 'broken-image' as const,
+    assertion: {version: 1 as const, kind: 'image-load' as const, expected: 'loaded' as const},
+    actions: [],
+    failureSignature: 'image-load:broken',
+    responsive: 'not-applicable' as const,
+    variant,
+    target: {kind: 'test-id' as const, value: 'project-card-1'},
+    reproduction: ['Open projects'],
+  })
   const writeCandidateFixture = (directory: string, finding: Finding) => {
     const plan = buildScheduledReplayPlan({
       runId: 'scheduled-fixture',
@@ -56,11 +90,7 @@ describe('live-audit finalizer CLI', () => {
       exploration: {steps: 0, durationMs: 0},
       activeLedgers: [],
     })
-    const {observations: _observations, evidence: _evidence, ...candidateFields} = finding
-    const candidate = {
-      ...candidateFields,
-      observation: {status: 'failure', signature: finding.failureSignature, observedAt: plan.generatedAt},
-    }
+    const candidate = makeCandidate(finding)
     const planPath = join(directory, 'plan.json')
     const candidatePath = join(directory, 'candidates.json')
     writeFileSync(planPath, serializeReplayPlan(plan))
@@ -651,6 +681,108 @@ describe('live-audit finalizer CLI', () => {
     expect(result).toMatchObject({runKind: 'manual', hasOperations: false, status: 'warning'})
     expect(readFileSync(join(directory, 'artifact', 'provenance', 'replay-plan.json'), 'utf8')).toContain('manual-noop')
     expect(readFileSync(join(directory, 'artifact', 'diagnostics.json'), 'utf8')).not.toContain('secret-token')
+  })
+
+  it('does not invoke a later candidate after the global deadline is exhausted', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'live-audit-finalizer-candidate-deadline-'))
+    const plan = buildScheduledReplayPlan({
+      runId: 'scheduled-candidate-deadline',
+      generatedAt: '2026-07-24T03:30:00.000Z',
+      exploration: {steps: 0, durationMs: 0},
+      activeLedgers: [],
+    })
+    const planPath = join(directory, 'replay-plan.json')
+    const candidatePath = join(directory, 'candidate-bundle.json')
+    const outputPath = join(directory, 'artifact')
+    const resultPath = join(directory, 'result.json')
+    const firstCandidate = makeCandidate(makeFinding())
+    const secondCandidate = makeCandidate(makeFinding())
+    writeFileSync(planPath, serializeReplayPlan(plan))
+    writeFileSync(
+      candidatePath,
+      JSON.stringify({
+        version: 1,
+        runId: plan.runId,
+        runKind: 'scheduled',
+        rotatingPresetId: plan.rotatingPresetId,
+        generatedAt: plan.generatedAt,
+        candidates: [firstCandidate, secondCandidate],
+        diagnostics: [],
+        exploration: plan.exploration,
+      }),
+    )
+    let now = 0
+    let browserCalls = 0
+    await expect(
+      runFinalizeDiscovery({
+        args: ['--plan', planPath, '--candidates', candidatePath, '--out', outputPath, '--result', resultPath],
+        timeoutMs: 10,
+        clock: () => new Date(now),
+        browser: {
+          finalizeCandidate: async () => {
+            browserCalls += 1
+            now = 10
+            return {}
+          },
+          finalizeActive: async () => ({}),
+        },
+      }),
+    ).rejects.toThrow('candidate replay timed out')
+    expect(browserCalls).toBe(1)
+  })
+
+  it('does not invoke a later active replay after the global deadline is exhausted', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'live-audit-finalizer-active-deadline-'))
+    const planBase = buildScheduledReplayPlan({
+      runId: 'scheduled-active-deadline',
+      generatedAt: '2026-07-24T03:30:00.000Z',
+      exploration: {steps: 0, durationMs: 0},
+      activeLedgers: [],
+    })
+    const plan = {
+      ...planBase,
+      activeRequests: [
+        makeActiveRequest({viewport: 'desktop', theme: {kind: 'mode', mode: 'light'}, state: 'core'}),
+        makeActiveRequest({viewport: 'mobile', theme: {kind: 'mode', mode: 'light'}, state: 'core'}),
+      ],
+      issueNumbers: [42],
+    }
+    const planPath = join(directory, 'replay-plan.json')
+    const candidatePath = join(directory, 'candidate-bundle.json')
+    const outputPath = join(directory, 'artifact')
+    const resultPath = join(directory, 'result.json')
+    writeFileSync(planPath, serializeReplayPlan(plan))
+    writeFileSync(
+      candidatePath,
+      JSON.stringify({
+        version: 1,
+        runId: plan.runId,
+        runKind: 'scheduled',
+        rotatingPresetId: plan.rotatingPresetId,
+        generatedAt: plan.generatedAt,
+        candidates: [],
+        diagnostics: [],
+        exploration: plan.exploration,
+      }),
+    )
+    let now = 0
+    let browserCalls = 0
+    await expect(
+      runFinalizeDiscovery({
+        args: ['--plan', planPath, '--candidates', candidatePath, '--out', outputPath, '--result', resultPath],
+        timeoutMs: 10,
+        clock: () => new Date(now),
+        browser: {
+          finalizeCandidate: async () => ({}),
+          finalizeActive: async () => {
+            browserCalls += 1
+            now = 10
+            return {}
+          },
+        },
+      }),
+    ).rejects.toThrow('active replay timed out')
+    expect(browserCalls).toBe(1)
   })
 
   it('bounds replay time and cleans output state when an adapter never resolves', async () => {

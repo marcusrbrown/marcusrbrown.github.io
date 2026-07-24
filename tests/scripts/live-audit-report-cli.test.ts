@@ -203,15 +203,23 @@ describe('live-audit report CLI', () => {
       {LIVE_AUDIT_WRITE_MODE: 'sometimes'},
     ]
 
-    for (const value of values) {
+    for (const [index, value] of values.entries()) {
+      const resultPath = join(root, `invalid-env-${index}.json`)
       await expect(
         runReportAuditCli({
-          argv: argsFor(manifestPath, root, join(root, 'result.json')),
+          argv: argsFor(manifestPath, root, resultPath),
           env: envFor(value),
           fs,
           runnerFactory,
         }),
-      ).rejects.toThrow()
+      ).resolves.toBe(1)
+      expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({
+        version: 1,
+        status: 'failure',
+        operations: [],
+        writeCount: 0,
+        issueNumbers: [],
+      })
     }
     expect(runnerFactory).not.toHaveBeenCalled()
   })
@@ -226,19 +234,133 @@ describe('live-audit report CLI', () => {
     const oversized = join(root, 'oversized.json')
     writeFileSync(oversized, Buffer.alloc(MAX_MANIFEST_BYTES + 1, 0x20))
     const runnerFactory = vi.fn(() => emptyRunner())
-    const invoke = (manifestPath: string) =>
+    for (const [index, manifestPath] of [
+      join(root, '..', root.split('/').pop() ?? '', 'missing.json'),
+      symlinkPath,
+      malformed,
+      oversized,
+    ].entries()) {
+      const resultPath = join(root, `invalid-manifest-${index}.json`)
+      await expect(
+        runReportAuditCli({
+          argv: argsFor(manifestPath, root, resultPath),
+          env: envFor(),
+          fs,
+          runnerFactory,
+        }),
+      ).resolves.toBe(1)
+      const result = JSON.parse(await readFile(resultPath, 'utf8')) as Record<string, unknown>
+      expect(result).toMatchObject({version: 1, status: 'failure', operations: [], writeCount: 0, issueNumbers: []})
+      expect(JSON.stringify(result)).not.toContain(envFor().GH_TOKEN)
+    }
+    expect(runnerFactory).not.toHaveBeenCalled()
+  })
+
+  it('bounds streamed public image verification and honors the content-length precheck', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const verified = vi.fn()
+    reportAuditMock.mockImplementationOnce(
+      async (input: {
+        readonly manifest: AuditManifest
+        readonly verifyPublicImage: (url: string) => Promise<{readonly ok: boolean; readonly reason?: string}>
+      }) => {
+        verified(await input.verifyPublicImage('https://example.test/declared-too-large.png'))
+        verified(await input.verifyPublicImage('https://example.test/chunked-too-large.png'))
+        return {
+          manifest: input.manifest,
+          status: 'success' as const,
+          diagnosticDetails: [],
+          operations: [],
+          diagnostics: [],
+          writeCount: 0,
+          issueNumbers: [],
+        }
+      },
+    )
+    const fetchImpl = vi.fn(async (input: URL | RequestInfo) => {
+      const url = String(input)
+      if (url.endsWith('declared-too-large.png'))
+        return new Response(png, {
+          status: 200,
+          headers: {'content-length': '5000001', 'content-type': 'image/png'},
+        })
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array(5_000_001))
+            controller.close()
+          },
+        }),
+        {status: 200, headers: {'content-type': 'image/png'}},
+      )
+    })
+
+    await expect(
       runReportAuditCli({
         argv: argsFor(manifestPath, root, join(root, 'result.json')),
         env: envFor(),
         fs,
-        runnerFactory,
-      })
+        runnerFactory: () => emptyRunner(),
+        fetch: fetchImpl,
+      }),
+    ).resolves.toBe(0)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(verified).toHaveBeenNthCalledWith(1, {ok: false, reason: 'public image exceeds size limit'})
+    expect(verified).toHaveBeenNthCalledWith(2, {ok: false, reason: 'public image exceeds size limit'})
+  })
 
-    await expect(invoke(join(root, '..', root.split('/').pop() ?? '', 'missing.json'))).rejects.toThrow()
-    await expect(invoke(symlinkPath)).rejects.toThrow()
-    await expect(invoke(malformed)).rejects.toThrow()
-    await expect(invoke(oversized)).rejects.toThrow()
-    expect(runnerFactory).not.toHaveBeenCalled()
+  it('aborts a stalled response body reader within the same deadline and cancels it', async () => {
+    vi.useFakeTimers()
+    try {
+      const root = rootFor()
+      const manifestPath = await writeManifest(root, manifestFor())
+      const cancel = vi.fn(async () => undefined)
+      const body = {
+        getReader: () => ({
+          cancel,
+          read: () => new Promise<ReadableStreamReadResult<Uint8Array>>(() => undefined),
+        }),
+      } as unknown as ReadableStream<Uint8Array>
+      const response = {
+        body,
+        headers: new Headers({'content-type': 'image/png'}),
+        ok: true,
+      } as unknown as Response
+      reportAuditMock.mockImplementationOnce(
+        async (input: {
+          readonly manifest: AuditManifest
+          readonly verifyPublicImage: (url: string) => Promise<{readonly ok: boolean; readonly reason?: string}>
+        }) => {
+          const verification = await input.verifyPublicImage('https://example.test/stalled.png')
+          return {
+            manifest: input.manifest,
+            status: verification.ok ? ('success' as const) : ('failure' as const),
+            diagnosticDetails: verification.ok
+              ? []
+              : [{code: 'contract' as const, severity: 'failure' as const, message: verification.reason ?? 'failed'}],
+            operations: [],
+            diagnostics: verification.ok ? [] : [verification.reason ?? 'failed'],
+            writeCount: 0,
+            issueNumbers: [],
+          }
+        },
+      )
+      const fetchImpl = vi.fn(async () => response)
+      const run = runReportAuditCli({
+        argv: argsFor(manifestPath, root, join(root, 'result.json')),
+        env: envFor(),
+        fs,
+        runnerFactory: () => emptyRunner(),
+        fetch: fetchImpl,
+      })
+      await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1))
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(await run).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it.each([

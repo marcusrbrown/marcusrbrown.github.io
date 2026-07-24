@@ -405,30 +405,89 @@ describe('legacy issue adoption', () => {
     })
     expect(exitCode).toBe(0)
     expect(runnerFactory).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({version: 1, status: 'warning', writeCount: 0})
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({
+      version: 2,
+      kind: 'adoption-result',
+      status: 'warning',
+      writeCount: 0,
+    })
     expect(() => parseAdoptLegacyIssueCliArgs(['--descriptor', descriptorPath])).toThrow()
     expect(() =>
       parseAdoptLegacyIssueCliArgs(['--descriptor', descriptorPath, '--result', resultPath, '--unknown']),
     ).toThrow()
     const symlinkPath = join(root, 'symlink.json')
     symlinkSync(descriptorPath, symlinkPath)
-    await expect(
-      runAdoptLegacyIssueCli({
-        argv: ['--descriptor', symlinkPath, '--result', resultPath],
-        env,
-        fs: cliFs,
-        runnerFactory,
-      }),
-    ).rejects.toThrow()
+    const symlinkExitCode = await runAdoptLegacyIssueCli({
+      argv: ['--descriptor', symlinkPath, '--result', resultPath],
+      env,
+      fs: cliFs,
+      runnerFactory,
+    })
+    expect(symlinkExitCode).toBe(1)
+    const symlinkResult = JSON.parse(await readFile(resultPath, 'utf8')) as Record<string, unknown>
+    expect(symlinkResult).toMatchObject({version: 2, kind: 'preflight-failure'})
+    expect(Object.keys(symlinkResult).sort()).toEqual([
+      'diagnosticDetails',
+      'kind',
+      'operations',
+      'status',
+      'version',
+      'writeCount',
+    ])
     writeFileSync(descriptorPath, Buffer.alloc(MAX_LEGACY_DESCRIPTOR_BYTES + 1, 0x20))
-    await expect(
-      runAdoptLegacyIssueCli({
-        argv: ['--descriptor', descriptorPath, '--result', resultPath],
+    const oversizedExitCode = await runAdoptLegacyIssueCli({
+      argv: ['--descriptor', descriptorPath, '--result', resultPath],
+      env,
+      fs: cliFs,
+      runnerFactory,
+    })
+    expect(oversizedExitCode).toBe(1)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({version: 2, kind: 'preflight-failure'})
+
+    const malformedPath = join(root, 'malformed.json')
+    writeFileSync(malformedPath, '{')
+    expect(
+      await runAdoptLegacyIssueCli({
+        argv: ['--descriptor', malformedPath, '--result', resultPath],
         env,
         fs: cliFs,
         runnerFactory,
       }),
-    ).rejects.toThrow()
+    ).toBe(1)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({version: 2, kind: 'preflight-failure'})
+
+    const invalidDescriptorPath = join(root, 'invalid.json')
+    writeFileSync(invalidDescriptorPath, JSON.stringify({version: 2}))
+    expect(
+      await runAdoptLegacyIssueCli({
+        argv: ['--descriptor', invalidDescriptorPath, '--result', resultPath],
+        env,
+        fs: cliFs,
+        runnerFactory,
+      }),
+    ).toBe(1)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({version: 2, kind: 'preflight-failure'})
+
+    expect(
+      await runAdoptLegacyIssueCli({
+        argv: ['--descriptor', '../unsafe.json', '--result', resultPath],
+        env,
+        fs: cliFs,
+        runnerFactory,
+      }),
+    ).toBe(1)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({version: 2, kind: 'preflight-failure'})
+
+    writeFileSync(descriptorPath, JSON.stringify(descriptor()))
+    expect(
+      await runAdoptLegacyIssueCli({
+        argv: ['--descriptor', descriptorPath, '--result', resultPath],
+        env: {...env, GITHUB_REPOSITORY: 'other/repository'},
+        fs: cliFs,
+        runnerFactory,
+      }),
+    ).toBe(1)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({version: 2, kind: 'preflight-failure'})
   })
 
   it('requires a bounded human CLI adopter before constructing the runner', async () => {
@@ -441,15 +500,21 @@ describe('legacy issue adoption', () => {
 
     for (const actor of [undefined, '', 'operator[bot]', 'operator\u0000']) {
       runnerFactory.mockClear()
-      await expect(
-        runAdoptLegacyIssueCli({
-          argv: ['--descriptor', descriptorPath, '--result', resultPath],
-          env: {...baseEnv, ...(actor === undefined ? {} : {LIVE_AUDIT_ADOPTER: actor})},
-          fs: cliFs,
-          runnerFactory,
-        }),
-      ).rejects.toThrow()
+      const exitCode = await runAdoptLegacyIssueCli({
+        argv: ['--descriptor', descriptorPath, '--result', resultPath],
+        env: {...baseEnv, ...(actor === undefined ? {} : {LIVE_AUDIT_ADOPTER: actor})},
+        fs: cliFs,
+        runnerFactory,
+      })
+      expect(exitCode).toBe(1)
       expect(runnerFactory).not.toHaveBeenCalled()
+      expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({
+        version: 2,
+        kind: 'preflight-failure',
+        status: 'failure',
+        operations: [],
+        writeCount: 0,
+      })
     }
 
     const valid = await runAdoptLegacyIssueCli({

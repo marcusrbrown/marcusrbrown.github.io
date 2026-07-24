@@ -328,13 +328,13 @@ const scheduledPlan = async (
 
   let plan: ReplayPlan
   try {
-    const built = buildScheduledReplayPlan({
+    plan = buildScheduledReplayPlan({
       runId: environment.runId,
       generatedAt: scheduledAt.toISOString(),
       exploration: input.exploration ?? DEFAULT_EXPLORATION,
       activeLedgers,
+      cron: route.schedule,
     })
-    plan = {...built, cron: route.schedule} as ReplayPlan
   } catch {
     return {kind: 'rejected', reason: 'invalid-replay-plan'}
   }

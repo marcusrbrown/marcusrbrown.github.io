@@ -14,6 +14,7 @@ import {
   getIssueComments,
   getRepositoryPermission,
   GhRunnerError,
+  listLabeledIssues,
   parseGhJson,
   patchIssueBodyFresh,
   searchIssues,
@@ -21,7 +22,9 @@ import {
   setIssueState,
   type GhCommandResult,
   type GhRunner,
+  type GitHubCloseEvent,
   type GitHubIssue,
+  type GitHubIssueComment,
 } from '../../scripts/live-audit/github-runner'
 import {
   EVIDENCE_RELEASE_TAG,
@@ -32,8 +35,16 @@ import {
   planEvidenceAsset,
   publishEvidenceAsset,
   verifyPublicPng,
+  type EvidenceAsset,
   type EvidenceRelease,
 } from '../../scripts/live-audit/release-evidence'
+import assetReal from './fixtures/live-audit/asset-real.json'
+import closeEventReal from './fixtures/live-audit/close-event-real.json'
+import commentReal from './fixtures/live-audit/comment-real.json'
+import issueReal from './fixtures/live-audit/issue-real.json'
+import permissionReal from './fixtures/live-audit/permission-real.json'
+import releaseReal from './fixtures/live-audit/release-real.json'
+import searchReal from './fixtures/live-audit/search-real.json'
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -95,6 +106,151 @@ const expectThrownWithout = (operation: () => unknown, secrets: readonly string[
 }
 const fakeRunner = (responses: GhCommandResult[]): GhRunner => ({
   run: vi.fn().mockImplementation(async () => responses.shift() ?? result('{}')),
+})
+const withoutField = (value: Record<string, unknown>, field: string): Record<string, unknown> => {
+  const copy = {...value}
+  delete copy[field]
+  return copy
+}
+
+const expectedRealIssue: GitHubIssue = {
+  number: 204,
+  title: 'Broken card',
+  body: 'Human-authored issue body',
+  state: 'open',
+  stateReason: null,
+  labels: ['visual-audit'],
+  comments: 1,
+  updatedAt: '2026-07-20T03:30:00Z',
+}
+
+const expectedRealComment: GitHubIssueComment = {
+  id: 1,
+  body: 'Validation comment',
+  actor: 'maintainer',
+  createdAt: '2026-07-20T03:30:00Z',
+}
+
+const expectedRealCloseEvent: GitHubCloseEvent = {
+  id: 1,
+  event: 'closed',
+  createdAt: '2026-07-20T03:30:00Z',
+  actor: 'github-actions[bot]',
+}
+
+const expectedRealAsset: EvidenceAsset = {
+  id: 9,
+  name: 'operation-fingerprint-variant-context.png',
+  state: 'uploaded',
+  size: 12345,
+  contentType: 'image/png',
+  digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  browserDownloadUrl:
+    'https://github.com/example/repo/releases/download/live-audit-evidence/operation-fingerprint-variant-context.png',
+}
+
+const expectedRealRelease: EvidenceRelease = {
+  id: 42,
+  tagName: 'live-audit-evidence',
+  uploadUrl: 'https://uploads.github.com/repos/example/repo/releases/42/assets{?name,label}',
+  isDraft: false,
+  isPrerelease: false,
+  isPrivate: undefined,
+  assets: [],
+}
+
+describe('committed real-shape GitHub payloads', () => {
+  const repository = {owner: 'example', repo: 'repo'}
+
+  it('normalizes release and asset fixtures through release parsers', async () => {
+    await expect(
+      inspectEvidenceRelease(fakeRunner([result(JSON.stringify(releaseReal))]), repository),
+    ).resolves.toEqual({status: 'found', release: expectedRealRelease})
+    await expect(
+      listEvidenceAssets(fakeRunner([result(JSON.stringify([[assetReal]]))]), repository, expectedRealRelease),
+    ).resolves.toEqual([expectedRealAsset])
+
+    await expect(
+      inspectEvidenceRelease(fakeRunner([result(JSON.stringify(withoutField(releaseReal, 'tag_name')))]), repository),
+    ).rejects.toThrow(/release|fields|shape/)
+    await expect(
+      listEvidenceAssets(
+        fakeRunner([result(JSON.stringify([[withoutField(assetReal, 'content_type')]]))]),
+        repository,
+        expectedRealRelease,
+      ),
+    ).rejects.toThrow(/asset|shape|truncated/)
+  })
+
+  it('normalizes the issue fixture through issue and labeled-list parsers', async () => {
+    await expect(getIssue(fakeRunner([result(JSON.stringify(issueReal))]), repository, 204)).resolves.toEqual(
+      expectedRealIssue,
+    )
+    await expect(
+      listLabeledIssues(
+        fakeRunner([result(JSON.stringify([[issueReal]])), result(JSON.stringify([[]]))]),
+        repository,
+        'visual-audit',
+      ),
+    ).resolves.toEqual([expectedRealIssue])
+
+    await expect(
+      getIssue(fakeRunner([result(JSON.stringify(withoutField(issueReal, 'state_reason')))]), repository, 204),
+    ).rejects.toThrow(/shape/)
+  })
+
+  it('normalizes the comment fixture through the comment parser', async () => {
+    await expect(
+      getIssueComments(fakeRunner([result(JSON.stringify([[commentReal]]))]), repository, 204),
+    ).resolves.toEqual([expectedRealComment])
+    await expect(
+      getIssueComments(
+        fakeRunner([result(JSON.stringify([[withoutField(commentReal, 'created_at')]]))]),
+        repository,
+        204,
+      ),
+    ).rejects.toThrow(/comment|shape/)
+  })
+
+  it('normalizes the close-event fixture through the lifecycle-event parser', async () => {
+    await expect(
+      getIssueCloseEvents(fakeRunner([result(JSON.stringify([[closeEventReal]]))]), repository, 204),
+    ).resolves.toEqual([expectedRealCloseEvent])
+    await expect(
+      getIssueCloseEvents(
+        fakeRunner([result(JSON.stringify([[withoutField(closeEventReal, 'created_at')]]))]),
+        repository,
+        204,
+      ),
+    ).rejects.toThrow(/event|timestamp|shape/)
+  })
+
+  it('normalizes the permission fixture through the collaborator permission parser', async () => {
+    await expect(
+      getRepositoryPermission(fakeRunner([result(JSON.stringify(permissionReal))]), repository, 'maintainer'),
+    ).resolves.toBe('maintain')
+    await expect(
+      getRepositoryPermission(
+        fakeRunner([result(JSON.stringify(withoutField(permissionReal, 'permission')))]),
+        repository,
+        'maintainer',
+      ),
+    ).rejects.toThrow(/permission|shape/)
+  })
+
+  it('normalizes the search fixture through the paginated search parser', async () => {
+    await expect(
+      searchIssues(fakeRunner([result(JSON.stringify([searchReal]))]), repository, 'visual-audit', 'open'),
+    ).resolves.toEqual([expectedRealIssue])
+    await expect(
+      searchIssues(
+        fakeRunner([result(JSON.stringify([withoutField(searchReal, 'total_count')]))]),
+        repository,
+        'visual-audit',
+        'open',
+      ),
+    ).rejects.toThrow(/incomplete|truncated/)
+  })
 })
 
 describe('bounded GitHub runner', () => {

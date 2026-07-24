@@ -22,6 +22,8 @@ export const MAX_MANIFEST_BYTES = 2_000_000
 export const MAX_RESULT_BYTES = 250_000
 export const MAX_SUMMARY_BYTES = 20_000
 export const MAX_ENV_VALUE_BYTES = 2_000
+export const MAX_PUBLIC_IMAGE_BYTES = 5_000_000
+export const PUBLIC_IMAGE_TIMEOUT_MS = 15_000
 
 export interface ReportAuditCliFileStat {
   readonly isDirectory: () => boolean
@@ -279,22 +281,66 @@ const workflowRunUrl = (environment: ClosedEnvironment): string =>
 
 const publicImageVerifier = (fetchImpl: typeof globalThis.fetch | undefined) => async (url: string) => {
   if (fetchImpl === undefined) return {ok: false, reason: 'public image verification is unavailable'}
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), PUBLIC_IMAGE_TIMEOUT_MS)
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
   try {
-    const response = await fetchImpl(url)
+    const response = await fetchImpl(url, {signal: controller.signal})
     if (!response.ok) return {ok: false, reason: 'public image request failed'}
     const contentType = response.headers.get('content-type') ?? ''
     if (!contentType.toLowerCase().startsWith('image/png')) return {ok: false, reason: 'public image is not PNG'}
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    if (bytes.byteLength < PNG_SIGNATURE.byteLength || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte))
-      return {ok: false, reason: 'public image is not PNG'}
-    return {
-      ok: true,
-      bytes,
-      contentType,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
+    const contentLength = response.headers.get('content-length')
+    if (contentLength !== null) {
+      const declaredLength = Number(contentLength)
+      if (!Number.isSafeInteger(declaredLength) || declaredLength < 0 || declaredLength > MAX_PUBLIC_IMAGE_BYTES)
+        return {ok: false, reason: 'public image exceeds size limit'}
+    }
+    if (response.body === null) return {ok: false, reason: 'public image body is unavailable'}
+    reader = response.body.getReader()
+    let rejectAbort: ((reason?: unknown) => void) | undefined
+    const abortPromise = new Promise<never>((_, reject) => {
+      rejectAbort = reject
+    })
+    const onAbort = (): void => {
+      rejectAbort?.(new Error('public image verification timed out'))
+    }
+    controller.signal.addEventListener('abort', onAbort, {once: true})
+    if (controller.signal.aborted) onAbort()
+    const chunks: Uint8Array[] = []
+    let totalBytes = 0
+    try {
+      while (true) {
+        const chunk = await Promise.race([reader.read(), abortPromise])
+        if (chunk.done) break
+        if (totalBytes + chunk.value.byteLength > MAX_PUBLIC_IMAGE_BYTES) {
+          reader.cancel().catch(() => undefined)
+          return {ok: false, reason: 'public image exceeds size limit'}
+        }
+        chunks.push(chunk.value)
+        totalBytes += chunk.value.byteLength
+      }
+      const bytes = new Uint8Array(totalBytes)
+      let offset = 0
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset)
+        offset += chunk.byteLength
+      }
+      if (bytes.byteLength < PNG_SIGNATURE.byteLength || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte))
+        return {ok: false, reason: 'public image is not PNG'}
+      return {
+        ok: true,
+        bytes,
+        contentType,
+        sha256: createHash('sha256').update(bytes).digest('hex'),
+      }
+    } finally {
+      controller.signal.removeEventListener('abort', onAbort)
     }
   } catch {
+    if (controller.signal.aborted && reader !== undefined) reader.cancel().catch(() => undefined)
     return {ok: false, reason: 'public image verification failed'}
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -319,6 +365,28 @@ const resultFileFor = (
   writeCount,
   issueNumbers: issueNumbers.slice(0, 500),
 })
+
+const preflightResultFileFor = (error: unknown, token: string): ReportAuditResultFile => ({
+  version: REPORT_AUDIT_RESULT_VERSION,
+  status: 'failure',
+  diagnosticDetails: [
+    {
+      code: 'contract',
+      severity: 'failure',
+      message: redact(error instanceof Error ? error.message : 'report audit preflight failed', token),
+    },
+  ],
+  operations: [],
+  writeCount: 0,
+  issueNumbers: [],
+})
+
+const serializeResult = (result: ReportAuditResultFile): string => {
+  const serialized = `${JSON.stringify(result, null, 2)}\n`
+  if (byteLength(serialized) > MAX_RESULT_BYTES)
+    throw new ReportAuditCliError('report result exceeds bounded UTF-8 size')
+  return serialized
+}
 
 const atomicWrite = async (fileSystem: ReportAuditCliFileSystem, path: string, content: string): Promise<void> => {
   const temporaryPath = join(dirname(path), `.${path.split(sep).pop() ?? 'result'}.${process.pid}.${randomUUID()}.tmp`)
@@ -355,18 +423,27 @@ const summaryFor = (result: ReportAuditResultFile, token: string): string => {
 
 export const runReportAuditCli = async (input: RunReportAuditCliInput = {}): Promise<number> => {
   const options = input.options ?? parseOptions(input.argv ?? process.argv.slice(2))
-  const environment = parseEnvironment(input.env ?? process.env)
   const fileSystem = input.fs ?? nodeFileSystem
-  const manifest = await loadManifest(fileSystem, options)
-  const runnerFactory = input.runnerFactory ?? (() => createGhRunner())
-  const runner = runnerFactory({
-    GITHUB_REPOSITORY: `${environment.repository.owner}/${environment.repository.repo}`,
-    GITHUB_SERVER_URL: environment.serverUrl,
-    GITHUB_RUN_ID: environment.runId,
-    ...(environment.runAttempt === undefined ? {} : {GITHUB_RUN_ATTEMPT: environment.runAttempt}),
-    GH_TOKEN: environment.ghToken,
-    LIVE_AUDIT_WRITE_MODE: environment.writeMode,
-  })
+  let environment: ClosedEnvironment
+  let manifest: unknown
+  let runner: GhRunner
+  try {
+    environment = parseEnvironment(input.env ?? process.env)
+    manifest = await loadManifest(fileSystem, options)
+    const runnerFactory = input.runnerFactory ?? (() => createGhRunner())
+    runner = runnerFactory({
+      GITHUB_REPOSITORY: `${environment.repository.owner}/${environment.repository.repo}`,
+      GITHUB_SERVER_URL: environment.serverUrl,
+      GITHUB_RUN_ID: environment.runId,
+      ...(environment.runAttempt === undefined ? {} : {GITHUB_RUN_ATTEMPT: environment.runAttempt}),
+      GH_TOKEN: environment.ghToken,
+      LIVE_AUDIT_WRITE_MODE: environment.writeMode,
+    })
+  } catch (error) {
+    const token = (input.env ?? process.env).GH_TOKEN ?? ''
+    await atomicWrite(fileSystem, options.resultPath, serializeResult(preflightResultFileFor(error, token)))
+    return 1
+  }
   const clock = input.clock ?? (() => new Date())
   const fetchImpl = input.fetch ?? globalThis.fetch
   let result: ReportAuditResultFile
@@ -394,10 +471,7 @@ export const runReportAuditCli = async (input: RunReportAuditCliInput = {}): Pro
     const classified = classifyReporterError(error)
     result = resultFileFor(classified.status, [classified.diagnostic], [], 0, [], environment.ghToken)
   }
-  const serialized = `${JSON.stringify(result, null, 2)}\n`
-  if (byteLength(serialized) > MAX_RESULT_BYTES)
-    throw new ReportAuditCliError('report result exceeds bounded UTF-8 size')
-  await atomicWrite(fileSystem, options.resultPath, serialized)
+  await atomicWrite(fileSystem, options.resultPath, serializeResult(result))
   if (environment.summaryPath !== undefined) {
     const summary = summaryFor(result, environment.ghToken)
     if (byteLength(summary) > MAX_SUMMARY_BYTES)

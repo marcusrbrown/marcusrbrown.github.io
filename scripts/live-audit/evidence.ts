@@ -159,14 +159,14 @@ const safeText = (value: unknown, max = 2_000): value is string =>
     return code > 0x1f && code !== 0x7f
   })
 const dateTime = (value: unknown): value is string => typeof value === 'string' && Number.isFinite(Date.parse(value))
-const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+const hasOnlyAllowedKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
   Object.keys(value).every(key => keys.includes(key))
 
 /** Parse the agent handoff. This is deliberately not `AuditManifest`: candidates have one observation only. */
 export const parseCandidateBundle = (input: unknown): CandidateBundle => {
   if (
     !isRecord(input) ||
-    !exactKeys(input, [
+    !hasOnlyAllowedKeys(input, [
       'version',
       'runId',
       'runKind',

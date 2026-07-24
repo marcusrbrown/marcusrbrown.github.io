@@ -162,12 +162,13 @@ const parseFinalizerArgs = (args: readonly string[]): FinalizerArgs => {
 
 const inputBytes = (raw: string | Uint8Array): Uint8Array => (typeof raw === 'string' ? Buffer.from(raw) : raw)
 
-const withTimeout = async <T>(operation: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+const withTimeout = async <T>(operation: () => Promise<T>, remainingMs: () => number, label: string): Promise<T> => {
+  const timeoutMs = remainingMs()
   if (timeoutMs <= 0) throw new Error(`${label} timed out`)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
-      operation,
+      operation(),
       new Promise<T>((_, reject) => {
         timer = setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs)
       }),
@@ -281,15 +282,20 @@ const remapReference = (reference: EvidenceReference, files: Map<string, Uint8Ar
   return {...reference, path, integrity}
 }
 
+const remapEvidencePair = (
+  evidence: [EvidenceReference, EvidenceReference],
+  files: Map<string, Uint8Array>,
+): [EvidenceReference, EvidenceReference] => [remapReference(evidence[0], files), remapReference(evidence[1], files)]
+
 const remapFinding = (finding: Finding, files: Map<string, Uint8Array>): Finding => {
-  const evidence = finding.evidence.map(reference => remapReference(reference, files)) as Finding['evidence']
+  const evidence = remapEvidencePair(finding.evidence, files)
   if (finding.responsive === 'not-applicable') return {...finding, evidence}
   return {
     ...finding,
     evidence,
     counterpart: {
       ...finding.counterpart,
-      evidence: finding.counterpart.evidence.map(reference => remapReference(reference, files)) as Finding['evidence'],
+      evidence: remapEvidencePair(finding.counterpart.evidence, files),
     },
   }
 }
@@ -298,7 +304,7 @@ const remapValidation = (validation: ValidationReplay, files: Map<string, Uint8A
   if (validation.status !== 'clean') return validation
   const clean: ValidationClean = {
     ...validation,
-    evidence: validation.evidence.map(reference => remapReference(reference, files)) as ValidationClean['evidence'],
+    evidence: remapEvidencePair(validation.evidence, files),
   }
   return clean
 }
@@ -479,13 +485,18 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
   const timeoutMs = input.timeoutMs ?? MAX_FINALIZATION_MS
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_FINALIZATION_MS)
     throw new Error('finalizer timeout is outside the bounded limit')
-  const deadline = Date.now() + timeoutMs
+  const clock = input.clock ?? (() => new Date())
+  const deadline = clock().getTime() + timeoutMs
   const findings: Finding[] = []
   const validations: ValidationReplay[] = []
   const files = new Map<string, Uint8Array>()
   try {
     for (const candidate of candidateBundle.candidates) {
-      const output = await withTimeout(browser.finalizeCandidate(candidate), deadline - Date.now(), 'candidate replay')
+      const output = await withTimeout(
+        () => browser.finalizeCandidate(candidate),
+        () => deadline - clock().getTime(),
+        'candidate replay',
+      )
       if (output.finding) findings.push(output.finding)
       if (output.diagnostic) diagnostics.push(output.diagnostic)
       for (const file of output.files ?? []) {
@@ -494,7 +505,11 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
       }
     }
     for (const request of plan.activeRequests) {
-      const output = await withTimeout(browser.finalizeActive(request), deadline - Date.now(), 'active replay')
+      const output = await withTimeout(
+        () => browser.finalizeActive(request),
+        () => deadline - clock().getTime(),
+        'active replay',
+      )
       if (output.finding) findings.push(output.finding)
       if (output.validation?.status === 'clean') validations.push(output.validation)
       if (output.diagnostic || output.validation?.status === 'infrastructure-error')

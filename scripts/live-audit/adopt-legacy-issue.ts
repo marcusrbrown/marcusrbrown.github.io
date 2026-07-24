@@ -20,7 +20,7 @@ import {
   type ReporterWriteMode,
 } from './reporter'
 
-export const ADOPT_LEGACY_ISSUE_RESULT_VERSION = 1 as const
+export const ADOPT_LEGACY_ISSUE_RESULT_VERSION = 2 as const
 export const MAX_LEGACY_DESCRIPTOR_BYTES = 250_000
 export const MAX_LEGACY_RESULT_BYTES = 250_000
 export const MAX_LEGACY_SUMMARY_BYTES = 20_000
@@ -61,8 +61,18 @@ export interface RunAdoptLegacyIssueCliInput {
   readonly summaryWriter?: AdoptLegacyIssueSummaryWriter
 }
 
-export interface AdoptLegacyIssueResultFile {
+export interface AdoptLegacyIssuePreflightFailureResult {
   readonly version: typeof ADOPT_LEGACY_ISSUE_RESULT_VERSION
+  readonly kind: 'preflight-failure'
+  readonly status: 'failure'
+  readonly diagnosticDetails: readonly ReporterDiagnostic[]
+  readonly operations: readonly []
+  readonly writeCount: 0
+}
+
+export interface AdoptLegacyIssueAdoptionResultFile {
+  readonly version: typeof ADOPT_LEGACY_ISSUE_RESULT_VERSION
+  readonly kind: 'adoption-result'
   readonly status: ReporterStatus
   readonly diagnosticDetails: readonly ReporterDiagnostic[]
   readonly operations: readonly LegacyAdoptionOperation[]
@@ -71,6 +81,8 @@ export interface AdoptLegacyIssueResultFile {
   readonly adoptionKey: string
   readonly writeCount: number
 }
+
+export type AdoptLegacyIssueResultFile = AdoptLegacyIssuePreflightFailureResult | AdoptLegacyIssueAdoptionResultFile
 
 const nodeFileSystem: AdoptLegacyIssueCliFileSystem = {
   appendFile,
@@ -232,8 +244,9 @@ const resultFileFor = (
   result: Pick<LegacyAdoptionResult, 'status' | 'diagnosticDetails' | 'operations' | 'writeCount'>,
   descriptor: ParsedLegacyAdoptionDescriptor,
   token: string,
-): AdoptLegacyIssueResultFile => ({
+): AdoptLegacyIssueAdoptionResultFile => ({
   version: ADOPT_LEGACY_ISSUE_RESULT_VERSION,
+  kind: 'adoption-result',
   status: result.status,
   diagnosticDetails: result.diagnosticDetails.slice(0, 100).map(diagnostic => ({
     code: diagnostic.code,
@@ -246,6 +259,28 @@ const resultFileFor = (
   adoptionKey: descriptor.adoptionKey,
   writeCount: result.writeCount,
 })
+
+const preflightResultFileFor = (error: unknown, token: string): AdoptLegacyIssuePreflightFailureResult => ({
+  version: ADOPT_LEGACY_ISSUE_RESULT_VERSION,
+  kind: 'preflight-failure',
+  status: 'failure',
+  diagnosticDetails: [
+    {
+      code: 'contract',
+      severity: 'failure',
+      message: redact(error instanceof Error ? error.message : 'legacy issue adoption preflight failed', token),
+    },
+  ],
+  operations: [],
+  writeCount: 0,
+})
+
+const serializeResult = (result: AdoptLegacyIssueResultFile): string => {
+  const serialized = `${JSON.stringify(result, null, 2)}\n`
+  if (byteLength(serialized) > MAX_LEGACY_RESULT_BYTES)
+    throw new AdoptLegacyIssueCliError('adoption result exceeds bounded UTF-8 size')
+  return serialized
+}
 
 const atomicWrite = async (fileSystem: AdoptLegacyIssueCliFileSystem, path: string, content: string): Promise<void> => {
   const temporaryPath = join(dirname(path), `.${path.split(sep).pop() ?? 'result'}.${process.pid}.${randomUUID()}.tmp`)
@@ -271,7 +306,7 @@ const summaryFor = (result: AdoptLegacyIssueResultFile, token: string): string =
       '### Live audit legacy adoption',
       '',
       `- Status: \`${result.status}\``,
-      `- Issue: ${result.issueNumber}`,
+      `- Issue: ${result.kind === 'adoption-result' ? result.issueNumber : 'not adopted'}`,
       `- Planned operations: ${result.operations.length}`,
       `- Writes: ${result.writeCount}`,
       details.length === 0 ? '- Diagnostics: none' : `- Diagnostics:\n${details}`,
@@ -283,20 +318,29 @@ const summaryFor = (result: AdoptLegacyIssueResultFile, token: string): string =
 
 export const runAdoptLegacyIssueCli = async (input: RunAdoptLegacyIssueCliInput = {}): Promise<number> => {
   const options = input.options ?? parseOptions(input.argv ?? process.argv.slice(2))
-  const environment = parseEnvironment(input.env ?? process.env)
   const fileSystem = input.fs ?? nodeFileSystem
-  const descriptorInput = await readDescriptor(fileSystem, options.descriptorPath)
-  if (
-    descriptorInput.parsed.repository.owner !== environment.repository.owner ||
-    descriptorInput.parsed.repository.repo !== environment.repository.repo
-  )
-    throw new AdoptLegacyIssueCliError('descriptor repository does not match GITHUB_REPOSITORY')
-  const runnerFactory = input.runnerFactory ?? (() => createGhRunner())
-  const runner = runnerFactory({
-    GITHUB_REPOSITORY: `${environment.repository.owner}/${environment.repository.repo}`,
-    GH_TOKEN: environment.ghToken,
-    LIVE_AUDIT_WRITE_MODE: environment.writeMode,
-  })
+  let environment: ClosedEnvironment
+  let descriptorInput: {readonly raw: unknown; readonly parsed: ParsedLegacyAdoptionDescriptor}
+  let runner: GhRunner
+  try {
+    environment = parseEnvironment(input.env ?? process.env)
+    descriptorInput = await readDescriptor(fileSystem, options.descriptorPath)
+    if (
+      descriptorInput.parsed.repository.owner !== environment.repository.owner ||
+      descriptorInput.parsed.repository.repo !== environment.repository.repo
+    )
+      throw new AdoptLegacyIssueCliError('descriptor repository does not match GITHUB_REPOSITORY')
+    const runnerFactory = input.runnerFactory ?? (() => createGhRunner())
+    runner = runnerFactory({
+      GITHUB_REPOSITORY: `${environment.repository.owner}/${environment.repository.repo}`,
+      GH_TOKEN: environment.ghToken,
+      LIVE_AUDIT_WRITE_MODE: environment.writeMode,
+    })
+  } catch (error) {
+    const token = (input.env ?? process.env).GH_TOKEN ?? ''
+    await atomicWrite(fileSystem, options.resultPath, serializeResult(preflightResultFileFor(error, token)))
+    return 1
+  }
   let result: AdoptLegacyIssueResultFile
   try {
     const dependencies: LegacyAdoptionDependencies = {
@@ -320,10 +364,7 @@ export const runAdoptLegacyIssueCli = async (input: RunAdoptLegacyIssueCliInput 
       environment.ghToken,
     )
   }
-  const serialized = `${JSON.stringify(result, null, 2)}\n`
-  if (byteLength(serialized) > MAX_LEGACY_RESULT_BYTES)
-    throw new AdoptLegacyIssueCliError('adoption result exceeds bounded UTF-8 size')
-  await atomicWrite(fileSystem, options.resultPath, serialized)
+  await atomicWrite(fileSystem, options.resultPath, serializeResult(result))
   if (environment.summaryPath !== undefined) {
     const summaryWriter =
       input.summaryWriter ??
