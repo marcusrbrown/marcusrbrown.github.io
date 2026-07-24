@@ -2,13 +2,14 @@ import type {IssueLedger} from '../../scripts/live-audit/issue-ledger'
 import {Buffer} from 'node:buffer'
 
 import {describe, expect, it, vi} from 'vitest'
-import {parseAuditManifest} from '../../scripts/live-audit/contract'
+import {parseAuditManifest, type AuditAssertion} from '../../scripts/live-audit/contract'
 import {
   AUDIT_ORIGIN,
   buildActiveReplayRequests,
   buildCoreMatrix,
   chooseRotatingPreset,
   computeEvidenceIntegrity,
+  evaluateAuditAssertion,
   finalizeActiveVariant,
   finalizeCandidateBundle,
   navigateAuditRoute,
@@ -70,6 +71,7 @@ describe('live-audit evidence finalization', () => {
         {
           route: '/projects',
           findingClass: 'layout',
+          assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
           responsive: 'not-applicable',
           semanticTarget: 'target',
           target: {kind: 'test-id', value: 'target'},
@@ -84,6 +86,9 @@ describe('live-audit evidence finalization', () => {
       exploration: {steps: 0, durationMs: 0},
     }
     expect(parseCandidateBundle(bundle)).toEqual(bundle)
+    const missingAssertion = structuredClone(bundle) as unknown as {candidates: Record<string, unknown>[]}
+    delete missingAssertion.candidates[0]?.assertion
+    expect(() => parseCandidateBundle(missingAssertion)).toThrow(/candidate|assertion/)
     expect(() => parseCandidateBundle({...bundle, validations: []})).toThrow()
     expect(() => parseCandidateBundle({...bundle, status: 'clean'})).toThrow()
     expect(() => parseCandidateBundle({...bundle, unexpected: true})).toThrow()
@@ -99,6 +104,7 @@ describe('live-audit evidence finalization', () => {
     const candidate = {
       route: '/projects' as const,
       findingClass: 'layout' as const,
+      assertion: {version: 1 as const, kind: 'viewport-containment' as const, edges: 'all' as const},
       responsive: 'uncertain' as const,
       semanticTarget: 'target',
       target: {kind: 'test-id' as const, value: 'target'},
@@ -145,6 +151,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects',
       semanticTarget: 'target',
       findingClass: 'layout',
+      assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
       responsive: 'not-applicable',
       failureSignature: 'overflow',
       variants: [
@@ -160,6 +167,7 @@ describe('live-audit evidence finalization', () => {
         {
           variantKey: variantKey({viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'}),
           target: {kind: 'test-id', value: 'target'},
+          assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
           reproduction: ['Open projects'],
         },
       ],
@@ -217,6 +225,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects',
       semanticTarget: 'target',
       findingClass: 'layout',
+      assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
       failureSignature: 'overflow',
       responsive: 'required',
       variant: {viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'},
@@ -243,6 +252,7 @@ describe('live-audit evidence finalization', () => {
     )
     expect(calls).toBe(2)
     expect(recurrent.finding).toBeDefined()
+    expect(recurrent.finding?.assertion).toEqual(request.assertion)
     if (!recurrent.finding || recurrent.finding.responsive === 'not-applicable')
       throw new Error('recurrent finding missing counterpart')
     const recurrentFinding = recurrent.finding
@@ -350,6 +360,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects',
       semanticTarget: 'target',
       findingClass: 'layout',
+      assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
       responsive: 'not-applicable',
       failureSignature: 'overflow',
       variants: [
@@ -365,6 +376,7 @@ describe('live-audit evidence finalization', () => {
         {
           variantKey: variantKey({viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'}),
           target: {kind: 'test-id', value: 'target'},
+          assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
           reproduction: ['Open projects'],
         },
       ],
@@ -374,6 +386,7 @@ describe('live-audit evidence finalization', () => {
     expect(buildActiveReplayRequests(204, ledger)[0]).toMatchObject({
       issueNumber: 204,
       fingerprint: ledger.fingerprint,
+      assertion: ledger.assertion,
       responsive: 'not-applicable',
       reproduction: ['Open projects'],
     })
@@ -387,6 +400,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects',
       semanticTarget: 'target',
       findingClass: 'layout',
+      assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
       failureSignature: 'overflow',
       responsive: 'not-applicable',
       variant: {viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'},
@@ -432,6 +446,7 @@ describe('live-audit evidence finalization', () => {
     const candidate = {
       route: '/projects' as const,
       findingClass: 'layout' as const,
+      assertion: {version: 1 as const, kind: 'viewport-containment' as const, edges: 'all' as const},
       responsive: 'required' as const,
       semanticTarget: 'target',
       target: {kind: 'test-id' as const, value: 'target'},
@@ -477,6 +492,7 @@ describe('live-audit evidence finalization', () => {
     const candidate = {
       route: '/projects' as const,
       findingClass: 'layout' as const,
+      assertion: {version: 1 as const, kind: 'viewport-containment' as const, edges: 'all' as const},
       responsive: 'not-applicable' as const,
       semanticTarget: 'target',
       target: {kind: 'test-id' as const, value: 'target'},
@@ -494,6 +510,7 @@ describe('live-audit evidence finalization', () => {
       route: candidate.route,
       semanticTarget: candidate.semanticTarget,
       findingClass: candidate.findingClass,
+      assertion: candidate.assertion,
       failureSignature: candidate.failureSignature,
       responsive: candidate.responsive,
       variant: candidate.variant,
@@ -538,6 +555,7 @@ describe('live-audit evidence finalization', () => {
       route: '/projects',
       semanticTarget: 'target',
       findingClass: 'layout',
+      assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
       failureSignature: 'overflow',
       responsive: 'not-applicable',
       variant: {viewport: 'mobile', theme: {kind: 'mode', mode: 'dark'}, state: 'core'},
@@ -583,6 +601,7 @@ describe('live-audit evidence finalization', () => {
         {
           route: '/projects',
           findingClass: 'layout',
+          assertion: {version: 1, kind: 'viewport-containment', edges: 'all'},
           responsive: 'not-applicable',
           semanticTarget: 'target',
           target: {kind: 'test-id', value: 'target'},
@@ -653,6 +672,152 @@ describe('live-audit evidence finalization', () => {
     const oversized = Buffer.from(validPng)
     oversized.writeUInt32BE(10_001, 16)
     expect(() => validatePng(oversized)).toThrow(/dimension|CRC/)
+  })
+
+  it('evaluates closed assertions from DOM state with normalized signatures', async () => {
+    const makePage = (
+      elements: Record<
+        string,
+        {box: {x: number; y: number; width: number; height: number}; visible: boolean; text?: string; image?: string}
+      >,
+      viewport: {
+        width: number
+        height: number
+        scrollWidth?: number
+        clientWidth?: number
+        scrollHeight?: number
+        clientHeight?: number
+      } = {width: 100, height: 100},
+    ) => {
+      const locatorFor = (value: string) => {
+        const element = elements[value]
+        return {
+          count: async () => (element ? 1 : 0),
+          boundingBox: async () => element?.box ?? null,
+          isVisible: async () => element?.visible ?? false,
+          textContent: async () => element?.text ?? null,
+          evaluate: async () => element?.image ?? 'not-image',
+        }
+      }
+      return {
+        url: () => AUDIT_ORIGIN,
+        getByTestId: locatorFor,
+        evaluate: async () => viewport,
+      } as unknown
+    }
+    const target = {kind: 'test-id' as const, value: 'target'}
+    const evaluate = async (page: unknown, assertion: AuditAssertion) =>
+      evaluateAuditAssertion(page as never, target, assertion)
+    const imageResult = await evaluate(
+      makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true, image: 'loaded'}}),
+      {version: 1, kind: 'image-load', expected: 'loaded'},
+    )
+    expect(imageResult.status).toBe('clean')
+    expect(imageResult.signature).toBe('assertion:image-load:expected-loaded:loaded')
+    expect(
+      (
+        await evaluate(
+          makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true, image: 'not-loaded'}}),
+          {
+            version: 1,
+            kind: 'image-load',
+            expected: 'loaded',
+          },
+        )
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluate(makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true}}), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluate(makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: false}}), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluate(makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true}}), {
+          version: 1,
+          kind: 'viewport-containment',
+          edges: 'all',
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluate(makePage({target: {box: {x: 95, y: 1, width: 10, height: 10}, visible: true}}), {
+          version: 1,
+          kind: 'viewport-containment',
+          edges: 'all',
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluate(
+          makePage(
+            {target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true}},
+            {width: 100, height: 100, scrollWidth: 120, clientWidth: 100, scrollHeight: 100, clientHeight: 100},
+          ),
+          {version: 1, kind: 'viewport-overflow', axis: 'horizontal'},
+        )
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluate(
+          makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true}}, {width: 100, height: 100}),
+          {version: 1, kind: 'geometry', property: 'width', operator: 'at-least', value: 10},
+        )
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluate(
+          makePage({
+            target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true},
+            other: {box: {x: 5, y: 5, width: 10, height: 10}, visible: true},
+          }),
+          {version: 1, kind: 'no-overlap', otherTarget: {kind: 'test-id', value: 'other'}},
+        )
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluate(makePage({target: {box: {x: 1, y: 1, width: 2, height: 2}, visible: true}}), {
+          version: 1,
+          kind: 'minimum-size',
+          width: 4,
+          height: 4,
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluate(
+          makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true, text: 'Hello world'}}),
+          {version: 1, kind: 'text', operator: 'contains', value: 'world'},
+        )
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluate(
+          makePage({target: {box: {x: 1, y: 1, width: 10, height: 10}, visible: true, text: 'Hello world'}}),
+          {version: 1, kind: 'text', operator: 'equals', value: 'Goodbye'},
+        )
+      ).status,
+    ).toBe('failure')
   })
 
   it('derives canonical evidence integrity from validated PNG bytes', () => {

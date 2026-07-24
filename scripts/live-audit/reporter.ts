@@ -16,6 +16,7 @@ import {
   getIssue,
   getIssueCloseEvents,
   getIssueComments,
+  GhRunnerError,
   listLabeledIssues,
   patchIssueBodyFresh,
   setIssueState,
@@ -73,7 +74,35 @@ export interface ReporterOperation {
   readonly transition?: 'reopen' | 'close'
 }
 
-export interface ReporterResult {
+export type ReporterStatus = 'success' | 'warning' | 'failure'
+
+export type ReporterDiagnosticCode =
+  | 'writes-disabled'
+  | 'manual-only'
+  | 'suppressed'
+  | 'infrastructure'
+  | 'artifact'
+  | 'planning'
+  | 'asset-verification'
+  | 'transport'
+  | 'drift'
+  | 'mutation'
+  | 'contract'
+
+export type ReporterDiagnosticSeverity = 'warning' | 'failure'
+
+export interface ReporterDiagnostic {
+  readonly code: ReporterDiagnosticCode
+  readonly severity: ReporterDiagnosticSeverity
+  readonly message: string
+}
+
+export interface ReporterOutcome {
+  readonly status: ReporterStatus
+  readonly diagnosticDetails: readonly ReporterDiagnostic[]
+}
+
+export interface ReporterResult extends ReporterOutcome {
   readonly manifest: AuditManifest
   readonly operations: readonly ReporterOperation[]
   readonly diagnostics: readonly string[]
@@ -81,7 +110,7 @@ export interface ReporterResult {
   readonly issueNumbers: readonly number[]
 }
 
-export interface ReporterDecision {
+export interface ReporterDecision extends ReporterOutcome {
   readonly validated: ValidatedReporterArtifact
   readonly operations: readonly ReporterOperation[]
   readonly diagnostics: readonly string[]
@@ -102,11 +131,60 @@ export class ReporterError extends Error {
   }
 }
 
+export const classifyReporterError = (
+  error: unknown,
+): {readonly status: 'failure'; readonly diagnostic: ReporterDiagnostic} => ({
+  status: 'failure',
+  diagnostic: {
+    code: 'contract',
+    severity: 'failure',
+    message: error instanceof Error ? error.message : 'reporter failed',
+  },
+})
+
 const MAX_ARTIFACT_FILES = 400
 const MAX_ASSET_BYTES = 5_000_000
 const MAX_COMMENT_TEXT = 2_000
 const LABEL = 'visual-audit'
 const SUPPRESSED_LABEL = 'visual-audit-suppressed'
+const REPORTER_WARNING_CODES: ReadonlySet<ReporterDiagnosticCode> = new Set([
+  'writes-disabled',
+  'manual-only',
+  'suppressed',
+  'infrastructure',
+])
+
+const diagnosticSeverity = (code: ReporterDiagnosticCode): ReporterDiagnosticSeverity =>
+  REPORTER_WARNING_CODES.has(code) ? 'warning' : 'failure'
+
+const diagnosticMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message : fallback
+
+const diagnosticCodeForError = (
+  error: unknown,
+  fallback: Extract<ReporterDiagnosticCode, 'planning' | 'transport' | 'mutation'>,
+): ReporterDiagnosticCode => {
+  if (error instanceof GhRunnerError) return 'transport'
+  const message = diagnosticMessage(error, '')
+  if (message.includes('drift')) return 'drift'
+  if (message === 'suppressed recurrence: human issue resolution is authoritative') return 'suppressed'
+  return fallback
+}
+
+const addDiagnostic = (
+  diagnostics: string[],
+  diagnosticDetails: ReporterDiagnostic[],
+  code: ReporterDiagnosticCode,
+  message: string,
+): void => {
+  diagnostics.push(message)
+  diagnosticDetails.push({code, severity: diagnosticSeverity(code), message})
+}
+
+const statusFromDiagnostics = (diagnosticDetails: readonly ReporterDiagnostic[]): ReporterStatus => {
+  if (diagnosticDetails.some(diagnostic => diagnostic.severity === 'failure')) return 'failure'
+  return diagnosticDetails.length > 0 ? 'warning' : 'success'
+}
 
 const safeRelativePath = (value: string): boolean => {
   if (value.length === 0 || value.length > 500 || isAbsolute(value) || value.includes('\\')) return false
@@ -416,10 +494,13 @@ const ledgerForFinding = (
     route: finding.route,
     semanticTarget: finding.semanticTarget,
     findingClass: finding.findingClass,
+    assertion: finding.assertion,
     responsive: finding.responsive,
     failureSignature: finding.failureSignature,
     variants: [initial],
-    replay: [{variantKey: key, target: finding.target, reproduction: finding.reproduction}],
+    replay: [
+      {variantKey: key, target: finding.target, assertion: finding.assertion, reproduction: finding.reproduction},
+    ],
     operations: [],
     transition: {kind: 'open' as const, source: 'reporter' as const},
   }
@@ -441,19 +522,29 @@ const ledgerForFinding = (
       },
     ]
   let replay = base.replay.map(item => {
-    if (item.variantKey === key) return {...item, target: finding.target, reproduction: finding.reproduction}
+    if (item.variantKey === key)
+      return {...item, target: finding.target, assertion: finding.assertion, reproduction: finding.reproduction}
     if (counterpartKey !== undefined && item.variantKey === counterpartKey)
-      return {...item, target: counterpartData?.target ?? finding.target, reproduction: finding.reproduction}
+      return {
+        ...item,
+        target: counterpartData?.target ?? finding.target,
+        assertion: finding.assertion,
+        reproduction: finding.reproduction,
+      }
     return item
   })
   if (!replay.some(item => item.variantKey === key))
-    replay = [...replay, {variantKey: key, target: finding.target, reproduction: finding.reproduction}]
+    replay = [
+      ...replay,
+      {variantKey: key, target: finding.target, assertion: finding.assertion, reproduction: finding.reproduction},
+    ]
   if (counterpart && counterpartKey && !replay.some(item => item.variantKey === counterpartKey))
     replay = [
       ...replay,
       {
         variantKey: counterpartKey,
         target: counterpartData?.target ?? finding.target,
+        assertion: finding.assertion,
         reproduction: finding.reproduction,
       },
     ]
@@ -635,10 +726,11 @@ interface ItemPlan {
   readonly issueNumber?: number
 }
 
-export interface ReporterPlan {
+export interface ReporterPlan extends ReporterOutcome {
   readonly items: readonly ItemPlan[]
   readonly operations: readonly ReporterOperation[]
   readonly diagnostics: readonly string[]
+  readonly diagnosticDetails: readonly ReporterDiagnostic[]
 }
 
 const makeOperation = (
@@ -903,9 +995,16 @@ const findReporterIssuesFromListed = (issues: readonly GitHubIssue[], fingerprin
 
 const createPlan = async (
   input: {readonly manifest: AuditManifest; readonly validated: ValidatedReporterArtifact} & ReporterDependencies,
-): Promise<{items: ItemPlan[]; operations: ReporterOperation[]; diagnostics: string[]}> => {
+): Promise<{
+  items: ItemPlan[]
+  operations: ReporterOperation[]
+  diagnostics: string[]
+  diagnosticDetails: ReporterDiagnostic[]
+  status: ReporterStatus
+}> => {
   const {manifest, validated} = input
   const diagnostics: string[] = []
+  const diagnosticDetails: ReporterDiagnostic[] = []
   const items: ItemPlan[] = []
   const allFindingsByFingerprint = new Map<string, Finding>()
   for (const finding of manifest.findings) allFindingsByFingerprint.set(issueFingerprint(finding), finding)
@@ -970,7 +1069,7 @@ const createPlan = async (
       if (manifest.runKind === 'manual' && !issue)
         throw new ReporterError('manual finding has no enclosing reporter issue')
       if (issue?.labels.includes(SUPPRESSED_LABEL)) {
-        diagnostics.push('reporter issue is explicitly suppressed')
+        addDiagnostic(diagnostics, diagnosticDetails, 'suppressed', 'reporter issue is explicitly suppressed')
         continue
       }
       if (issue && virtualIssues.has(issue.number)) issue = virtualIssues.get(issue.number)
@@ -1073,7 +1172,7 @@ const createPlan = async (
         assets.push({reference, bytes, assetName, plan, assetVariantKey})
       }
       if (itemError) {
-        diagnostics.push(itemError)
+        addDiagnostic(diagnostics, diagnosticDetails, 'asset-verification', itemError)
         continue
       }
       const comment = Boolean(
@@ -1158,13 +1257,14 @@ const createPlan = async (
         virtualComments.set(issue.number, comments)
       }
     } catch (error) {
-      diagnostics.push(error instanceof Error ? error.message : 'finding preflight failed')
+      const message = diagnosticMessage(error, 'finding preflight failed')
+      addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'planning'), message)
     }
   }
 
   for (const validation of orderedValidations) {
     if (validation.status !== 'clean') {
-      diagnostics.push(validation.diagnostic)
+      addDiagnostic(diagnostics, diagnosticDetails, 'infrastructure', validation.diagnostic)
       continue
     }
     const fingerprint = validation.fingerprint
@@ -1174,7 +1274,7 @@ const createPlan = async (
       if (manifest.runKind === 'manual' && issue.number !== manifest.issueNumber)
         throw new ReporterError('manual validation targets an issue other than the enclosing manual issue')
       if (issue.labels.includes(SUPPRESSED_LABEL)) {
-        diagnostics.push('reporter issue is explicitly suppressed')
+        addDiagnostic(diagnostics, diagnosticDetails, 'suppressed', 'reporter issue is explicitly suppressed')
         continue
       }
       if (virtualIssues.has(issue.number)) issue = virtualIssues.get(issue.number) as GitHubIssue
@@ -1228,7 +1328,7 @@ const createPlan = async (
         assets.push({reference, bytes, assetName, plan, assetVariantKey: variant})
       }
       if (itemError) {
-        diagnostics.push(itemError)
+        addDiagnostic(diagnostics, diagnosticDetails, 'asset-verification', itemError)
         continue
       }
       const comment = !isReporterMarker(comments, validateOp, input.reporterActor)
@@ -1287,7 +1387,8 @@ const createPlan = async (
       virtualLedgers.set(issue.number, expectedLedger)
       virtualComments.set(issue.number, comments)
     } catch (error) {
-      diagnostics.push(error instanceof Error ? error.message : 'validation preflight failed')
+      const message = diagnosticMessage(error, 'validation preflight failed')
+      addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'planning'), message)
     }
   }
 
@@ -1337,7 +1438,7 @@ const createPlan = async (
   if (releaseMissing && needsRelease)
     operations.push({kind: 'release-create', key: operationKey(manifest.runId, 'release', 'release', 'create')})
   for (const item of items) operations.push(...item.operations)
-  return {items, operations, diagnostics}
+  return {items, operations, diagnostics, diagnosticDetails, status: statusFromDiagnostics(diagnosticDetails)}
 }
 
 export const decideAudit = async (
@@ -1350,18 +1451,29 @@ export const decideAudit = async (
     artifactRoot: input.artifactRoot,
   })
   const diagnostics: string[] = []
+  const diagnosticDetails: ReporterDiagnostic[] = []
   let plan: ReporterPlan
   try {
     plan = await createPlan({...input, manifest: validated.manifest, validated})
     diagnostics.push(...plan.diagnostics)
+    diagnosticDetails.push(...plan.diagnosticDetails)
   } catch (error) {
-    diagnostics.push(error instanceof ReporterError ? error.message : 'reporter planning failed')
-    plan = {items: [], operations: [], diagnostics: []}
+    const message = diagnosticMessage(error, 'reporter planning failed')
+    addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'planning'), message)
+    plan = {
+      items: [],
+      operations: [],
+      diagnostics: [],
+      diagnosticDetails: [],
+      status: 'failure',
+    }
   }
   return {
     validated,
     operations: plan.operations,
     diagnostics: diagnostics.slice(0, 100),
+    status: statusFromDiagnostics(diagnosticDetails),
+    diagnosticDetails: diagnosticDetails.slice(0, 100),
     permittedFindings: plan.items.flatMap(item =>
       item.kind === 'finding' && item.operations.length > 0 ? [...(item.findings ?? [item.finding as Finding])] : [],
     ),
@@ -1375,8 +1487,14 @@ export const decideAudit = async (
 const executePlan = async (
   input: {readonly manifest: AuditManifest; readonly validated: ValidatedReporterArtifact} & ReporterDependencies,
   plan: ReporterPlan,
-): Promise<{writeCount: number; issueNumbers: number[]; diagnostics: string[]}> => {
+): Promise<{
+  writeCount: number
+  issueNumbers: number[]
+  diagnostics: string[]
+  diagnosticDetails: ReporterDiagnostic[]
+}> => {
   const diagnostics = [...plan.diagnostics]
+  const diagnosticDetails: ReporterDiagnostic[] = []
   const issueNumbers: number[] = []
   let writeCount = 0
   let release: EvidenceRelease | undefined
@@ -1393,7 +1511,8 @@ const executePlan = async (
       await assessIssueAuthority(fresh, input)
     } catch (error) {
       blockedItems.add(item)
-      diagnostics.push(error instanceof Error ? error.message : 'reporter item authority preflight failed')
+      const message = diagnosticMessage(error, 'reporter item authority preflight failed')
+      addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'transport'), message)
     }
   }
   const createItems = plan.items.filter(item => item.issueCreate && !blockedItems.has(item))
@@ -1403,12 +1522,18 @@ const executePlan = async (
       for (const item of createItems) {
         if (findReporterIssuesFromListed(freshIssues, item.fingerprint)) {
           blockedItems.add(item)
-          diagnostics.push('issue creation race detected; matching issue appeared after planning')
+          addDiagnostic(
+            diagnostics,
+            diagnosticDetails,
+            'drift',
+            'issue creation race detected; matching issue appeared after planning',
+          )
         }
       }
     } catch (error) {
       for (const item of createItems) blockedItems.add(item)
-      diagnostics.push(error instanceof Error ? error.message : 'issue creation race preflight failed')
+      const message = diagnosticMessage(error, 'issue creation race preflight failed')
+      addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'transport'), message)
     }
   }
   const releaseNeeded = plan.items.some(item => !blockedItems.has(item) && item.assets.length > 0)
@@ -1429,8 +1554,9 @@ const executePlan = async (
           : undefined
       if (releaseCreatePlanned) writeCount += 1
     } catch (error) {
-      diagnostics.push(error instanceof Error ? error.message : 'evidence release mutation failed')
-      return {writeCount, issueNumbers, diagnostics}
+      const message = diagnosticMessage(error, 'evidence release mutation failed')
+      addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'transport'), message)
+      return {writeCount, issueNumbers, diagnostics, diagnosticDetails}
     }
   }
   for (const item of plan.items) {
@@ -1643,10 +1769,16 @@ const executePlan = async (
       }
       if (issue.number !== undefined) issueNumbers.push(issue.number)
     } catch (error) {
-      diagnostics.push(error instanceof Error ? error.message : 'reporter item mutation failed')
+      const message = diagnosticMessage(error, 'reporter item mutation failed')
+      addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'mutation'), message)
     }
   }
-  return {writeCount, issueNumbers, diagnostics: diagnostics.slice(0, 100)}
+  return {
+    writeCount,
+    issueNumbers,
+    diagnostics: diagnostics.slice(0, 100),
+    diagnosticDetails: diagnosticDetails.slice(0, 100),
+  }
 }
 
 export const reportAudit = async (
@@ -1655,23 +1787,37 @@ export const reportAudit = async (
   const decision = await decideAudit(input)
   const plan = decision.executionPlan
   const mode = input.writeMode ?? 'disabled'
-  if (mode === 'disabled' || (mode === 'manual-only' && decision.validated.manifest.runKind === 'scheduled'))
+  if (mode === 'disabled' || (mode === 'manual-only' && decision.validated.manifest.runKind === 'scheduled')) {
+    const modeDiagnostic: ReporterDiagnostic =
+      mode === 'disabled'
+        ? {code: 'writes-disabled', severity: 'warning', message: 'reporter writes disabled'}
+        : {
+            code: 'manual-only',
+            severity: 'warning',
+            message: 'reporter writes disabled for scheduled runs in manual-only mode',
+          }
     return {
       manifest: decision.validated.manifest,
       operations: plan.operations,
       diagnostics: [...decision.diagnostics, ...plan.diagnostics, 'reporter writes disabled'].slice(0, 100),
       writeCount: 0,
       issueNumbers: [],
+      status: statusFromDiagnostics([...decision.diagnosticDetails, modeDiagnostic]),
+      diagnosticDetails: [...decision.diagnosticDetails, modeDiagnostic].slice(0, 100),
     }
+  }
   const result = await executePlan(
     {...input, manifest: decision.validated.manifest, validated: decision.validated},
     plan,
   )
+  const diagnosticDetails = [...decision.diagnosticDetails, ...result.diagnosticDetails].slice(0, 100)
   return {
     manifest: decision.validated.manifest,
     operations: plan.operations,
     diagnostics: [...decision.diagnostics, ...result.diagnostics].slice(0, 100),
     writeCount: result.writeCount,
     issueNumbers: result.issueNumbers,
+    status: statusFromDiagnostics(diagnosticDetails),
+    diagnosticDetails,
   }
 }

@@ -5,6 +5,7 @@ import {presetThemes} from '../../src/utils/preset-themes'
 import {findingFingerprint, normalizeIdentityText, variantKey} from './identity'
 
 export const AUDIT_CONTRACT_VERSION = 1
+export const AUDIT_ASSERTION_VERSION = 1
 export const AUDIT_ROUTES = ['/', '/about', '/projects', '/blog'] as const
 export const AUDIT_VIEWPORTS = ['desktop', 'mobile'] as const
 export const AUDIT_THEMES = ['light', 'dark'] as const
@@ -39,6 +40,22 @@ export type TargetDescriptor =
   | {kind: 'text'; value: string}
   | {kind: 'test-id'; value: string}
   | {kind: 'region'; x: number; y: number; width: number; height: number}
+
+export type AuditAssertion =
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'image-load'; expected: 'loaded'}
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'visibility'; expected: 'visible'}
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'viewport-containment'; edges: 'all'}
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'viewport-overflow'; axis: 'horizontal' | 'vertical' | 'both'}
+  | {
+      version: typeof AUDIT_ASSERTION_VERSION
+      kind: 'geometry'
+      property: 'width' | 'height' | 'area'
+      operator: 'greater-than' | 'at-least'
+      value: number
+    }
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'no-overlap'; otherTarget: TargetDescriptor}
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'minimum-size'; width: number; height: number}
+  | {version: typeof AUDIT_ASSERTION_VERSION; kind: 'text'; operator: 'equals' | 'contains'; value: string}
 
 export interface AuditVariant {
   viewport: AuditViewport
@@ -84,6 +101,7 @@ interface FindingFields {
   findingClass: FindingClass
   semanticTarget: string
   target: TargetDescriptor
+  assertion: AuditAssertion
   failureSignature: string
   description: string
   reproduction: string[]
@@ -130,6 +148,7 @@ interface ValidationIdentity {
   failureSignature: string
   variant: AuditVariant
   target: TargetDescriptor
+  assertion: AuditAssertion
   observedAt: string
 }
 
@@ -187,6 +206,87 @@ const targetSchema = {
       },
       required: ['kind', 'x', 'y', 'width', 'height'],
       additionalProperties: false,
+    },
+  ],
+}
+
+const assertionSchema = {
+  oneOf: [
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {version: {const: AUDIT_ASSERTION_VERSION}, kind: {const: 'image-load'}, expected: {const: 'loaded'}},
+      required: ['version', 'kind', 'expected'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ASSERTION_VERSION},
+        kind: {const: 'visibility'},
+        expected: {const: 'visible'},
+      },
+      required: ['version', 'kind', 'expected'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ASSERTION_VERSION},
+        kind: {const: 'viewport-containment'},
+        edges: {const: 'all'},
+      },
+      required: ['version', 'kind', 'edges'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ASSERTION_VERSION},
+        kind: {const: 'viewport-overflow'},
+        axis: {enum: ['horizontal', 'vertical', 'both']},
+      },
+      required: ['version', 'kind', 'axis'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ASSERTION_VERSION},
+        kind: {const: 'geometry'},
+        property: {enum: ['width', 'height', 'area']},
+        operator: {enum: ['greater-than', 'at-least']},
+        value: {type: 'number', exclusiveMinimum: 0, maximum: 10000},
+      },
+      required: ['version', 'kind', 'property', 'operator', 'value'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {version: {const: AUDIT_ASSERTION_VERSION}, kind: {const: 'no-overlap'}, otherTarget: targetSchema},
+      required: ['version', 'kind', 'otherTarget'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ASSERTION_VERSION},
+        kind: {const: 'minimum-size'},
+        width: {type: 'number', exclusiveMinimum: 0, maximum: 1000},
+        height: {type: 'number', exclusiveMinimum: 0, maximum: 1000},
+      },
+      required: ['version', 'kind', 'width', 'height'],
+    },
+    {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        version: {const: AUDIT_ASSERTION_VERSION},
+        kind: {const: 'text'},
+        operator: {enum: ['equals', 'contains']},
+        value: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
+      },
+      required: ['version', 'kind', 'operator', 'value'],
     },
   ],
 }
@@ -259,6 +359,7 @@ const validationIdentityProperties = {
   failureSignature: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
   variant: auditVariantSchema,
   target: targetSchema,
+  assertion: assertionSchema,
   observedAt: {type: 'string', format: 'date-time'},
 }
 const responsiveCounterpartResultSchema = {
@@ -345,6 +446,7 @@ const schema = {
             items: {type: 'string', minLength: 1, maxLength: 500},
           },
           variant: auditVariantSchema,
+          assertion: assertionSchema,
           observations: {
             type: 'array',
             minItems: 2,
@@ -374,6 +476,7 @@ const schema = {
           'description',
           'reproduction',
           'variant',
+          'assertion',
           'observations',
           'evidence',
         ],
@@ -397,6 +500,7 @@ addFormats(ajv)
 const validate = ajv.compile(schema)
 const validateTarget = ajv.compile(targetSchema)
 const validateThemeSelection = ajv.compile(themeSelectionSchema)
+const validateAssertion = ajv.compile(assertionSchema)
 
 const cleanText = (value: string): string =>
   [...value]
@@ -465,6 +569,25 @@ export const parseThemeSelection = (input: unknown): AuditThemeSelection => {
   return selection
 }
 
+export const parseAuditAssertion = (input: unknown): AuditAssertion => {
+  if (!validateAssertion(input))
+    throw new AuditContractError(`invalid audit assertion: ${ajv.errorsText(validateAssertion.errors)}`)
+  const assertion = input as unknown as AuditAssertion
+  if (assertion.kind === 'no-overlap') parseTargetDescriptor(assertion.otherTarget)
+  if (assertion.kind === 'text' && !hasSafeText(assertion.value, MAX_AUDIT_TEXT))
+    throw new AuditContractError('audit assertion text is unsafe or empty')
+  return assertion
+}
+
+export const isAuditAssertionForFindingClass = (findingClass: FindingClass, assertion: AuditAssertion): boolean => {
+  if (findingClass === 'broken-image') return assertion.kind === 'image-load'
+  if (findingClass === 'visibility') return assertion.kind === 'visibility'
+  if (findingClass === 'overflow') return assertion.kind === 'viewport-overflow'
+  if (findingClass === 'hit-target') return assertion.kind === 'minimum-size'
+  if (findingClass === 'content') return assertion.kind === 'text'
+  return ['viewport-containment', 'geometry', 'no-overlap'].includes(assertion.kind)
+}
+
 const validateResponsiveCounterpart = (finding: Finding): void => {
   if (finding.responsive === 'not-applicable') return
   const counterpart = finding.counterpart
@@ -503,6 +626,9 @@ const semanticValidate = (manifest: AuditManifest): void => {
       throw new AuditContractError('observations have mismatched signatures')
     validateEvidencePair(finding.evidence)
     validateResponsiveCounterpart(finding)
+    parseAuditAssertion(finding.assertion)
+    if (!isAuditAssertionForFindingClass(finding.findingClass, finding.assertion))
+      throw new AuditContractError('finding class does not match its assertion')
     if (!hasSafeText(finding.semanticTarget, 200))
       throw new AuditContractError('semantic target contains unsafe or empty text')
     const textValues = [
@@ -563,6 +689,9 @@ const semanticValidate = (manifest: AuditManifest): void => {
     if (!hasSafeText(validation.variant.state, 200)) throw new AuditContractError('invalid validation variant state')
     parseThemeSelection(validation.variant.theme)
     parseTargetDescriptor(validation.target)
+    parseAuditAssertion(validation.assertion)
+    if (!isAuditAssertionForFindingClass(validation.findingClass, validation.assertion))
+      throw new AuditContractError('validation class does not match its assertion')
     if (validation.status === 'clean') {
       validateEvidencePair(validation.evidence)
       assertUniqueEvidence(validation.evidence)

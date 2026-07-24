@@ -5,7 +5,7 @@ import path from 'node:path'
 import {inflateSync} from 'node:zlib'
 
 import {expect, test} from '@playwright/test'
-import {captureTargetEvidence, validatePng} from '../../scripts/live-audit/evidence'
+import {captureTargetEvidence, evaluateAuditAssertion, validatePng} from '../../scripts/live-audit/evidence'
 
 const containsRedPixel = (png: Buffer): boolean => {
   const width = png.readUInt32BE(16)
@@ -105,5 +105,168 @@ test.describe('live audit evidence capture', () => {
     await expect(captureTargetEvidence(page, {kind: 'test-id', value: 'ambiguous-target'}, output)).rejects.toThrow(
       /ambiguous/,
     )
+  })
+
+  test('evaluates every approved assertion against real same-origin DOM state', async ({page}) => {
+    await page.route('https://mrbro.dev/**', route =>
+      route.fulfill({status: 200, contentType: 'text/html', body: '<!doctype html><html><body></body></html>'}),
+    )
+    await page.goto('https://mrbro.dev/')
+    await page.waitForLoadState('networkidle')
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `
+          <img data-testid="assert-loaded" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" style="width:20px;height:20px">
+          <img data-testid="assert-broken" src="/missing-audit-image.png" style="width:20px;height:20px">
+          <div data-testid="assert-hidden" style="visibility:hidden;width:20px;height:20px">hidden</div>
+          <div data-testid="assert-contained" style="width:20px;height:20px">contained</div>
+          <div data-testid="assert-overlap-a" style="position:absolute;left:20px;top:20px;width:40px;height:40px">a</div>
+          <div data-testid="assert-overlap-b" style="position:absolute;left:40px;top:40px;width:40px;height:40px">b</div>
+          <div data-testid="assert-small" style="width:10px;height:10px">small</div>
+          <div data-testid="assert-text">Hello audit text</div>
+          <div data-testid="assert-wide" style="width:200vw;height:1px">wide</div>
+        `,
+      )
+    })
+    const target = (value: string) => ({kind: 'test-id' as const, value})
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-loaded'), {
+          version: 1,
+          kind: 'image-load',
+          expected: 'loaded',
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-broken'), {
+          version: 1,
+          kind: 'image-load',
+          expected: 'loaded',
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-contained'), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-hidden'), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-contained'), {
+          version: 1,
+          kind: 'viewport-containment',
+          edges: 'all',
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-wide'), {
+          version: 1,
+          kind: 'viewport-overflow',
+          axis: 'horizontal',
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-contained'), {
+          version: 1,
+          kind: 'geometry',
+          property: 'width',
+          operator: 'at-least',
+          value: 20,
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-overlap-a'), {
+          version: 1,
+          kind: 'no-overlap',
+          otherTarget: target('assert-overlap-b'),
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-small'), {
+          version: 1,
+          kind: 'minimum-size',
+          width: 44,
+          height: 44,
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-text'), {
+          version: 1,
+          kind: 'text',
+          operator: 'equals',
+          value: 'Hello audit text',
+        })
+      ).status,
+    ).toBe('clean')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-text'), {
+          version: 1,
+          kind: 'text',
+          operator: 'contains',
+          value: 'missing',
+        })
+      ).status,
+    ).toBe('failure')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-missing'), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('infrastructure-error')
+    await page.evaluate(() => {
+      const duplicate = document.createElement('div')
+      duplicate.dataset.testid = 'assert-contained'
+      duplicate.textContent = 'duplicate'
+      document.body.append(duplicate)
+    })
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-contained'), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('infrastructure-error')
+    await page.goto('about:blank')
+    expect(
+      (
+        await evaluateAuditAssertion(page, target('assert-contained'), {
+          version: 1,
+          kind: 'visibility',
+          expected: 'visible',
+        })
+      ).status,
+    ).toBe('infrastructure-error')
   })
 })

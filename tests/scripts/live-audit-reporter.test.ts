@@ -11,7 +11,12 @@ import {computeEvidenceIntegrity} from '../../scripts/live-audit/evidence'
 import {findingFingerprint, operationKey, variantKey} from '../../scripts/live-audit/identity'
 import {parseIssueLedger, renderIssueLedger, type IssueLedger} from '../../scripts/live-audit/issue-ledger'
 import {evidenceAssetName} from '../../scripts/live-audit/release-evidence'
-import {decideAudit, reportAudit, validateReporterArtifact} from '../../scripts/live-audit/reporter'
+import {
+  classifyReporterError,
+  decideAudit,
+  reportAudit,
+  validateReporterArtifact,
+} from '../../scripts/live-audit/reporter'
 
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -41,6 +46,7 @@ const makeFinding = (overrides: Partial<Finding> = {}): Finding => {
     responsive: 'not-applicable',
     semanticTarget: 'project-card-image',
     target: {kind: 'test-id', value: 'project-card-1'},
+    assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
     failureSignature: 'broken image',
     description: 'Broken project image',
     reproduction: ['Open projects'],
@@ -83,6 +89,7 @@ const validationFor = (finding: Finding, issueNumber = 204): ValidationClean => 
   semanticTarget: finding.semanticTarget,
   findingClass: finding.findingClass,
   failureSignature: finding.failureSignature,
+  assertion: finding.assertion,
   variant: finding.variant,
   target: finding.target,
   observedAt: '2026-07-20T03:30:00.000Z',
@@ -127,6 +134,7 @@ const ledgerFor = (finding: Finding, overrides: Partial<IssueLedger> = {}): Issu
   route: finding.route,
   semanticTarget: finding.semanticTarget,
   findingClass: finding.findingClass,
+  assertion: finding.assertion,
   responsive: finding.responsive,
   failureSignature: finding.failureSignature,
   variants: [
@@ -138,7 +146,14 @@ const ledgerFor = (finding: Finding, overrides: Partial<IssueLedger> = {}): Issu
       cleanCount: 0,
     },
   ],
-  replay: [{variantKey: variantKey(finding.variant), target: finding.target, reproduction: finding.reproduction}],
+  replay: [
+    {
+      variantKey: variantKey(finding.variant),
+      target: finding.target,
+      assertion: finding.assertion,
+      reproduction: finding.reproduction,
+    },
+  ],
   operations: [],
   transition: {kind: 'open', source: 'reporter'},
   ...overrides,
@@ -382,6 +397,7 @@ describe('reporter sealed artifact boundary', () => {
       route: finding.route,
       semanticTarget: finding.semanticTarget,
       findingClass: finding.findingClass,
+      assertion: finding.assertion,
       failureSignature: finding.failureSignature,
       variant: finding.variant,
       target: finding.target,
@@ -766,6 +782,8 @@ describe('reporter reconciled lifecycle', () => {
     expect(result.writeCount).toBe(0)
     expect(memory.writes).toEqual([])
     expect(result.diagnostics.some(item => item.includes('asset') || item.includes('verified'))).toBe(true)
+    expect(result.status).toBe('failure')
+    expect(result.diagnosticDetails.some(diagnostic => diagnostic.code === 'asset-verification')).toBe(true)
   })
 
   it('uses exact reporter comments, canonical image order, safe run markers, and closure prose', async () => {
@@ -1316,6 +1334,7 @@ describe('reporter validation closure', () => {
       route: finding.route,
       semanticTarget: finding.semanticTarget,
       findingClass: finding.findingClass,
+      assertion: finding.assertion,
       failureSignature: finding.failureSignature,
       variant: finding.variant,
       target: finding.target,
@@ -1412,7 +1431,12 @@ describe('reporter validation closure', () => {
       ],
       replay: [
         ...ledgerFor(finding).replay,
-        {variantKey: variantKey(desktop), target: finding.target, reproduction: finding.reproduction},
+        {
+          variantKey: variantKey(desktop),
+          target: finding.target,
+          assertion: finding.assertion,
+          reproduction: finding.reproduction,
+        },
       ],
     })
     const memory = memoryGithub({issue: rawIssue({number: 204, body: renderIssueLedger(initial)})})
@@ -1612,6 +1636,7 @@ describe('reporter validation closure', () => {
     const malformed = memoryGithub({issue: rawIssue({number: 204, body: 'human'})})
     const malformedResult = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), malformed)})
     expect(malformedResult.writeCount).toBe(0)
+    expect(malformedResult.status).toBe('failure')
     const duplicate = memoryGithub({
       issues: [
         rawIssue({number: 204, body: renderIssueLedger(ledgerFor(finding))}),
@@ -1621,5 +1646,173 @@ describe('reporter validation closure', () => {
     const duplicateResult = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), duplicate)})
     expect(duplicateResult.writeCount).toBe(0)
     expect(duplicateResult.diagnostics.some(item => item.includes('multiple'))).toBe(true)
+    expect(duplicateResult.status).toBe('failure')
+  })
+})
+
+describe('reporter structured outcomes', () => {
+  it('reports enabled no-op work as success and disabled planned work as warning', async () => {
+    const manifest = manifestFor()
+    const enabledMemory = memoryGithub({release: false})
+    const enabled = await reportAudit({manifest, ...depsFor(rootFor(), enabledMemory)})
+    expect(enabled.status).toBe('success')
+    expect(enabled.diagnosticDetails).toEqual([])
+
+    const retry = await reportAudit({manifest, ...depsFor(rootFor(), enabledMemory)})
+    expect(retry.status).toBe('success')
+    expect(retry.writeCount).toBe(0)
+
+    const dry = await reportAudit({manifest, ...depsFor(rootFor(), memoryGithub({release: false}), 'disabled')})
+    expect(dry.operations.length).toBeGreaterThan(0)
+    expect(dry.status).toBe('warning')
+    expect(dry.diagnosticDetails).toContainEqual({
+      code: 'writes-disabled',
+      severity: 'warning',
+      message: 'reporter writes disabled',
+    })
+  })
+
+  it('distinguishes manual-only scheduled runs from enabled manual runs', async () => {
+    const scheduled = await reportAudit({
+      manifest: manifestFor(),
+      ...depsFor(rootFor(), memoryGithub({release: false}), 'manual-only'),
+    })
+    expect(scheduled.status).toBe('warning')
+    expect(scheduled.diagnosticDetails).toContainEqual({
+      code: 'manual-only',
+      severity: 'warning',
+      message: 'reporter writes disabled for scheduled runs in manual-only mode',
+    })
+
+    const manual = await reportAudit({
+      manifest: manifestFor({runKind: 'manual', issueNumber: 204}),
+      ...depsFor(
+        rootFor(),
+        memoryGithub({
+          issue: rawIssue({number: 204, body: renderIssueLedger(ledgerFor(makeFinding()))}),
+          release: false,
+        }),
+        'manual-only',
+      ),
+    })
+    expect(manual.status).toBe('success')
+  })
+
+  it('reports authoritative suppression as a warning, including mixed suppressed and permitted batches', async () => {
+    const suppressedFinding = makeFinding()
+    const permittedFinding = makeFinding({
+      failureSignature: 'different failure',
+      observations: suppressedFinding.observations.map(observation => ({
+        ...observation,
+        signature: 'different failure',
+      })) as Finding['observations'],
+      evidence: evidencePair('permitted/context.png', 'permitted/crop.png'),
+    })
+    const memory = memoryGithub({
+      issues: [
+        rawIssue({
+          number: 204,
+          body: renderIssueLedger(ledgerFor(suppressedFinding)),
+          labels: ['visual-audit-suppressed'],
+        }),
+      ],
+      release: false,
+    })
+    const result = await reportAudit({
+      manifest: manifestFor({findings: [suppressedFinding, permittedFinding]}),
+      ...depsFor(
+        rootFor({
+          'evidence/context.png': png,
+          'evidence/crop.png': png,
+          'permitted/context.png': png,
+          'permitted/crop.png': png,
+        }),
+        memory,
+      ),
+    })
+    expect(result.status).toBe('warning')
+    expect(result.writeCount).toBeGreaterThan(0)
+    expect(result.diagnosticDetails).toContainEqual({
+      code: 'suppressed',
+      severity: 'warning',
+      message: 'reporter issue is explicitly suppressed',
+    })
+  })
+
+  it('reports infrastructure-only diagnostics as warnings without writes', async () => {
+    const finding = makeFinding()
+    const {evidence: _evidence, ...cleanWithoutEvidence} = validationFor(finding)
+    const result = await reportAudit({
+      manifest: manifestFor({
+        findings: [],
+        validations: [{...cleanWithoutEvidence, status: 'infrastructure-error', diagnostic: 'browser unavailable'}],
+      }),
+      ...depsFor(
+        rootFor(),
+        memoryGithub({issue: rawIssue({number: 204, body: renderIssueLedger(ledgerFor(finding))})}),
+      ),
+    })
+    expect(result.status).toBe('warning')
+    expect(result.writeCount).toBe(0)
+    expect(result.diagnosticDetails).toContainEqual({
+      code: 'infrastructure',
+      severity: 'warning',
+      message: 'browser unavailable',
+    })
+  })
+
+  it('reports drift and transport failures as typed failures', async () => {
+    const finding = makeFinding()
+    const operation = operationKey('run-reporter-1', findingFingerprint(finding), variantKey(finding.variant), 'report')
+    const assets = finding.evidence.map((reference, index) => ({
+      id: index + 1,
+      name: evidenceAssetName({
+        operationKey: operation,
+        fingerprint: findingFingerprint(finding),
+        variantKey: variantKey(finding.variant),
+        role: reference.role,
+        bytes: png,
+      }),
+      state: 'uploaded',
+      size: png.length,
+      content_type: 'image/png',
+      digest: `sha256:${digest(png)}`,
+      browser_download_url: `https://github.com/example/repo/releases/download/live-audit-evidence/${evidenceAssetName({
+        operationKey: operation,
+        fingerprint: findingFingerprint(finding),
+        variantKey: variantKey(finding.variant),
+        role: reference.role,
+        bytes: png,
+      })}`,
+    }))
+    const driftMemory = memoryGithub({
+      issue: rawIssue({number: 204, body: renderIssueLedger(ledgerFor(finding))}),
+      assets,
+      onAssetList: (listed, count) => {
+        if (count === 2 && listed[0]) listed[0].digest = 'sha256:drift'
+      },
+    })
+    const drift = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), driftMemory)})
+    expect(drift.status).toBe('failure')
+    expect(drift.diagnosticDetails.some(diagnostic => diagnostic.code === 'drift')).toBe(true)
+    expect(drift.diagnosticDetails.every(diagnostic => diagnostic.severity === 'failure')).toBe(true)
+
+    const transportMemory = memoryGithub({release: false, failCommentOnce: true})
+    await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), transportMemory)})
+    const transport = await reportAudit({
+      manifest: manifestFor({runId: 'transport-run-2'}),
+      ...depsFor(rootFor(), transportMemory),
+    })
+    expect(transport.status).toBe('failure')
+    expect(transport.diagnosticDetails.some(diagnostic => diagnostic.severity === 'failure')).toBe(true)
+  })
+
+  it('classifies thrown artifact and contract errors as CLI-safe failures', async () => {
+    const error = await reportAudit({
+      manifest: manifestFor(),
+      ...depsFor('/missing/live-audit-artifact', memoryGithub(), 'disabled'),
+    }).catch(error => error)
+    expect(classifyReporterError(error).status).toBe('failure')
+    expect(classifyReporterError(error).diagnostic.severity).toBe('failure')
   })
 })

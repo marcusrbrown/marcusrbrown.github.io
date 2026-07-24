@@ -10,11 +10,14 @@ import {
   AUDIT_ROUTES,
   AUDIT_THEMES,
   AUDIT_VIEWPORTS,
+  isAuditAssertionForFindingClass,
   isAuditPresetId,
   isAuditRoute,
+  parseAuditAssertion,
   parseAuditManifest,
   parseTargetDescriptor,
   parseThemeSelection,
+  type AuditAssertion,
   type AuditManifest,
   type AuditPresetId,
   type AuditRoute,
@@ -47,6 +50,7 @@ export interface Candidate {
   responsive: Finding['responsive']
   semanticTarget: string
   target: TargetDescriptor
+  assertion: AuditAssertion
   failureSignature: string
   description: string
   reproduction: string[]
@@ -68,6 +72,7 @@ const buildCandidateReplayRequest = (
   route: candidate.route,
   semanticTarget: candidate.semanticTarget,
   findingClass: candidate.findingClass,
+  assertion: candidate.assertion,
   failureSignature: candidate.failureSignature,
   responsive: candidate.responsive,
   variant,
@@ -105,6 +110,7 @@ export interface ActiveVariantReplayRequest {
   responsive: Finding['responsive']
   variant: AuditVariant
   target: TargetDescriptor
+  assertion: AuditAssertion
   reproduction: string[]
 }
 
@@ -125,6 +131,7 @@ export const buildActiveReplayRequests = (issueNumber: number, ledger: IssueLedg
       route: ledger.route,
       semanticTarget: ledger.semanticTarget,
       findingClass: ledger.findingClass,
+      assertion: ledger.assertion,
       failureSignature: ledger.failureSignature,
       responsive: ledger.responsive,
       variant: {viewport: variant.viewport, theme: variant.theme, state: variant.state},
@@ -195,7 +202,7 @@ export const parseCandidateBundle = (input: unknown): CandidateBundle => {
     if (
       !isRecord(value) ||
       Object.keys(value).sort().join(',') !==
-        'description,failureSignature,findingClass,observation,reproduction,responsive,route,semanticTarget,target,variant'
+        'assertion,description,failureSignature,findingClass,observation,reproduction,responsive,route,semanticTarget,target,variant'
     )
       throw new Error('candidate contains unsupported fields')
     if (
@@ -203,6 +210,7 @@ export const parseCandidateBundle = (input: unknown): CandidateBundle => {
       !isAuditRoute(value.route) ||
       !safeText(value.semanticTarget, 200) ||
       !safeText(value.failureSignature) ||
+      !isRecord(value.assertion) ||
       !safeText(value.description) ||
       !Array.isArray(value.reproduction) ||
       value.reproduction.length === 0 ||
@@ -222,6 +230,9 @@ export const parseCandidateBundle = (input: unknown): CandidateBundle => {
     )
       throw new Error('invalid candidate')
     parseTargetDescriptor(value.target)
+    const assertion = parseAuditAssertion(value.assertion)
+    if (!isAuditAssertionForFindingClass(value.findingClass as Finding['findingClass'], assertion))
+      throw new Error('candidate finding class does not match assertion')
     parseThemeSelection(value.variant.theme)
     return value as unknown as Candidate
   })
@@ -464,6 +475,104 @@ export interface ReplayObservation {
   observedAt: string
 }
 
+export const evaluateAuditAssertion = async (
+  page: Page,
+  target: TargetDescriptor,
+  rawAssertion: AuditAssertion,
+): Promise<ReplayObservation> => {
+  const observedAt = new Date().toISOString()
+  try {
+    const assertion = parseAuditAssertion(rawAssertion)
+    if (new URL(page.url()).origin !== AUDIT_ORIGIN) throw new Error('page is outside the audit origin')
+    const result = (passes: boolean, detail: string): ReplayObservation => ({
+      status: passes ? 'clean' : 'failure',
+      signature: normalizeIdentityText(`assertion:${assertion.kind}:${detail}`).slice(0, 2_000),
+      observedAt,
+    })
+    const resolve = async (descriptor: TargetDescriptor) => {
+      const locator = locatorFor(page, descriptor)
+      if (!locator) {
+        if (descriptor.kind !== 'region' || descriptor.width <= 0 || descriptor.height <= 0)
+          throw new Error('target is not resolvable')
+        return {locator: undefined, box: descriptor}
+      }
+      if ((await locator.count()) !== 1) throw new Error('target is missing or ambiguous')
+      const box = await locator.boundingBox()
+      if (!box || box.width <= 0 || box.height <= 0) throw new Error('target is detached or zero-size')
+      return {locator, box}
+    }
+    const primary = await resolve(target)
+    if (assertion.kind === 'image-load') {
+      if (!primary.locator) throw new Error('image assertion requires a DOM target')
+      const state = await primary.locator.evaluate(element => {
+        const image = element instanceof HTMLImageElement ? element : element.querySelector('img')
+        return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 ? 'loaded' : 'not-loaded'
+      })
+      return result(state === 'loaded', `expected-loaded:${state}`)
+    }
+    if (assertion.kind === 'visibility') {
+      if (!primary.locator) throw new Error('visibility assertion requires a DOM target')
+      const visible = await primary.locator.isVisible()
+      return result(visible, `expected-visible:${visible ? 'visible' : 'hidden'}`)
+    }
+    const viewport = await page.evaluate(() => ({width: window.innerWidth, height: window.innerHeight}))
+    if (assertion.kind === 'viewport-containment') {
+      const contained =
+        primary.box.x >= 0 &&
+        primary.box.y >= 0 &&
+        primary.box.x + primary.box.width <= viewport.width &&
+        primary.box.y + primary.box.height <= viewport.height
+      return result(contained, `contained:${contained ? 'yes' : 'no'}`)
+    }
+    if (assertion.kind === 'viewport-overflow') {
+      const metrics = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+        clientHeight: document.documentElement.clientHeight,
+      }))
+      const horizontal = metrics.scrollWidth > metrics.clientWidth
+      const vertical = metrics.scrollHeight > metrics.clientHeight
+      const overflow =
+        assertion.axis === 'horizontal' ? horizontal : assertion.axis === 'vertical' ? vertical : horizontal || vertical
+      return result(!overflow, `overflow:${overflow ? 'yes' : 'no'}`)
+    }
+    if (assertion.kind === 'geometry') {
+      const actual =
+        assertion.property === 'width'
+          ? primary.box.width
+          : assertion.property === 'height'
+            ? primary.box.height
+            : primary.box.width * primary.box.height
+      const passes = assertion.operator === 'greater-than' ? actual > assertion.value : actual >= assertion.value
+      return result(passes, `geometry:${assertion.property}:${actual}`)
+    }
+    if (assertion.kind === 'no-overlap') {
+      const other = await resolve(assertion.otherTarget)
+      const overlaps =
+        primary.box.x < other.box.x + other.box.width &&
+        primary.box.x + primary.box.width > other.box.x &&
+        primary.box.y < other.box.y + other.box.height &&
+        primary.box.y + primary.box.height > other.box.y
+      return result(!overlaps, `overlap:${overlaps ? 'yes' : 'no'}`)
+    }
+    if (assertion.kind === 'minimum-size') {
+      const passes = primary.box.width >= assertion.width && primary.box.height >= assertion.height
+      return result(passes, `minimum-size:${primary.box.width}x${primary.box.height}`)
+    }
+    if (!primary.locator) throw new Error('text assertion requires a DOM target')
+    const text = (await primary.locator.textContent()) ?? ''
+    const passes = assertion.operator === 'equals' ? text === assertion.value : text.includes(assertion.value)
+    return result(passes, `text:${passes ? 'match' : 'mismatch'}`)
+  } catch (error) {
+    return {
+      status: 'infrastructure-error',
+      signature: `assertion evaluation failed: ${String(error).slice(0, 500)}`,
+      observedAt,
+    }
+  }
+}
+
 export interface FinalizationResult {
   finding?: Finding
   diagnostic?: string
@@ -536,6 +645,7 @@ export const finalizeActiveVariant = async (
     route: request.route,
     semanticTarget: request.semanticTarget,
     findingClass: request.findingClass,
+    assertion: request.assertion,
     failureSignature: request.failureSignature,
     variant: request.variant,
     target: request.target,
@@ -564,6 +674,7 @@ export const finalizeActiveVariant = async (
           route: request.route,
           semanticTarget: request.semanticTarget,
           findingClass: request.findingClass,
+          assertion: request.assertion,
           failureSignature: request.failureSignature,
           variant: request.variant,
           target: request.target,
@@ -602,6 +713,7 @@ export const finalizeActiveVariant = async (
     const fields = {
       route: request.route,
       findingClass: request.findingClass,
+      assertion: request.assertion,
       semanticTarget: request.semanticTarget,
       target: request.target,
       failureSignature: request.failureSignature,
@@ -620,6 +732,21 @@ export const finalizeActiveVariant = async (
 }
 
 /** Promote one candidate only after an exact-state replay and independently verified evidence capture. */
+export const finalizeActiveVariantWithPlaywright = (
+  request: ActiveVariantReplayRequest,
+  page: Page,
+  capture: () => Promise<CapturedEvidence>,
+  counterpartReplay?: (variant: AuditVariant) => Promise<ReplayObservation>,
+  counterpartCapture?: (variant: AuditVariant) => Promise<CapturedEvidence>,
+): Promise<ActiveVariantFinalization> =>
+  finalizeActiveVariant(
+    request,
+    () => evaluateAuditAssertion(page, request.target, request.assertion),
+    capture,
+    counterpartReplay,
+    counterpartCapture,
+  )
+
 export const finalizeCandidate = async (
   candidate: Candidate,
   replay: () => Promise<ReplayObservation>,
@@ -660,6 +787,7 @@ export const finalizeCandidate = async (
   const fields = {
     route: candidate.route,
     findingClass: candidate.findingClass,
+    assertion: candidate.assertion,
     semanticTarget: candidate.semanticTarget,
     target: candidate.target,
     failureSignature: candidate.failureSignature,
@@ -673,6 +801,21 @@ export const finalizeCandidate = async (
   if (!counterpart.value) return {diagnostic: 'responsive counterpart finalization failed'}
   return {finding: {...fields, responsive: candidate.responsive, counterpart: counterpart.value}}
 }
+
+export const finalizeCandidateWithPlaywright = (
+  candidate: Candidate,
+  page: Page,
+  capture: () => Promise<CapturedEvidence>,
+  counterpartReplay?: (variant: AuditVariant) => Promise<ReplayObservation>,
+  counterpartCapture?: (variant: AuditVariant) => Promise<CapturedEvidence>,
+): Promise<FinalizationResult> =>
+  finalizeCandidate(
+    candidate,
+    () => evaluateAuditAssertion(page, candidate.target, candidate.assertion),
+    capture,
+    counterpartReplay,
+    counterpartCapture,
+  )
 
 export interface FinalizeBundleOptions {
   replay: (candidate: Candidate) => Promise<ReplayObservation>

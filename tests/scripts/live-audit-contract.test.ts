@@ -51,6 +51,7 @@ const validManifest = (): AuditManifest => ({
       responsive: 'uncertain',
       semanticTarget: 'project-card-image',
       target: {kind: 'test-id', value: 'project-card-1'},
+      assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
       failureSignature: 'broken image',
       description: 'The project image is broken.',
       reproduction: ['Open projects'],
@@ -109,6 +110,7 @@ const validCleanValidation = () => ({
   findingClass: 'broken-image' as const,
   failureSignature: 'broken image',
   target: {kind: 'test-id' as const, value: 'project-card-1'},
+  assertion: {version: 1, kind: 'image-load' as const, expected: 'loaded' as const},
   observedAt: '2026-07-20T03:30:00.000Z',
   evidence: [
     evidence('context', 'validations/context.png', 'Validation context', 'Context'),
@@ -130,6 +132,53 @@ describe('live audit contract', () => {
       }),
     ).toEqual(expect.objectContaining({findings: []}))
     expect(parseAuditManifest(validManifest()).findings).toHaveLength(1)
+  })
+
+  it('requires a closed versioned assertion and rejects prose or class mismatches', () => {
+    const missing = structuredClone(validManifest()) as unknown as Record<string, unknown>
+    delete (rawFinding(missing) as Record<string, unknown>).assertion
+    expect(() => parseAuditManifest(missing)).toThrow()
+
+    const valid = structuredClone(validManifest()) as unknown as Record<string, unknown>
+    rawFinding(valid).assertion = {version: 1, kind: 'image-load', expected: 'loaded'}
+    expect(parseAuditManifest(valid).findings[0]).toMatchObject({assertion: {kind: 'image-load'}})
+
+    for (const assertion of [
+      {version: 1, kind: 'image-load', expected: 'loaded', prose: 'run JavaScript'},
+      {version: 1, kind: 'visibility', expected: 'visible'},
+      {version: 1, kind: 'text', operator: 'equals', value: 'a'.repeat(2_001)},
+    ]) {
+      const invalid = structuredClone(validManifest()) as unknown as Record<string, unknown>
+      rawFinding(invalid).assertion = assertion
+      expect(() => parseAuditManifest(invalid)).toThrow()
+    }
+  })
+
+  it('accepts every approved assertion branch only with its matching finding class', () => {
+    const cases = [
+      ['broken-image', {version: 1, kind: 'image-load', expected: 'loaded'}],
+      ['visibility', {version: 1, kind: 'visibility', expected: 'visible'}],
+      ['layout', {version: 1, kind: 'viewport-containment', edges: 'all'}],
+      ['overflow', {version: 1, kind: 'viewport-overflow', axis: 'both'}],
+      ['layout', {version: 1, kind: 'geometry', property: 'width', operator: 'at-least', value: 10}],
+      ['layout', {version: 1, kind: 'no-overlap', otherTarget: {kind: 'test-id', value: 'other'}}],
+      ['hit-target', {version: 1, kind: 'minimum-size', width: 44, height: 44}],
+      ['content', {version: 1, kind: 'text', operator: 'contains', value: 'Project'}],
+    ] as const
+    for (const [findingClass, assertion] of cases) {
+      const manifest = structuredClone(validManifest()) as unknown as Record<string, unknown>
+      const finding = rawFinding(manifest)
+      finding.findingClass = findingClass
+      finding.assertion = assertion
+      expect(parseAuditManifest(manifest).findings[0]?.assertion).toEqual(assertion)
+    }
+    for (const [findingClass, assertion] of cases) {
+      const manifest = structuredClone(validManifest()) as unknown as Record<string, unknown>
+      const finding = rawFinding(manifest)
+      finding.findingClass = findingClass === 'layout' ? 'content' : 'layout'
+      finding.assertion = assertion
+      expect(() => parseAuditManifest(manifest)).toThrow(/class|assertion/)
+    }
   })
 
   it('accepts clean and infrastructure validation replay branches', () => {

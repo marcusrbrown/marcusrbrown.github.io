@@ -9,6 +9,7 @@ const ledger: IssueLedger = {
   route: '/projects',
   semanticTarget: 'card',
   findingClass: 'broken-image',
+  assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
   responsive: 'uncertain',
   failureSignature: 'broken image',
   variants: [
@@ -24,6 +25,7 @@ const ledger: IssueLedger = {
     {
       variantKey: 'variant-1',
       target: {kind: 'test-id', value: 'card'},
+      assertion: {version: 1, kind: 'image-load', expected: 'loaded'},
       reproduction: ['Open projects'],
     },
   ],
