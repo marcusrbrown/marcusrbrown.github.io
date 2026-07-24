@@ -4,9 +4,11 @@ import {isAbsolute, join, relative, sep} from 'node:path'
 
 import {
   parseAuditManifest,
+  parseLegacyAdoptionDescriptor,
   type AuditManifest,
   type EvidenceReference,
   type Finding,
+  type ParsedLegacyAdoptionDescriptor,
   type ValidationClean,
 } from './contract'
 import {computeEvidenceIntegrity, validatePng} from './evidence'
@@ -19,6 +21,7 @@ import {
   GhRunnerError,
   listLabeledIssues,
   patchIssueBodyFresh,
+  setIssueLabels,
   setIssueState,
   type GhRunner,
   type GitHubIssue,
@@ -63,7 +66,14 @@ export interface ReporterDependencies {
 }
 
 export type ReporterOperationKind =
-  'release-create' | 'asset-upload' | 'asset-delete' | 'issue-create' | 'body-update' | 'comment' | 'transition'
+  | 'release-create'
+  | 'asset-upload'
+  | 'asset-delete'
+  | 'issue-create'
+  | 'body-update'
+  | 'labels-update'
+  | 'comment'
+  | 'transition'
 
 export interface ReporterOperation {
   readonly kind: ReporterOperationKind
@@ -79,6 +89,7 @@ export type ReporterStatus = 'success' | 'warning' | 'failure'
 export type ReporterDiagnosticCode =
   | 'writes-disabled'
   | 'manual-only'
+  | 'already-adopted'
   | 'suppressed'
   | 'infrastructure'
   | 'artifact'
@@ -119,6 +130,51 @@ export interface ReporterDecision extends ReporterOutcome {
   readonly executionPlan: ReporterPlan
 }
 
+export interface LegacyAdoptionDependencies {
+  readonly repository: GitHubRepository
+  readonly runner: GhRunner
+  readonly writeMode?: ReporterWriteMode
+  readonly now?: () => Date
+  readonly reporterActor: string
+}
+
+export interface LegacyAdoptionOperation extends ReporterOperation {
+  readonly kind: 'body-update' | 'labels-update'
+}
+
+export interface LegacyAdoptionPlan extends ReporterOutcome {
+  readonly issueNumber: number
+  readonly fingerprint: string
+  readonly adoptionKey: string
+  readonly issueSnapshot?: GitHubIssue
+  readonly expectedLedger: IssueLedger
+  readonly expectedHumanBodySha256: string
+  readonly expectedLabels: readonly string[]
+  readonly operations: readonly LegacyAdoptionOperation[]
+  readonly diagnostics: readonly string[]
+  readonly bodyUpdate: boolean
+  readonly labelsUpdate: boolean
+}
+
+export interface LegacyAdoptionDecision extends ReporterOutcome {
+  readonly descriptor: ParsedLegacyAdoptionDescriptor
+  readonly issueNumber: number
+  readonly fingerprint: string
+  readonly adoptionKey: string
+  readonly operations: readonly LegacyAdoptionOperation[]
+  readonly diagnostics: readonly string[]
+  readonly executionPlan: LegacyAdoptionPlan
+}
+
+export interface LegacyAdoptionResult extends ReporterOutcome {
+  readonly issueNumber: number
+  readonly fingerprint: string
+  readonly adoptionKey: string
+  readonly operations: readonly LegacyAdoptionOperation[]
+  readonly diagnostics: readonly string[]
+  readonly writeCount: number
+}
+
 export interface ValidatedReporterArtifact {
   readonly manifest: AuditManifest
   readonly evidence: ReadonlyMap<string, Uint8Array>
@@ -150,6 +206,7 @@ const SUPPRESSED_LABEL = 'visual-audit-suppressed'
 const REPORTER_WARNING_CODES: ReadonlySet<ReporterDiagnosticCode> = new Set([
   'writes-disabled',
   'manual-only',
+  'already-adopted',
   'suppressed',
   'infrastructure',
 ])
@@ -167,6 +224,7 @@ const diagnosticCodeForError = (
   if (error instanceof GhRunnerError) return 'transport'
   const message = diagnosticMessage(error, '')
   if (message.includes('drift')) return 'drift'
+  if (message.includes('legacy adoption') || message.includes('legacy issue identity')) return 'drift'
   if (message === 'suppressed recurrence: human issue resolution is authoritative') return 'suppressed'
   return fallback
 }
@@ -243,6 +301,14 @@ const validateReporterActor = (actor: string): void => {
     })
   )
     throw new ReporterError('invalid reporter actor')
+}
+
+const legacyAdoptionActorPattern = /^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i
+
+export const validateLegacyAdoptionActor = (actor: string): void => {
+  validateReporterActor(actor)
+  if (actor.toLowerCase().endsWith('[bot]') || !legacyAdoptionActorPattern.test(actor))
+    throw new ReporterError('legacy adoption reporter actor must be a human GitHub login')
 }
 
 const validateWorkflowRunUrl = (url: string, repository: GitHubRepository): void => {
@@ -1847,5 +1913,400 @@ export const reportAudit = async (
     issueNumbers: result.issueNumbers,
     status: statusFromDiagnostics(diagnosticDetails),
     diagnosticDetails,
+  }
+}
+
+const legacyManagedLabels = ['fro-bot', LABEL] as const
+const legacyAdoptionVariantMarker = 'legacy-adopt'
+
+const sortedLabels = (labels: readonly string[]): string[] =>
+  [...labels].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+
+const legacyLedgerIn = (body: string | null): IssueLedger | undefined => {
+  if (body === null || (!body.includes(ISSUE_LEDGER_START) && !body.includes(ISSUE_LEDGER_END))) return undefined
+  try {
+    return parseIssueLedger(body).ledger
+  } catch {
+    throw new ReporterError('legacy adoption issue ledger is malformed')
+  }
+}
+
+const legacyLedgerFor = (descriptor: ParsedLegacyAdoptionDescriptor, completedAt: string): IssueLedger => {
+  const variants = descriptor.variants
+    .map(variant => ({
+      key: variantKey(variant),
+      viewport: variant.viewport,
+      theme: variant.theme,
+      state: variant.state,
+      cleanCount: 0,
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key))
+  const replay = variants.map(variant => {
+    const source = descriptor.variants.find(candidate => variantKey(candidate) === variant.key)
+    if (!source) throw new ReporterError('legacy adoption variant disappeared during planning')
+    return {
+      variantKey: variant.key,
+      target: source.target,
+      assertion: source.assertion,
+      actions: source.actions,
+      reproduction: source.reproduction,
+    }
+  })
+  const canonical = variants[0]
+  const canonicalReplay = replay[0]
+  if (!canonical || !canonicalReplay) throw new ReporterError('legacy adoption descriptor has no variants')
+  return {
+    version: 1,
+    fingerprint: descriptor.fingerprint,
+    route: descriptor.route,
+    semanticTarget: descriptor.semanticTarget,
+    findingClass: descriptor.findingClass,
+    assertion: canonicalReplay.assertion,
+    actions: canonicalReplay.actions,
+    responsive: descriptor.responsive,
+    failureSignature: descriptor.failureSignature,
+    variants,
+    replay,
+    operations: [
+      {
+        key: descriptor.adoptionKey,
+        checkpoint: 'legacy-adopt',
+        completedAt,
+      },
+    ],
+    transition: {kind: 'open', source: 'human'},
+  }
+}
+
+const legacyIssueSnapshotEqual = (left: GitHubIssue, right: GitHubIssue): boolean => {
+  let leftLedger: IssueLedger | undefined
+  let rightLedger: IssueLedger | undefined
+  try {
+    leftLedger = legacyLedgerIn(left.body)
+    rightLedger = legacyLedgerIn(right.body)
+  } catch {
+    return false
+  }
+  return (
+    left.number === right.number &&
+    left.updatedAt === right.updatedAt &&
+    left.state === right.state &&
+    left.stateReason === right.stateReason &&
+    JSON.stringify(sortedLabels(left.labels)) === JSON.stringify(sortedLabels(right.labels)) &&
+    hashOutsideLedger(left.body ?? '') === hashOutsideLedger(right.body ?? '') &&
+    JSON.stringify(leftLedger) === JSON.stringify(rightLedger)
+  )
+}
+
+const legacyBodyMatches = (
+  issue: GitHubIssue,
+  descriptor: ParsedLegacyAdoptionDescriptor,
+  ledger: IssueLedger,
+): boolean => {
+  try {
+    const parsed = parseIssueLedger(issue.body ?? '')
+    return (
+      JSON.stringify(parsed.ledger) === JSON.stringify(ledger) &&
+      hashOutsideLedger(issue.body ?? '') === descriptor.expectedIssue.humanBodySha256
+    )
+  } catch {
+    return false
+  }
+}
+
+const legacyExpectedLabels = (labels: readonly string[]): string[] =>
+  sortedLabels([...new Set([...labels, ...legacyManagedLabels])])
+
+const legacyLabelsAreAllowed = (
+  labels: readonly string[],
+  baseline: readonly string[],
+  expected: readonly string[],
+): boolean => {
+  const actual = sortedLabels(labels)
+  const baselineSet = new Set(baseline)
+  const expectedSet = new Set(expected)
+  return (
+    actual.length === new Set(actual).size &&
+    actual.every(label => expectedSet.has(label)) &&
+    baselineSet.size === baseline.length &&
+    baseline.every(label => actual.includes(label))
+  )
+}
+
+const legacyAdoptionOperation = (
+  kind: 'body-update' | 'labels-update',
+  key: string,
+  fingerprint: string,
+): LegacyAdoptionOperation => ({kind, key, fingerprint, variantKey: legacyAdoptionVariantMarker})
+
+const legacyAdoptionFailurePlan = (
+  descriptor: ParsedLegacyAdoptionDescriptor,
+  issue: GitHubIssue | undefined,
+  expectedLedger: IssueLedger,
+  message: string,
+  code: ReporterDiagnosticCode = 'drift',
+): LegacyAdoptionPlan => ({
+  issueNumber: descriptor.issueNumber,
+  fingerprint: descriptor.fingerprint,
+  adoptionKey: descriptor.adoptionKey,
+  issueSnapshot: issue,
+  expectedLedger,
+  expectedHumanBodySha256: descriptor.expectedIssue.humanBodySha256,
+  expectedLabels: legacyExpectedLabels(descriptor.expectedIssue.labels),
+  operations: [],
+  diagnostics: [message],
+  diagnosticDetails: [{code, severity: diagnosticSeverity(code), message}],
+  status: statusFromDiagnostics([{code, severity: diagnosticSeverity(code), message}]),
+  bodyUpdate: false,
+  labelsUpdate: false,
+})
+
+const legacyAdoptionPlanFor = async (
+  descriptor: ParsedLegacyAdoptionDescriptor,
+  issue: GitHubIssue,
+  clock: () => Date,
+): Promise<LegacyAdoptionPlan> => {
+  if (issue.number !== descriptor.issueNumber)
+    return legacyAdoptionFailurePlan(
+      descriptor,
+      issue,
+      legacyLedgerFor(descriptor, nowIso(clock)),
+      'legacy issue identity drift detected',
+    )
+  if (issue.labels.includes(SUPPRESSED_LABEL)) {
+    return legacyAdoptionFailurePlan(
+      descriptor,
+      issue,
+      legacyLedgerFor(descriptor, nowIso(clock)),
+      'legacy issue is explicitly suppressed; adoption refused',
+      'suppressed',
+    )
+  }
+  if (issue.state !== 'open')
+    return legacyAdoptionFailurePlan(
+      descriptor,
+      issue,
+      legacyLedgerFor(descriptor, nowIso(clock)),
+      'legacy issue is closed; human issue resolution is authoritative',
+    )
+  if (issue.stateReason !== descriptor.expectedIssue.stateReason)
+    return legacyAdoptionFailurePlan(
+      descriptor,
+      issue,
+      legacyLedgerFor(descriptor, nowIso(clock)),
+      'legacy issue state reason drift detected',
+    )
+
+  const existingLedger = legacyLedgerIn(issue.body)
+  const persistedAdoption = existingLedger?.operations.find(
+    operation => operation.checkpoint === 'legacy-adopt' && operation.key === descriptor.adoptionKey,
+  )
+  const completedAt =
+    persistedAdoption !== undefined && 'completedAt' in persistedAdoption
+      ? persistedAdoption.completedAt
+      : nowIso(clock)
+  const ledger = legacyLedgerFor(descriptor, completedAt)
+  let bodyUpdate = false
+  if (existingLedger === undefined) {
+    if (
+      issue.updatedAt !== descriptor.expectedIssue.updatedAt ||
+      JSON.stringify(sortedLabels(issue.labels)) !== JSON.stringify(descriptor.expectedIssue.labels) ||
+      hashOutsideLedger(issue.body ?? '') !== descriptor.expectedIssue.humanBodySha256
+    )
+      return legacyAdoptionFailurePlan(descriptor, issue, ledger, 'legacy issue baseline drift detected')
+    bodyUpdate = true
+  } else {
+    if (
+      existingLedger.fingerprint !== descriptor.fingerprint ||
+      !existingLedger.operations.some(
+        operation => operation.checkpoint === 'legacy-adopt' && operation.key === descriptor.adoptionKey,
+      ) ||
+      JSON.stringify(existingLedger) !== JSON.stringify(ledger) ||
+      !legacyBodyMatches(issue, descriptor, ledger)
+    )
+      return legacyAdoptionFailurePlan(descriptor, issue, ledger, 'legacy adoption ledger drift detected')
+    if (
+      !legacyLabelsAreAllowed(
+        issue.labels,
+        descriptor.expectedIssue.labels,
+        legacyExpectedLabels(descriptor.expectedIssue.labels),
+      )
+    )
+      return legacyAdoptionFailurePlan(descriptor, issue, ledger, 'legacy adoption labels drift detected')
+  }
+
+  const expectedLabels = legacyExpectedLabels(descriptor.expectedIssue.labels)
+  const labelsUpdate = JSON.stringify(sortedLabels(issue.labels)) !== JSON.stringify(expectedLabels)
+  const operations: LegacyAdoptionOperation[] = []
+  if (bodyUpdate)
+    operations.push(legacyAdoptionOperation('body-update', descriptor.adoptionKey, descriptor.fingerprint))
+  if (labelsUpdate) {
+    operations.push(
+      legacyAdoptionOperation(
+        'labels-update',
+        operationKey(descriptor.adoptionKey, descriptor.fingerprint, legacyAdoptionVariantMarker, 'labels'),
+        descriptor.fingerprint,
+      ),
+    )
+  }
+  if (operations.length === 0) {
+    const message = 'legacy issue is already adopted'
+    return {
+      issueNumber: descriptor.issueNumber,
+      fingerprint: descriptor.fingerprint,
+      adoptionKey: descriptor.adoptionKey,
+      issueSnapshot: issue,
+      expectedLedger: ledger,
+      expectedHumanBodySha256: descriptor.expectedIssue.humanBodySha256,
+      expectedLabels,
+      operations,
+      diagnostics: [message],
+      diagnosticDetails: [{code: 'already-adopted', severity: 'warning', message}],
+      status: 'warning',
+      bodyUpdate,
+      labelsUpdate,
+    }
+  }
+  return {
+    issueNumber: descriptor.issueNumber,
+    fingerprint: descriptor.fingerprint,
+    adoptionKey: descriptor.adoptionKey,
+    issueSnapshot: issue,
+    expectedLedger: ledger,
+    expectedHumanBodySha256: descriptor.expectedIssue.humanBodySha256,
+    expectedLabels,
+    operations,
+    diagnostics: [],
+    diagnosticDetails: [],
+    status: 'success',
+    bodyUpdate,
+    labelsUpdate,
+  }
+}
+
+export const decideLegacyAdoption = async (
+  input: {readonly descriptor: unknown} & LegacyAdoptionDependencies,
+): Promise<LegacyAdoptionDecision> => {
+  validateLegacyAdoptionActor(input.reporterActor)
+  const descriptor = parseLegacyAdoptionDescriptor(input.descriptor)
+  if (descriptor.repository.owner !== input.repository.owner || descriptor.repository.repo !== input.repository.repo)
+    throw new ReporterError('legacy adoption descriptor repository does not match the current repository')
+  let issue: GitHubIssue | undefined
+  let plan: LegacyAdoptionPlan
+  const clock = input.now ?? (() => new Date())
+  try {
+    issue = await getIssue(input.runner, input.repository, descriptor.issueNumber)
+    plan = await legacyAdoptionPlanFor(descriptor, issue, clock)
+  } catch (error) {
+    const message = diagnosticMessage(error, 'legacy adoption planning failed')
+    const code = diagnosticCodeForError(error, 'planning')
+    plan = legacyAdoptionFailurePlan(descriptor, issue, legacyLedgerFor(descriptor, nowIso(clock)), message, code)
+  }
+  return {
+    descriptor,
+    issueNumber: descriptor.issueNumber,
+    fingerprint: descriptor.fingerprint,
+    adoptionKey: descriptor.adoptionKey,
+    operations: plan.operations,
+    diagnostics: plan.diagnostics,
+    diagnosticDetails: plan.diagnosticDetails,
+    status: plan.status,
+    executionPlan: plan,
+  }
+}
+
+const executeLegacyAdoption = async (
+  input: LegacyAdoptionDependencies,
+  plan: LegacyAdoptionPlan,
+): Promise<{
+  readonly writeCount: number
+  readonly diagnostics: string[]
+  readonly diagnosticDetails: ReporterDiagnostic[]
+}> => {
+  const diagnostics: string[] = []
+  const diagnosticDetails: ReporterDiagnostic[] = []
+  let writeCount = 0
+  let issue = plan.issueSnapshot
+  if (!issue) throw new ReporterError('legacy adoption issue is unavailable for execution')
+  try {
+    if (plan.bodyUpdate) {
+      const sourceIssue = issue
+      const freshBeforeBody = await getIssue(input.runner, input.repository, plan.issueNumber)
+      if (!legacyIssueSnapshotEqual(freshBeforeBody, sourceIssue))
+        throw new ReporterError('legacy adoption drift before body mutation')
+      const updated = await patchIssueBodyFresh(input.runner, input.repository, plan.issueNumber, current => {
+        if (!legacyIssueSnapshotEqual(current, sourceIssue))
+          throw new ReporterError('legacy adoption drift before body mutation')
+        if (legacyLedgerIn(current.body) !== undefined)
+          throw new ReporterError('legacy adoption ledger appeared before body mutation')
+        return `${current.body ?? ''}${renderIssueLedger(plan.expectedLedger)}`
+      })
+      writeCount += 1
+      if (
+        hashOutsideLedger(updated.body ?? '') !== plan.expectedHumanBodySha256 ||
+        JSON.stringify(legacyLedgerIn(updated.body)) !== JSON.stringify(plan.expectedLedger)
+      )
+        throw new ReporterError('legacy adoption body verification failed')
+      issue = updated
+    }
+    if (plan.labelsUpdate) {
+      const freshBeforeLabels = await getIssue(input.runner, input.repository, plan.issueNumber)
+      if (!legacyIssueSnapshotEqual(freshBeforeLabels, issue))
+        throw new ReporterError('legacy adoption drift between body and labels')
+      await setIssueLabels(input.runner, input.repository, plan.issueNumber, plan.expectedLabels)
+      writeCount += 1
+      const verified = await getIssue(input.runner, input.repository, plan.issueNumber)
+      if (
+        verified.state !== 'open' ||
+        verified.stateReason !== issue.stateReason ||
+        JSON.stringify(sortedLabels(verified.labels)) !== JSON.stringify(plan.expectedLabels) ||
+        hashOutsideLedger(verified.body ?? '') !== plan.expectedHumanBodySha256 ||
+        JSON.stringify(legacyLedgerIn(verified.body)) !== JSON.stringify(plan.expectedLedger)
+      )
+        throw new ReporterError('legacy adoption labels verification failed')
+    }
+  } catch (error) {
+    const message = diagnosticMessage(error, 'legacy adoption mutation failed')
+    addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'mutation'), message)
+  }
+  return {writeCount, diagnostics, diagnosticDetails}
+}
+
+export const adoptLegacyIssue = async (
+  input: {readonly descriptor: unknown} & LegacyAdoptionDependencies,
+): Promise<LegacyAdoptionResult> => {
+  const decision = await decideLegacyAdoption(input)
+  const mode = input.writeMode ?? 'disabled'
+  if (decision.status === 'failure' || decision.operations.length === 0 || mode === 'disabled') {
+    const modeDiagnostic: ReporterDiagnostic | undefined =
+      mode === 'disabled' && decision.status !== 'failure' && decision.operations.length > 0
+        ? {code: 'writes-disabled', severity: 'warning', message: 'legacy adoption writes disabled'}
+        : undefined
+    const diagnosticDetails = modeDiagnostic
+      ? [...decision.diagnosticDetails, modeDiagnostic]
+      : [...decision.diagnosticDetails]
+    const diagnostics = modeDiagnostic ? [...decision.diagnostics, modeDiagnostic.message] : [...decision.diagnostics]
+    return {
+      issueNumber: decision.issueNumber,
+      fingerprint: decision.fingerprint,
+      adoptionKey: decision.adoptionKey,
+      operations: decision.operations,
+      diagnostics,
+      diagnosticDetails,
+      writeCount: 0,
+      status: statusFromDiagnostics(diagnosticDetails),
+    }
+  }
+  const execution = await executeLegacyAdoption(input, decision.executionPlan)
+  const diagnosticDetails = [...decision.diagnosticDetails, ...execution.diagnosticDetails]
+  return {
+    issueNumber: decision.issueNumber,
+    fingerprint: decision.fingerprint,
+    adoptionKey: decision.adoptionKey,
+    operations: decision.operations,
+    diagnostics: [...decision.diagnostics, ...execution.diagnostics],
+    diagnosticDetails,
+    writeCount: execution.writeCount,
+    status: statusFromDiagnostics(diagnosticDetails),
   }
 }

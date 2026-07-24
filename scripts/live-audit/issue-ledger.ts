@@ -24,7 +24,7 @@ export const MAX_LEDGER_BYTES = 32_000
 export const MAX_LEDGER_TEXT = 2_000
 
 export type LedgerCheckpoint =
-  'validate' | 'asset' | 'issue' | 'evidence' | 'initial-create' | 'transition' | 'transition-pending'
+  'validate' | 'asset' | 'issue' | 'evidence' | 'initial-create' | 'legacy-adopt' | 'transition' | 'transition-pending'
 export type LedgerTransitionSource = 'reporter' | 'human'
 export type LedgerTransition =
   | {kind: 'open'; source: LedgerTransitionSource}
@@ -254,9 +254,16 @@ export const assertIssueLedger: (value: unknown) => asserts value is IssueLedger
       !isRecord(operation) ||
       !isSafeText(operation.key, 200) ||
       operationKeys.has(operation.key) ||
-      !['validate', 'asset', 'issue', 'evidence', 'initial-create', 'transition', 'transition-pending'].includes(
-        String(operation.checkpoint),
-      )
+      ![
+        'validate',
+        'asset',
+        'issue',
+        'evidence',
+        'initial-create',
+        'legacy-adopt',
+        'transition',
+        'transition-pending',
+      ].includes(String(operation.checkpoint))
     )
       throw new Error('invalid issue ledger operation')
     if (operation.checkpoint === 'transition-pending') {

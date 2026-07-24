@@ -2,7 +2,7 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 
 import {presetThemes} from '../../src/utils/preset-themes'
-import {findingFingerprint, normalizeIdentityText, variantKey} from './identity'
+import {findingFingerprint, normalizeIdentityText, operationKey, variantKey} from './identity'
 
 export const AUDIT_CONTRACT_VERSION = 1
 export const AUDIT_ASSERTION_VERSION = 1
@@ -28,6 +28,8 @@ export const AUDIT_PRESET_IDS = [
 ] as const
 export const MAX_AUDIT_TEXT = 2_000
 export const MAX_AUDIT_FINDINGS = 100
+export const LEGACY_ADOPTION_CONTRACT_VERSION = 1 as const
+export const MAX_LEGACY_ADOPTION_VARIANTS = 100
 
 export type AuditRoute = (typeof AUDIT_ROUTES)[number]
 export type AuditViewport = (typeof AUDIT_VIEWPORTS)[number]
@@ -84,6 +86,43 @@ export interface AuditVariant {
   viewport: AuditViewport
   theme: AuditThemeSelection
   state: string
+}
+
+export interface LegacyAdoptionExpectedIssue {
+  updatedAt: string
+  state: 'open'
+  stateReason: string | null
+  labels: string[]
+  humanBodySha256: string
+  ledger: 'absent'
+}
+
+export interface LegacyAdoptionVariant {
+  viewport: AuditViewport
+  theme: AuditThemeSelection
+  state: string
+  target: TargetDescriptor
+  assertion: AuditAssertion
+  actions: AuditAction[]
+  reproduction: string[]
+}
+
+export interface LegacyAdoptionDescriptor {
+  version: typeof LEGACY_ADOPTION_CONTRACT_VERSION
+  repository: {owner: string; repo: string}
+  issueNumber: number
+  expectedIssue: LegacyAdoptionExpectedIssue
+  route: AuditRoute
+  semanticTarget: string
+  findingClass: FindingClass
+  failureSignature: string
+  responsive: Finding['responsive']
+  variants: LegacyAdoptionVariant[]
+}
+
+export interface ParsedLegacyAdoptionDescriptor extends LegacyAdoptionDescriptor {
+  readonly fingerprint: string
+  readonly adoptionKey: string
 }
 
 export interface AuditObservation {
@@ -383,6 +422,78 @@ const themeSelectionSchema = {
   ],
 }
 
+const legacyRepositoryPartSchema = {type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$'}
+const legacyAdoptionVariantSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    viewport: {enum: [...AUDIT_VIEWPORTS]},
+    theme: themeSelectionSchema,
+    state: {type: 'string', minLength: 1, maxLength: 200},
+    target: targetSchema,
+    assertion: assertionSchema,
+    actions: actionsSchema,
+    reproduction: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      items: {type: 'string', minLength: 1, maxLength: 500},
+    },
+  },
+  required: ['viewport', 'theme', 'state', 'target', 'assertion', 'actions', 'reproduction'],
+}
+const legacyAdoptionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    version: {const: LEGACY_ADOPTION_CONTRACT_VERSION},
+    repository: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {owner: legacyRepositoryPartSchema, repo: legacyRepositoryPartSchema},
+      required: ['owner', 'repo'],
+    },
+    issueNumber: {type: 'integer', minimum: 1, maximum: 2_000_000_000},
+    expectedIssue: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        updatedAt: {type: 'string', format: 'date-time'},
+        state: {const: 'open'},
+        stateReason: {
+          anyOf: [{type: 'null'}, {type: 'string', minLength: 1, maxLength: 100}],
+        },
+        labels: {
+          type: 'array',
+          maxItems: 100,
+          items: {type: 'string', minLength: 1, maxLength: 100},
+        },
+        humanBodySha256: {type: 'string', pattern: '^[a-f0-9]{64}$'},
+        ledger: {const: 'absent'},
+      },
+      required: ['updatedAt', 'state', 'stateReason', 'labels', 'humanBodySha256', 'ledger'],
+    },
+    route: {enum: [...AUDIT_ROUTES]},
+    semanticTarget: {type: 'string', minLength: 1, maxLength: 200},
+    findingClass: {enum: ['broken-image', 'layout', 'overflow', 'visibility', 'hit-target', 'content']},
+    failureSignature: {type: 'string', minLength: 1, maxLength: MAX_AUDIT_TEXT},
+    responsive: {enum: ['not-applicable', 'required', 'uncertain']},
+    variants: {type: 'array', minItems: 1, maxItems: MAX_LEGACY_ADOPTION_VARIANTS, items: legacyAdoptionVariantSchema},
+  },
+  required: [
+    'version',
+    'repository',
+    'issueNumber',
+    'expectedIssue',
+    'route',
+    'semanticTarget',
+    'findingClass',
+    'failureSignature',
+    'responsive',
+    'variants',
+  ],
+}
+
 const findingClassEnumSchema = {
   enum: ['broken-image', 'layout', 'overflow', 'visibility', 'hit-target', 'content'],
 }
@@ -580,6 +691,7 @@ const validateTarget = ajv.compile(targetSchema)
 const validateThemeSelection = ajv.compile(themeSelectionSchema)
 const validateAssertion = ajv.compile(assertionSchema)
 const validateAction = ajv.compile(actionSchema)
+const validateLegacyAdoption = ajv.compile(legacyAdoptionSchema)
 
 const cleanText = (value: string): string =>
   [...value]
@@ -679,6 +791,70 @@ export const isAuditAssertionForFindingClass = (findingClass: FindingClass, asse
   if (findingClass === 'hit-target') return assertion.kind === 'minimum-size'
   if (findingClass === 'content') return assertion.kind === 'text'
   return ['viewport-containment', 'geometry', 'no-overlap'].includes(assertion.kind)
+}
+
+const legacyLabel = (value: string): boolean =>
+  value.length > 0 &&
+  value.length <= 100 &&
+  [...value].every(character => {
+    const code = character.codePointAt(0) ?? 0
+    return code > 0x1f && code !== 0x7f
+  })
+const compareStrings = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0)
+
+export const parseLegacyAdoptionDescriptor = (input: unknown): ParsedLegacyAdoptionDescriptor => {
+  if (!validateLegacyAdoption(input))
+    throw new AuditContractError(`invalid legacy adoption descriptor: ${ajv.errorsText(validateLegacyAdoption.errors)}`)
+  const descriptor = input as unknown as LegacyAdoptionDescriptor
+  if (descriptor.expectedIssue.stateReason !== null && !hasSafeText(descriptor.expectedIssue.stateReason, 100))
+    throw new AuditContractError('legacy adoption state reason is unsafe')
+  if (
+    descriptor.expectedIssue.labels.some(label => !legacyLabel(label)) ||
+    descriptor.expectedIssue.labels.some((label, index, labels) => labels.indexOf(label) !== index)
+  )
+    throw new AuditContractError('legacy adoption labels must be unique safe strings')
+  if (
+    [...descriptor.expectedIssue.labels]
+      .sort(compareStrings)
+      .some((label, index) => label !== descriptor.expectedIssue.labels[index])
+  )
+    throw new AuditContractError('legacy adoption labels must be sorted')
+  if (!hasSafeText(descriptor.semanticTarget, 200))
+    throw new AuditContractError('legacy adoption semantic target is unsafe')
+  if (
+    !hasSafeText(descriptor.failureSignature) ||
+    descriptor.failureSignature !== normalizeIdentityText(descriptor.failureSignature)
+  )
+    throw new AuditContractError('legacy adoption failure signature must be normalized')
+
+  const keys = new Set<string>()
+  for (const variant of descriptor.variants) {
+    if (!hasSafeText(variant.state, 200)) throw new AuditContractError('legacy adoption variant state is unsafe')
+    if (variant.reproduction.some(step => !hasSafeText(step, 500)))
+      throw new AuditContractError('legacy adoption reproduction contains unsafe text')
+    const assertion = parseAuditAssertion(variant.assertion)
+    parseAuditActions(variant.actions)
+    parseTargetDescriptor(variant.target)
+    parseThemeSelection(variant.theme)
+    if (!isAuditAssertionForFindingClass(descriptor.findingClass, assertion))
+      throw new AuditContractError('legacy adoption finding class does not match its assertion')
+    const key = variantKey(variant)
+    if (keys.has(key)) throw new AuditContractError('legacy adoption variants contain a duplicate key')
+    keys.add(key)
+  }
+
+  const fingerprint = findingFingerprint({
+    route: descriptor.route,
+    semanticTarget: descriptor.semanticTarget,
+    failureSignature: descriptor.failureSignature,
+  })
+  const baseline = JSON.stringify({
+    repository: descriptor.repository,
+    issueNumber: descriptor.issueNumber,
+    expectedIssue: descriptor.expectedIssue,
+  })
+  const adoptionKey = operationKey('legacy-adopt', fingerprint, baseline, 'legacy-adopt')
+  return {...descriptor, fingerprint, adoptionKey}
 }
 
 const validateResponsiveCounterpart = (finding: Finding): void => {

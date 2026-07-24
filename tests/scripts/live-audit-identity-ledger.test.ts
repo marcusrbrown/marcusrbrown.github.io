@@ -94,6 +94,15 @@ describe('live audit identity and issue ledger', () => {
     expect(() => parseIssueLedger(`${renderIssueLedger(ledger)}\n${renderIssueLedger(ledger)}`)).toThrow()
   })
 
+  it('accepts the dedicated legacy adoption checkpoint without changing open provenance', () => {
+    const adoptionLedger: IssueLedger = {
+      ...ledger,
+      operations: [{key: 'legacy-adoption-op', checkpoint: 'legacy-adopt', completedAt: '2026-07-20T03:30:00.000Z'}],
+      transition: {kind: 'open', source: 'human'},
+    }
+    expect(parseIssueLedger(renderIssueLedger(adoptionLedger)).ledger).toEqual(adoptionLedger)
+  })
+
   it('round trips reporter transition provenance and preserves the surrounding body exactly', () => {
     const human = '  Human heading\n\nKeep this byte-for-byte.\n'
     const body = `${human}${renderIssueLedger(reporterClosedLedger)}\n${human}`
