@@ -751,6 +751,7 @@ jobs:
           omo-providers: ${{ secrets.OMO_PROVIDERS }}
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
           prompt: ${{ steps.load-prompt.outputs.prompt }}
+          response-mode: none
           timeout: 20
 
       - name: Verify candidate bundle and clean worktree

@@ -20,6 +20,8 @@ preflight → discovery / finalizer → reporter
 - **Discovery / finalizer** (`live-audit-discovery`) checks out the trusted default branch, prepares a closed replay plan, runs the fixed discovery prompt, rejects worktree changes, and deterministically replays candidates with Chromium. Discovery has no GitHub write permission.
 - **Reporter** (`live-audit-reporter`) downloads the exact Actions artifact into a fresh workspace, validates it again, plans release and issue operations, and performs writes only when the write mode permits them.
 
+The pinned discovery action is `fro-bot/agent@v0.93.1`. That version requires `github-token: ${{ github.token }}`; scheduled and `workflow_dispatch` live-audit executions provision the token to the model/runtime. It is ephemeral, job-scoped, and read-only under the discovery job. `response-mode: none` prevents intentional action responses, but this is not credential-free isolation: the action can still receive the token and have API access permitted by the job. The fixed prompt's no-GitHub-use rule remains defense in depth and is an instruction, not a hard access boundary. The dedicated live-audit lane supplies no `FRO_BOT_PAT` and introduces no new long-lived token; the independent generic `Fro Bot` job retains its existing configuration.
+
 The generic `Fro Bot` job remains independent. Its job name and required-check role are unchanged, and its review, maintenance, autoheal, PR, and non-visual comment behavior is not delegated to the visual lane. A `live-audit` workflow dispatch excludes that generic job so the dispatch is a visual dry run only; the two scheduled events retain the generic job alongside the dedicated visual jobs.
 
 ## Triggers and routing
@@ -77,11 +79,11 @@ It never publishes evidence or release assets, adds comments, creates issues, re
 | Job | Token and permissions | Secrets present | Boundary |
 | --- | --- | --- | --- |
 | Preflight | `github.token`; `contents: read`, `issues: read` | No model-auth secrets | Reads event data, issue metadata, labels, and current collaborator permission; cannot write |
-| Discovery / finalizer | `github.token`; `contents: read`, `issues: read` | `OPENCODE_AUTH_JSON`, `OMO_PROVIDERS`, and `OPENCODE_CONFIG` are supplied only to the bounded Fro Bot discovery action | Can inspect the trusted checkout and public `mrbro.dev` routes; cannot write issues, comments, releases, source, or commits; does not receive `FRO_BOT_PAT` |
+| Discovery / finalizer | `github.token`; `contents: read`, `issues: read` | `OPENCODE_AUTH_JSON`, `OMO_PROVIDERS`, and `OPENCODE_CONFIG` are supplied only to the bounded Fro Bot discovery action; no `FRO_BOT_PAT` or new long-lived token | Can inspect the trusted checkout and public `mrbro.dev` routes; the action runtime can receive the read-only token/API access but cannot write issues, comments, releases, source, or commits; `response-mode: none` and the fixed prompt are defense-in-depth controls, not hard access boundaries |
 | Reporter | `GH_TOKEN=${{ github.token }}`; `contents: write`, `issues: write` | No model-auth secrets and no `FRO_BOT_PAT` | May publish release assets and mutate issues; has no pull-request or discussion write permission and never runs the discovery agent |
 | Generic `Fro Bot` | Existing job-level permissions and secrets | Existing `FRO_BOT_PAT`, model auth, and configuration | Independent automation path; not a reporter fallback |
 
-The visual lane is report-only. It does not edit source, push commits, open remediation pull requests, or deploy the site. Browser URLs are reconstructed from the allowlisted `https://mrbro.dev` routes; foreign origins and private browser state are outside the contract.
+The visual lane is report-only with respect to GitHub mutations. It does not edit source, push commits, open remediation pull requests, or deploy the site. Browser URLs are reconstructed from the allowlisted `https://mrbro.dev` routes; foreign origins and private browser state are outside the contract.
 
 ## Fixed workspace and artifact handoff
 
@@ -308,6 +310,7 @@ Monitor at write enablement, after each 03:30 and 15:30 UTC slot, and after the 
 | Asset integrity | Every public URL returns the expected PNG bytes and hash | Broken, targetless, expiring, or non-image evidence |
 | Idempotency | Same operation key produces no duplicate side effect | Duplicate asset, comment, body event, reopen, or close |
 | Authorization | Only the exact command and write-capable actor reach the lane | Unauthorized command reaches checkout, browser, agent, artifact, or reporter |
+| Discovery access boundary | Discovery receives only the ephemeral read-only job token, uses `response-mode: none`, and follows the fixed no-GitHub-use prompt rule | Any broader permission, unexpected discovery write/API behavior, or drift in the action inputs; prompt and response-mode controls are not treated as hard isolation |
 | Issue identity | One open issue per fingerprint; variants remain distinct | Duplicate fingerprint issue or variant overwrite |
 | Required check | `Fro Bot` remains present and independent on a normal PR | Missing, renamed, skipped, or visual-dependent required check |
 | Generic automation | Maintenance, autoheal, and normal comments retain expected behavior | Non-visual regression |
@@ -318,11 +321,11 @@ Monitor at write enablement, after each 03:30 and 15:30 UTC slot, and after the 
 Disable first, cancel second, verify third, revert only if needed:
 
 1. Set `LIVE_AUDIT_WRITE_MODE` to `disabled`.
-2. Cancel every active `live-audit-reporter` run.
-3. Verify that no write-capable reporter run remains active or pending.
+2. Cancel every active `live-audit-discovery` and `live-audit-reporter` run.
+3. Verify that no token-bearing discovery run or write-capable reporter run remains active or pending.
 4. Revert code only if the code itself must be removed or corrected.
 
-Disabling does not stop a run already executing. Reverting code does not undo public evidence. Erroneous public mutations require forward correction, and referenced release assets remain intact.
+Disabling stops reporter writes on later evaluation but does not revoke the read-only token from an already-running discovery action or make that action credential-free. `response-mode: none` and the fixed prompt do not replace cancellation and permission controls. Reverting code does not undo public evidence. Erroneous public mutations require forward correction, and referenced release assets remain intact.
 
 ## Implementation map
 
