@@ -598,7 +598,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
-          EVENT_PATH: ${{ github.event_path }}
           EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -616,15 +615,15 @@ jobs:
                 ;;
             esac
           elif [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
-            dispatch_mode="$(jq -r '.inputs.mode // empty' "$EVENT_PATH")"
-            dispatch_slot="$(jq -r '.inputs["live-audit-slot"] // empty' "$EVENT_PATH")"
+            dispatch_mode="$(jq -r '.inputs.mode // empty' "$GITHUB_EVENT_PATH")"
+            dispatch_slot="$(jq -r '.inputs["live-audit-slot"] // empty' "$GITHUB_EVENT_PATH")"
             if [[ "$dispatch_mode" == 'live-audit' &&
               ("$dispatch_slot" == '30 3 * * *' || "$dispatch_slot" == '30 15 * * *') ]]; then
               eligible=true
               run_kind='scheduled'
             fi
           elif [[ "$EVENT_NAME" == 'issue_comment' ]]; then
-            issue_number="$(jq -er '.issue.number | select(type == "number" and floor == . and . > 0) | tostring' "$EVENT_PATH" 2>/dev/null || true)"
+            issue_number="$(jq -er '.issue.number | select(type == "number" and floor == . and . > 0) | tostring' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
             if jq -e '
               . as $event |
               $event.action == "created" and
@@ -644,8 +643,8 @@ jobs:
                $event.comment.author_association == "COLLABORATOR") and
               ($event.comment.user.login |
                 if type == "string" then test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$") else false end)
-            ' "$EVENT_PATH" >/dev/null; then
-              actor="$(jq -er '.comment.user.login | select(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"))' "$EVENT_PATH")"
+            ' "$GITHUB_EVENT_PATH" >/dev/null; then
+              actor="$(jq -er '.comment.user.login | select(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"))' "$GITHUB_EVENT_PATH")"
               permission="$(gh api "repos/${REPOSITORY}/collaborators/${actor}/permission" --jq '.permission' 2>/dev/null || true)"
               case "$permission" in
                 write|maintain|admin)
