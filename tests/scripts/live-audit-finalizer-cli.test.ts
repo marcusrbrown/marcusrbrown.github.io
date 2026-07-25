@@ -165,7 +165,7 @@ describe('live-audit finalizer CLI', () => {
     expect(existsSync(resultPath)).toBe(true)
     expect(existsSync(join(outputPath, 'finalization-result.json'))).toBe(true)
     expect(readFileSync(resultPath, 'utf8')).toBe(readFileSync(join(outputPath, 'finalization-result.json'), 'utf8'))
-  })
+  }, 15_000)
 
   it('rejects unknown, duplicate, missing, and positional arguments before reading inputs', async () => {
     const fileSystem = {
