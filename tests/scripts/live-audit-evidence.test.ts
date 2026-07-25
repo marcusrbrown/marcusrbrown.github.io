@@ -1,5 +1,8 @@
 import type {IssueLedger} from '../../scripts/live-audit/issue-ledger'
 import {Buffer} from 'node:buffer'
+import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
+import path from 'node:path'
 
 import {describe, expect, it, vi} from 'vitest'
 import {parseAuditManifest, type AuditAssertion} from '../../scripts/live-audit/contract'
@@ -7,6 +10,7 @@ import {
   AUDIT_ORIGIN,
   buildActiveReplayRequests,
   buildCoreMatrix,
+  captureTargetEvidence,
   chooseRotatingPreset,
   computeEvidenceIntegrity,
   evaluateAuditAssertion,
@@ -662,6 +666,158 @@ describe('live-audit evidence finalization', () => {
     await expect(navigateAuditRoute(page, '/')).rejects.toThrow(/off origin/)
   })
 
+  it('navigates non-root routes through the root fallback and accepts the restored pathname', async () => {
+    let navigatedUrl = ''
+    const page = {
+      goto: async (url: string) => {
+        navigatedUrl = url
+        return {status: () => 200}
+      },
+      url: () => 'https://mrbro.dev/projects',
+    }
+    await navigateAuditRoute(page, '/projects')
+    expect(navigatedUrl).toBe('https://mrbro.dev/?p=%2Fprojects')
+    expect(new URL(page.url()).pathname).toBe('/projects')
+  })
+
+  it('rejects a same-origin navigation that does not restore the requested pathname', async () => {
+    const page = {
+      goto: async (_url: string) => ({status: () => 200}),
+      url: () => 'https://mrbro.dev/about',
+    }
+    await expect(navigateAuditRoute(page, '/projects')).rejects.toThrow(/pathname|route/)
+  })
+
+  it('captures context and crop evidence when residual target overflow is within two CSS pixels', async () => {
+    let scrollAttempts = 0
+    const locator = {
+      waitFor: async () => undefined,
+      count: async () => 1,
+      isVisible: async () => true,
+      scrollIntoViewIfNeeded: async () => undefined,
+      boundingBox: async () => ({x: 120, y: 424.15625, width: 378.65625, height: 477.1875}),
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    }
+    const page = {
+      getByTestId: () => locator,
+      evaluate: async (_callback: unknown, amount?: number) => {
+        if (amount !== undefined) scrollAttempts += 1
+        return {width: 1440, height: 900}
+      },
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    } as unknown
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'live-audit-evidence-tolerance-'))
+
+    try {
+      const result = await captureTargetEvidence(
+        page as never,
+        {kind: 'test-id', value: 'desktop-target'},
+        outputDirectory,
+      )
+      const context = await readFile(path.join(outputDirectory, result.context.path))
+      const crop = await readFile(path.join(outputDirectory, result.crop.path))
+
+      expect(scrollAttempts).toBe(1)
+      expect(context).toEqual(validPng)
+      expect(crop).toEqual(validPng)
+      expect(result.context.role).toBe('context')
+      expect(result.crop.role).toBe('crop')
+      expect(result.context.integrity.bytes).toBe(validPng.byteLength)
+      expect(result.crop.integrity.bytes).toBe(validPng.byteLength)
+    } finally {
+      await rm(outputDirectory, {recursive: true, force: true})
+    }
+  })
+
+  it('rejects residual target overflow greater than two CSS pixels', async () => {
+    const locator = {
+      waitFor: async () => undefined,
+      count: async () => 1,
+      isVisible: async () => true,
+      scrollIntoViewIfNeeded: async () => undefined,
+      boundingBox: async () => ({x: 120, y: 424, width: 378, height: 478.0001}),
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    }
+    const page = {
+      getByTestId: () => locator,
+      evaluate: async () => ({width: 1440, height: 900}),
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    } as unknown
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'live-audit-evidence-overflow-'))
+
+    try {
+      await expect(
+        captureTargetEvidence(page as never, {kind: 'test-id', value: 'desktop-target'}, outputDirectory),
+      ).rejects.toThrow(/target is outside the viewport/)
+    } finally {
+      await rm(outputDirectory, {recursive: true, force: true})
+    }
+  })
+
+  it('rejects a region that extends one CSS pixel outside the viewport', async () => {
+    let evaluateCalls = 0
+    const page = {
+      evaluate: async () => (evaluateCalls++ === 0 ? {width: 100, height: 100} : {x: 0, y: 0, width: 100, height: 100}),
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    } as unknown
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'live-audit-evidence-region-bounds-'))
+
+    try {
+      await expect(
+        captureTargetEvidence(page as never, {kind: 'region', x: -1, y: 0, width: 10, height: 10}, outputDirectory),
+      ).rejects.toThrow(/target is outside the viewport/)
+    } finally {
+      await rm(outputDirectory, {recursive: true, force: true})
+    }
+  })
+
+  it('waits for a locator target to attach before capturing evidence', async () => {
+    let attached = false
+    const waitFor = vi.fn(async (options: {state: 'attached'; timeout: number}) => {
+      expect(options.state).toBe('attached')
+      expect(options.timeout).toBeGreaterThan(0)
+      expect(options.timeout).toBeLessThanOrEqual(5_000)
+      attached = true
+    })
+    const locator = {
+      waitFor,
+      count: async () => (attached ? 1 : 0),
+      isVisible: async () => true,
+      scrollIntoViewIfNeeded: async () => undefined,
+      boundingBox: async () => ({x: 1, y: 1, width: 10, height: 10}),
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    }
+    const page = {
+      getByTestId: () => locator,
+      evaluate: async () => ({width: 100, height: 100}),
+      screenshot: async ({path: outputPath}: {path: string}) => {
+        await writeFile(outputPath, validPng)
+      },
+    } as unknown
+    const outputDirectory = await mkdtemp(path.join(tmpdir(), 'live-audit-evidence-attachment-'))
+
+    try {
+      await expect(
+        captureTargetEvidence(page as never, {kind: 'test-id', value: 'async-target'}, outputDirectory),
+      ).resolves.toBeDefined()
+      expect(waitFor).toHaveBeenCalledOnce()
+    } finally {
+      await rm(outputDirectory, {recursive: true, force: true})
+    }
+  })
+
   it('rejects a signature-and-IHDR-only truncated PNG', () => {
     const png = Buffer.alloc(24)
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png)
@@ -708,6 +864,7 @@ describe('live-audit evidence finalization', () => {
       const locatorFor = (value: string) => {
         const element = elements[value]
         return {
+          waitFor: async () => undefined,
           count: async () => (element ? 1 : 0),
           boundingBox: async () => element?.box ?? null,
           isVisible: async () => element?.visible ?? false,
@@ -834,6 +991,36 @@ describe('live-audit evidence finalization', () => {
         )
       ).status,
     ).toBe('failure')
+  })
+
+  it('waits for an asynchronously attached test-id target before evaluating its assertion', async () => {
+    let attached = false
+    const waitFor = vi.fn(async (options: {state: 'attached'; timeout: number}) => {
+      expect(options.state).toBe('attached')
+      expect(options.timeout).toBeGreaterThan(0)
+      attached = true
+    })
+    const locator = {
+      count: async () => (attached ? 1 : 0),
+      waitFor,
+      boundingBox: async () => ({x: 1, y: 1, width: 10, height: 10}),
+      isVisible: async () => false,
+    }
+    const page = {
+      url: () => AUDIT_ORIGIN,
+      getByTestId: () => locator,
+      evaluate: async () => ({width: 100, height: 100}),
+    } as unknown
+
+    const result = await evaluateAuditAssertion(
+      page as never,
+      {kind: 'test-id', value: 'project-card'},
+      {version: 1, kind: 'visibility', expected: 'visible'},
+    )
+
+    expect(waitFor).toHaveBeenCalledOnce()
+    expect(result.status).toBe('failure')
+    expect(result.signature).toBe('assertion:visibility:expected-visible:hidden')
   })
 
   it('derives canonical evidence integrity from validated PNG bytes', () => {
