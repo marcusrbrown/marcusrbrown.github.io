@@ -91,7 +91,7 @@ env:
     - ESLint 9+ flat config (eslint.config.ts), not legacy .eslintrc
     - YAML extension: .yaml, not .yml
     - Package manager: pnpm (not npm/yarn)
-    - Node.js >=22
+    - Node.js >=24
     - Named exports preferred over default exports
 
     Skip style nits — ESLint and Prettier handle formatting on commit.
@@ -686,6 +686,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           install-playwright: 'true'
+          install-agent-browser: 'true'
           playwright-browsers: chromium
 
       - name: Create fixed live-audit workspace
