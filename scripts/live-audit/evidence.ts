@@ -45,6 +45,8 @@ export const MAX_EXPLORATION_STEPS = 20
 export const MAX_EXPLORATION_MS = 120_000
 export const MAX_DIAGNOSTICS = 100
 export const MAX_EVIDENCE_BYTES = 5_000_000
+const TARGET_VIEWPORT_CONTAINMENT_TOLERANCE_PX = 2
+const ASSERTION_TARGET_TIMEOUT_MS = 5_000
 export const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
 
 export interface Candidate {
@@ -265,9 +267,15 @@ interface NavigationPage {
 }
 
 export const navigateAuditRoute = async (page: NavigationPage, route: AuditRoute, timeout = 30_000): Promise<void> => {
-  const response = await page.goto(reconstructAuditUrl(route).toString(), {timeout, waitUntil: 'domcontentloaded'})
-  if (new URL(page.url()).origin !== AUDIT_ORIGIN) throw new Error('final navigation redirected off origin')
+  const requestedUrl = reconstructAuditUrl(route)
+  const navigationUrl = route === '/' ? requestedUrl : new URL(AUDIT_ORIGIN)
+  if (route !== '/') navigationUrl.searchParams.set('p', route)
+  const response = await page.goto(navigationUrl.toString(), {timeout, waitUntil: 'domcontentloaded'})
+  const finalUrl = new URL(page.url())
+  if (finalUrl.origin !== AUDIT_ORIGIN) throw new Error('final navigation redirected off origin')
   if (response && response.status() >= 400) throw new Error(`audit route returned HTTP ${response.status()}`)
+  if (finalUrl.pathname !== requestedUrl.pathname)
+    throw new Error('final navigation did not restore requested pathname')
 }
 
 export const chooseRotatingPreset = (when: Date): AuditPresetId => {
@@ -558,6 +566,7 @@ export const evaluateAuditAssertion = async (
           throw new Error('target is not resolvable')
         return {locator: undefined, box: descriptor}
       }
+      await locator.waitFor({state: 'attached', timeout: ASSERTION_TARGET_TIMEOUT_MS})
       if ((await locator.count()) !== 1) throw new Error('target is missing or ambiguous')
       const box = await locator.boundingBox()
       if (!box || box.width <= 0 || box.height <= 0) throw new Error('target is detached or zero-size')
@@ -1007,6 +1016,7 @@ export const captureTargetEvidence = async (
   identity?: EvidenceIdentity,
 ): Promise<CapturedEvidence> => {
   const locator = locatorFor(page, target)
+  if (locator) await locator.waitFor({state: 'attached', timeout: ASSERTION_TARGET_TIMEOUT_MS})
   const count = locator ? await locator.count() : 1
   if (count !== 1) throw new Error(`target is ${count === 0 ? 'missing' : 'ambiguous'}`)
   const viewport = await page.evaluate(() => ({width: window.innerWidth, height: window.innerHeight}))
@@ -1019,7 +1029,13 @@ export const captureTargetEvidence = async (
     box = await locator.boundingBox()
   }
   if (!box) throw new Error('target became detached')
-  if (box.x < 0 || box.y < 0 || box.x + box.width > viewport.width || box.y + box.height > viewport.height)
+  const containmentTolerance = locator ? TARGET_VIEWPORT_CONTAINMENT_TOLERANCE_PX : 0
+  if (
+    box.x < -containmentTolerance ||
+    box.y < -containmentTolerance ||
+    box.x + box.width > viewport.width + containmentTolerance ||
+    box.y + box.height > viewport.height + containmentTolerance
+  )
     throw new Error(
       `target is outside the viewport (${box.x},${box.y},${box.width},${box.height}; ${viewport.width}x${viewport.height})`,
     )
