@@ -90,10 +90,10 @@ The visual lane is report-only with respect to GitHub mutations. It does not edi
 Discovery creates a run-scoped directory under:
 
 ```text
-$RUNNER_TEMP/live-audit/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/
+$GITHUB_WORKSPACE/temp/live-audit/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/
 ```
 
-The fixed paths are `replay-plan.json`, `candidate-bundle.json`, `artifact/`, and `finalization-result.json`. The candidate bundle must be a regular file beneath that workspace. The discovery job also verifies a clean trusted worktree before finalization.
+The gitignored `temp/` directory is used because the pinned discovery action permits normal in-workdir access while stripping custom `LIVE_AUDIT_*` environment variables and hard-locking external directories. The workflow renders the controlled paths into the prompt before invoking the action. The fixed paths are `replay-plan.json`, `candidate-bundle.json`, `artifact/`, and `finalization-result.json`. The candidate bundle must be a regular file beneath that workspace. The discovery job also verifies a clean trusted worktree before finalization.
 
 The finalizer writes a closed artifact containing `manifest.json`, `diagnostics.json`, `finalization-result.json`, `evidence/`, and `provenance/` with the replay plan and candidate bundle. Evidence references are remapped to the artifact, sealed against unreferenced files and path traversal, and validated as PNGs. The canonical artifact is uploaded as `live-audit-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`.
 

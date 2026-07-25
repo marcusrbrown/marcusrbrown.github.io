@@ -693,12 +693,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          workspace="$RUNNER_TEMP/live-audit/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          workspace="$GITHUB_WORKSPACE/temp/live-audit/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          temp_root="$GITHUB_WORKSPACE/temp"
+          live_audit_root="$temp_root/live-audit"
           replay_plan="$workspace/replay-plan.json"
           candidate_bundle="$workspace/candidate-bundle.json"
           canonical_artifact="$workspace/artifact"
           result="$workspace/finalization-result.json"
+          for boundary in "$temp_root" "$live_audit_root"; do
+            if [[ -L "$boundary" || ( -e "$boundary" && ! -d "$boundary" ) ]]; then
+              echo '::error::The live-audit workspace boundary is not a real directory.'
+              exit 1
+            fi
+          done
+          if [[ -L "$workspace" || -e "$workspace" ]]; then
+            echo '::error::The run-scoped live-audit workspace already exists.'
+            exit 1
+          fi
+          if [[ -d "$temp_root" && -n "$(find "$temp_root" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+            echo '::error::The repository temp directory is not empty.'
+            exit 1
+          fi
           mkdir -p "$workspace"
+          for boundary in "$temp_root" "$live_audit_root" "$workspace"; do
+            if [[ -L "$boundary" || ! -d "$boundary" ]]; then
+              echo '::error::The live-audit workspace boundary is not a real directory.'
+              exit 1
+            fi
+          done
           test "$replay_plan" = "$workspace/replay-plan.json"
           test "$candidate_bundle" = "$workspace/candidate-bundle.json"
           test "$canonical_artifact" = "$workspace/artifact"
@@ -733,11 +755,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          {
-            echo 'prompt<<LIVE_AUDIT_PROMPT'
-            cat .github/prompts/fro-bot-live-audit.md
-            echo 'LIVE_AUDIT_PROMPT'
-          } >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          import os
+
+          prompt = Path('.github/prompts/fro-bot-live-audit.md').read_bytes()
+          replacements = (
+              (b'$LIVE_AUDIT_WORKSPACE', 'LIVE_AUDIT_WORKSPACE'),
+              (b'$LIVE_AUDIT_REPLAY_PLAN', 'LIVE_AUDIT_REPLAY_PLAN'),
+              (b'$LIVE_AUDIT_CANDIDATE_BUNDLE', 'LIVE_AUDIT_CANDIDATE_BUNDLE'),
+          )
+          for token, variable in replacements:
+              value = os.environ.get(variable)
+              if not value:
+                  raise SystemExit(f'Missing controlled path variable: {variable}')
+              if token not in prompt:
+                  raise SystemExit(f'Missing prompt placeholder: {variable}')
+              prompt = prompt.replace(token, value.encode('utf-8'))
+          if b'$LIVE_AUDIT_' in prompt:
+              raise SystemExit('Unresolved live-audit prompt placeholder')
+
+          delimiter = b'LIVE_AUDIT_PROMPT-' + hashlib.sha256(prompt).hexdigest().encode('ascii')
+          if delimiter in prompt.splitlines():
+              raise SystemExit('Prompt output delimiter collides with prompt content')
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('ab') as handle:
+              handle.write(b'prompt<<' + delimiter + b'\n')
+              handle.write(prompt)
+              if not prompt.endswith(b'\n'):
+                  handle.write(b'\n')
+              handle.write(delimiter + b'\n')
+          PY
 
       - name: Run bounded visual discovery
         uses: fro-bot/agent@a4976f45a51458c349eb232aa1795f6fa25d5500 # v0.93.1
@@ -763,6 +813,39 @@ jobs:
           fi
           if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
             echo '::error::The discovery agent modified the trusted repository worktree.'
+            exit 1
+          fi
+          temp_root="$GITHUB_WORKSPACE/temp"
+          live_audit_root="$temp_root/live-audit"
+          workspace="$LIVE_AUDIT_WORKSPACE"
+          expected_workspace="$live_audit_root/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ "$workspace" != "$expected_workspace" ]]; then
+            echo '::error::The live-audit workspace is not the expected run-scoped path.'
+            exit 1
+          fi
+          for boundary in "$temp_root" "$live_audit_root" "$workspace"; do
+            if [[ -L "$boundary" || ! -d "$boundary" ]]; then
+              echo '::error::The live-audit workspace boundary is not a real directory.'
+              exit 1
+            fi
+          done
+          unexpected_temp_path=false
+          while IFS= read -r -d '' path; do
+            if [[ -L "$path" ]]; then
+              unexpected_temp_path=true
+              break
+            fi
+            case "$path" in
+              "$live_audit_root"|"$workspace"|"$workspace"/*)
+                ;;
+              *)
+                unexpected_temp_path=true
+                break
+                ;;
+            esac
+          done < <(find "$temp_root" -mindepth 1 -print0)
+          if [[ "$unexpected_temp_path" == true ]]; then
+            echo '::error::The discovery agent wrote outside the allowed live-audit workspace.'
             exit 1
           fi
 
