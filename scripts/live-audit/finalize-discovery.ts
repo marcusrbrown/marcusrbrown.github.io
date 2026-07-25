@@ -16,6 +16,7 @@ import {
 } from 'node:fs'
 import {basename, dirname, join, resolve} from 'node:path'
 import process from 'node:process'
+import {pathToFileURL} from 'node:url'
 import {parseArgs} from 'node:util'
 
 import {
@@ -601,3 +602,5 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
 export const main = async (): Promise<void> => {
   await runFinalizeDiscovery({args: process.argv.slice(2)})
 }
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main()

@@ -1,5 +1,6 @@
 import type {Finding} from '../../scripts/live-audit/contract'
 import {Buffer} from 'node:buffer'
+import {execFileSync} from 'node:child_process'
 import {
   existsSync,
   lstatSync,
@@ -11,7 +12,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {join, resolve} from 'node:path'
 
 import {describe, expect, it} from 'vitest'
 import {buildCoreMatrix, chooseRotatingPreset, computeEvidenceIntegrity} from '../../scripts/live-audit/evidence'
@@ -109,6 +110,36 @@ describe('live-audit finalizer CLI', () => {
     )
     return {planPath, candidatePath}
   }
+
+  it('executes the finalizer CLI entrypoint and writes the result artifact', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'live-audit-finalizer-cli-entrypoint-'))
+    const fixture = writeCandidateFixture(directory, makeFinding())
+    const outputPath = join(directory, 'artifact')
+    const resultPath = join(directory, 'result.json')
+
+    execFileSync(
+      'pnpm',
+      [
+        'exec',
+        'tsx',
+        resolve('scripts/live-audit/finalize-discovery.ts'),
+        '--plan',
+        fixture.planPath,
+        '--candidates',
+        fixture.candidatePath,
+        '--out',
+        outputPath,
+        '--result',
+        resultPath,
+      ],
+      {cwd: process.cwd(), encoding: 'utf8', stdio: 'pipe'},
+    )
+
+    expect(existsSync(resultPath)).toBe(true)
+    expect(existsSync(join(outputPath, 'finalization-result.json'))).toBe(true)
+    expect(readFileSync(resultPath, 'utf8')).toBe(readFileSync(join(outputPath, 'finalization-result.json'), 'utf8'))
+  })
+
   it('rejects unknown, duplicate, missing, and positional arguments before reading inputs', async () => {
     const fileSystem = {
       readFileSync: () => {
