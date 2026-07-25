@@ -1,6 +1,6 @@
 # mrbro.dev
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/marcusrbrown/mrbro.dev/deploy.yaml?style=flat-square&label=Build)](https://github.com/marcusrbrown/mrbro.dev/actions) [![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?style=flat-square&logo=github)](https://codespaces.new/marcusrbrown/mrbro.dev?hide_repo_select=true&ref=main&quickstart=true) ![Node version](https://img.shields.io/badge/Node.js->=22-3c873a?style=flat-square) [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/marcusrbrown/mrbro.dev/deploy.yaml?style=flat-square&label=Build)](https://github.com/marcusrbrown/mrbro.dev/actions) [![Open in GitHub Codespaces](https://img.shields.io/badge/Codespaces-Open-blue?style=flat-square&logo=github)](https://codespaces.new/marcusrbrown/mrbro.dev?hide_repo_select=true&ref=main&quickstart=true) ![Node version](https://img.shields.io/badge/Node.js->=24-3c873a?style=flat-square) [![TypeScript](https://img.shields.io/badge/TypeScript-blue?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](https://opensource.org/licenses/MIT)
 
 A modern developer portfolio built with React 19, TypeScript, and Vite. Features an advanced theme system with 10+ presets, GitHub API integration, and automated deployment to GitHub Pages.
 
@@ -25,7 +25,7 @@ A modern developer portfolio built with React 19, TypeScript, and Vite. Features
 
 ### Local Setup
 
-**Prerequisites:** [Node.js v22+](https://nodejs.org/en/download), [pnpm v10.28.2+](https://pnpm.io/installation), [Git](https://git-scm.com/downloads)
+**Prerequisites:** [Node.js v24+](https://nodejs.org/en/download), [pnpm v11.1.3+](https://pnpm.io/installation), [Git](https://git-scm.com/downloads)
 
 ```bash
 git clone https://github.com/marcusrbrown/mrbro.dev.git
@@ -99,7 +99,7 @@ See [TESTING.md](TESTING.md) for the full testing guide, including how to write 
 
 | Issue                 | Fix                               |
 | --------------------- | --------------------------------- |
-| Wrong Node.js version | Use Node.js v22+ LTS              |
+| Wrong Node.js version | Use Node.js v24+ LTS              |
 | Wrong package manager | Use pnpm, not npm or yarn         |
 | Git hooks not running | `pnpm run setup-hooks`            |
 | Build errors          | `pnpm install --frozen-lockfile`  |

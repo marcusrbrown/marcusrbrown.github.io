@@ -182,7 +182,7 @@ export interface CreateSpawnRunnerOptions {
   killGraceMs?: number
   /** Bounded stdout/stderr capture size; overflow surfaces as a nonzero-exit anomaly. */
   maxOutputBytes?: number
-  /** Node executable to spawn. Defaults to literal `node` (repo requires Node 22+); override only for tests. */
+  /** Node executable to spawn. Defaults to literal `node` (repo requires Node 24+); override only for tests. */
   nodeExecutable?: string
 }
 

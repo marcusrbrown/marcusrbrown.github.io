@@ -27,7 +27,7 @@ tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 docs/              # solutions/ = documented fixes by category w/ YAML frontmatter (module, tags, problem_type); plus brainstorms/, plans/, blog-system.md
 .github/
 ├── workflows/     # 8 workflows: deploy, ci, e2e-tests, performance, fro-bot, blog-refresh (including preview-image refresh), renovate, copilot-setup-steps
-├── actions/setup/ # Reusable CI setup action (Node 22, pnpm, Playwright)
+├── actions/setup/ # Reusable CI setup action (Node 24, pnpm, Playwright)
 └── hooks/         # Copilot hooks (pre-tool-use guardrails)
 examples/          # Usage examples (button-form-styles, use-theme)
 ```
@@ -77,7 +77,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 
 - **No `any` types** — TypeScript strict mode, no `as any`, `@ts-ignore`, `@ts-expect-error`
 - **No CommonJS** — Pure ESM only. No `require()`, no `module.exports`
-- **No npm/yarn** — pnpm 10.13.1+ required (enforced via `packageManager` field)
+- **No npm/yarn** — pnpm 11.1.3+ required (enforced via `packageManager` field)
 - **No default exports** — Named exports preferred everywhere
 - **No `.eslintrc`** — Flat config only
 - **No `.yml`** — Use `.yaml`

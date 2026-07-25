@@ -6,7 +6,7 @@ inputs:
   node-version:
     description: Node.js version to setup
     required: false
-    default: '22'
+    default: '24'
   install-dependencies:
     description: Whether to install dependencies
     required: false
@@ -77,10 +77,10 @@ runs:
         path: ~/.cache/ms-playwright
         key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
-    - name: Install Playwright browsers
-      if: inputs.install-playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+    - name: Install Playwright Linux dependencies
+      if: inputs.install-playwright == 'true'
       shell: bash
-      run: pnpm exec playwright install --with-deps ${{ inputs.playwright-browsers }}
+      run: pnpm exec playwright install-deps ${{ inputs.playwright-browsers }}
 
     - name: Ensure Playwright browsers installed
       if: inputs.install-playwright == 'true'

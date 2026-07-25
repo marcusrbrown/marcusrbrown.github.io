@@ -91,7 +91,7 @@ env:
     - ESLint 9+ flat config (eslint.config.ts), not legacy .eslintrc
     - YAML extension: .yaml, not .yml
     - Package manager: pnpm (not npm/yarn)
-    - Node.js >=22
+    - Node.js >=24
     - Named exports preferred over default exports
 
     Skip style nits — ESLint and Prettier handle formatting on commit.
@@ -687,6 +687,38 @@ jobs:
         with:
           install-playwright: 'true'
           playwright-browsers: chromium
+
+      - name: Smoke test local agent-browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          session="live-audit-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          agent_browser_binary="$GITHUB_WORKSPACE/node_modules/agent-browser/bin/agent-browser-linux-x64"
+          expected_sha256='b77d85eb8d0d305be4170f9477c59f0304b3609dc39bf0e8b8c740a1abd1e08a'
+          expected_version="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).devDependencies['agent-browser']")"
+
+          if [[ ! -f "$agent_browser_binary" ]]; then
+            echo "::error::Missing agent-browser Linux x64 binary: $agent_browser_binary"
+            exit 1
+          fi
+          printf '%s  %s\n' "$expected_sha256" "$agent_browser_binary" | sha256sum --check --strict
+
+          cli_version_output="$(pnpm exec agent-browser --version)"
+          if [[ "$expected_version" != '0.33.0' ]]; then
+            echo "::error::Unexpected package.json agent-browser version: $expected_version"
+            exit 1
+          fi
+          if [[ "$cli_version_output" != "agent-browser $expected_version" ]]; then
+            echo "::error::agent-browser version mismatch: expected agent-browser $expected_version, got $cli_version_output"
+            exit 1
+          fi
+
+          cleanup() {
+            pnpm exec agent-browser --session "$session" close >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          timeout 60s pnpm exec agent-browser --session "$session" open about:blank
+          timeout 60s pnpm exec agent-browser --session "$session" snapshot >/dev/null
 
       - name: Create fixed live-audit workspace
         id: workspace

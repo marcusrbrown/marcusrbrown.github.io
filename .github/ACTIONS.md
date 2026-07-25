@@ -89,7 +89,7 @@ Agent skills empower Copilot and Fro Bot to interact with the site programmatica
 
 ### 🌐 agent-browser (`.agents/skills/agent-browser/SKILL.md`)
 
-CLI-based browser automation via `npx agent-browser`. Use for:
+CLI-based browser automation via the project-local `pnpm exec agent-browser`. Use for:
 
 - Navigating pages and capturing screenshots
 - Checking for JavaScript errors and broken assets
@@ -128,15 +128,15 @@ A composite action that standardizes project setup across all workflows.
 **Features:**
 
 - ✅ Checkout with proper Git configuration
-- ✅ pnpm v10.13.1 setup (pinned version)
-- ✅ Node.js v22 with automatic caching
+- ✅ pnpm v11.1.3 setup (derived from `package.json`'s `packageManager` field)
+- ✅ Node.js v24 with automatic caching
 - ✅ Dependency installation with frozen lockfile
 - ✅ Configurable inputs for flexibility
 - ✅ Outputs for downstream job coordination
 
 **Inputs:**
 
-- `node-version` (default: '22'): Node.js version
+- `node-version` (default: '24'): Node.js version
 - `install-dependencies` (default: 'true'): Whether to install deps
 - `install-playwright` (default: 'false'): Whether to install Playwright browsers
 - `playwright-browsers` (default: 'chromium'): Playwright browsers to install (space-separated)

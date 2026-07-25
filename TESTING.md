@@ -20,8 +20,8 @@ This document provides comprehensive testing guidelines for contributors to the 
 
 ### Prerequisites
 
-- Node.js v22+ LTS
-- pnpm v10.13.1+
+- Node.js v24+ LTS
+- pnpm v11.1.3+
 - Git
 
 ### Setup
@@ -111,23 +111,23 @@ pnpm test --grep \"theme\"
 #### Component Testing Example
 
 ```tsx
-import {render, screen} from '@testing-library/react'
-import {expect, test, vi} from 'vitest'
-import {ThemeProvider} from '../contexts/ThemeContext'
-import {Header} from './Header'
+import {render, screen} from "@testing-library/react"
+import {expect, test, vi} from "vitest"
+import {ThemeProvider} from "../contexts/ThemeContext"
+import {Header} from "./Header"
 
-test('renders navigation menu', () => {
+test("renders navigation menu", () => {
   render(
     <ThemeProvider>
       <Header />
-    </ThemeProvider>
+    </ThemeProvider>,
   )
 
-  expect(screen.getByRole('navigation')).toBeInTheDocument()
-  expect(screen.getByText('Home')).toBeInTheDocument()
+  expect(screen.getByRole("navigation")).toBeInTheDocument()
+  expect(screen.getByText("Home")).toBeInTheDocument()
 })
 
-test('handles theme toggle', async () => {
+test("handles theme toggle", async () => {
   const mockToggle = vi.fn()
   // ... test implementation
 })
@@ -136,12 +136,12 @@ test('handles theme toggle', async () => {
 #### Utility Function Testing
 
 ```typescript
-import {expect, test} from 'vitest'
-import {formatDate} from '../utils/formatDate'
+import {expect, test} from "vitest"
+import {formatDate} from "../utils/formatDate"
 
-test('formats date correctly', () => {
-  const date = new Date('2024-01-15T10:30:00Z')
-  expect(formatDate(date)).toBe('January 15, 2024')
+test("formats date correctly", () => {
+  const date = new Date("2024-01-15T10:30:00Z")
+  expect(formatDate(date)).toBe("January 15, 2024")
 })
 ```
 
@@ -193,7 +193,7 @@ Tests run across three browsers:
 
 ```typescript
 // tests/e2e/pages/HomePage.ts
-import type {Locator, Page} from '@playwright/test'
+import type {Locator, Page} from "@playwright/test"
 
 export class HomePage {
   readonly page: Page
@@ -203,13 +203,13 @@ export class HomePage {
 
   constructor(page: Page) {
     this.page = page
-    this.heroSection = page.getByTestId('hero-section')
-    this.themeToggle = page.getByRole('button', {name: 'Toggle theme'})
-    this.navigationMenu = page.getByRole('navigation')
+    this.heroSection = page.getByTestId("hero-section")
+    this.themeToggle = page.getByRole("button", {name: "Toggle theme"})
+    this.navigationMenu = page.getByRole("navigation")
   }
 
   async goto() {
-    await this.page.goto('/')
+    await this.page.goto("/")
   }
 
   async toggleTheme() {
@@ -222,17 +222,17 @@ export class HomePage {
 
 ```typescript
 // tests/e2e/navigation.spec.ts
-import { expect, test } from '@playwright/test'
-import { HomePage } from './pages/HomePage'
+import {expect, test} from "@playwright/test"
+import {HomePage} from "./pages/HomePage"
 
-test('navigation works correctly', async ({page}) => {
+test("navigation works correctly", async ({page}) => {
   const homePage = new HomePage(page)
 
   await homePage.goto()
   await expect(homePage.heroSection).toBeVisible()
 
   // Test navigation
-  await page.getByRole('link', {name: 'About'}).click()
+  await page.getByRole("link", {name: "About"}).click()
   await expect(page).toHaveURL(/.*about/)
 })
 ```
@@ -289,18 +289,18 @@ UPDATE_SNAPSHOTS=1 pnpm exec playwright test tests/visual/components.spec.ts
 
 ```typescript
 // tests/visual/components.spec.ts
-import { expect, test } from '@playwright/test'
+import {expect, test} from "@playwright/test"
 
-test('header appears correctly across themes', async ({page}) => {
-  await page.goto('/')
+test("header appears correctly across themes", async ({page}) => {
+  await page.goto("/")
 
   // Test light theme
-  await page.getByRole('button', {name: 'Toggle theme'}).click()
-  await expect(page.locator('header')).toHaveScreenshot('header-light.png')
+  await page.getByRole("button", {name: "Toggle theme"}).click()
+  await expect(page.locator("header")).toHaveScreenshot("header-light.png")
 
   // Test dark theme
-  await page.getByRole('button', {name: 'Toggle theme'}).click()
-  await expect(page.locator('header')).toHaveScreenshot('header-dark.png')
+  await page.getByRole("button", {name: "Toggle theme"}).click()
+  await expect(page.locator("header")).toHaveScreenshot("header-dark.png")
 })
 ```
 
@@ -333,28 +333,26 @@ pnpm exec playwright test tests/accessibility/ --grep \"home page\"
 
 ```typescript
 // tests/accessibility/pages.spec.ts
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import AxeBuilder from "@axe-core/playwright"
+import {expect, test} from "@playwright/test"
 
-test('home page meets accessibility standards', async ({page}) => {
-  await page.goto('/')
+test("home page meets accessibility standards", async ({page}) => {
+  await page.goto("/")
 
-  const accessibilityScanResults = await new AxeBuilder({page})
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-    .analyze()
+  const accessibilityScanResults = await new AxeBuilder({page}).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()
 
   expect(accessibilityScanResults.violations).toEqual([])
 })
 
-test('keyboard navigation works', async ({page}) => {
-  await page.goto('/')
+test("keyboard navigation works", async ({page}) => {
+  await page.goto("/")
 
   // Test tab navigation
-  await page.keyboard.press('Tab')
-  await expect(page.getByRole('link', {name: 'Skip to content'})).toBeFocused()
+  await page.keyboard.press("Tab")
+  await expect(page.getByRole("link", {name: "Skip to content"})).toBeFocused()
 
-  await page.keyboard.press('Tab')
-  await expect(page.getByRole('link', {name: 'Home'})).toBeFocused()
+  await page.keyboard.press("Tab")
+  await expect(page.getByRole("link", {name: "Home"})).toBeFocused()
 })
 ```
 
@@ -446,23 +444,23 @@ pnpm dashboard && pnpm badges
 ```typescript
 // fixtures/user.ts
 export const mockUser = {
-  id: '123',
-  name: 'Test User',
-  email: 'test@example.com'
+  id: "123",
+  name: "Test User",
+  email: "test@example.com",
 }
 ```
 
 ```typescript
 // In tests
-import { mockUser } from '../fixtures/user'
+import {mockUser} from "../fixtures/user"
 ```
 
 #### Environment Variables
 
 ```typescript
 // For tests that need environment config
-test('API integration', async () => {
-  const apiUrl = process.env.TEST_API_URL || 'http://localhost:3000'
+test("API integration", async () => {
+  const apiUrl = process.env.TEST_API_URL || "http://localhost:3000"
   // ... test implementation
 })
 ```
@@ -472,7 +470,7 @@ test('API integration', async () => {
 #### External APIs
 
 ```typescript
-import {vi} from 'vitest'
+import {vi} from "vitest"
 
 // Mock fetch
 globalThis.fetch = vi.fn()
@@ -481,7 +479,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-test('fetches user data', async () => {
+test("fetches user data", async () => {
   const mockResponse = {json: () => Promise.resolve(mockUser)}
   vi.mocked(fetch).mockResolvedValue(mockResponse as Response)
 
@@ -493,11 +491,11 @@ test('fetches user data', async () => {
 
 ```typescript
 // Mock theme context
-vi.mock('../contexts/ThemeContext', () => ({
+vi.mock("../contexts/ThemeContext", () => ({
   useTheme: () => ({
-    currentTheme: 'light',
-    toggleTheme: vi.fn()
-  })
+    currentTheme: "light",
+    toggleTheme: vi.fn(),
+  }),
 }))
 ```
 
@@ -513,8 +511,8 @@ vi.mock('../contexts/ThemeContext', () => ({
 
 ```typescript
 // Add proper mock setup
-vi.mock('../utils/api', () => ({
-  fetchData: vi.fn().mockResolvedValue({})
+vi.mock("../utils/api", () => ({
+  fetchData: vi.fn().mockResolvedValue({}),
 }))
 ```
 
@@ -530,8 +528,8 @@ vi.mock('../utils/api', () => ({
 
 ```typescript
 // Instead of page.waitForTimeout(1000)
-await expect(page.getByText('Loading')).toBeHidden()
-await expect(page.getByText('Content')).toBeVisible()
+await expect(page.getByText("Loading")).toBeHidden()
+await expect(page.getByText("Content")).toBeVisible()
 ```
 
 **Problem**: Screenshots differ across environments
@@ -540,7 +538,7 @@ await expect(page.getByText('Content')).toBeVisible()
 
 ```typescript
 test.use({
-  viewport: {width: 1280, height: 720}
+  viewport: {width: 1280, height: 720},
 })
 ```
 
@@ -548,7 +546,7 @@ test.use({
 // Disable animations in playwright.config.ts
 use: {
   // Spread configuration
-  reducedMotion: 'reduce'
+  reducedMotion: "reduce"
 }
 ```
 
@@ -559,9 +557,9 @@ use: {
 **Solution**: Adjust threshold or update baselines
 
 ```typescript
-await expect(page).toHaveScreenshot('page.png', {
+await expect(page).toHaveScreenshot("page.png", {
   threshold: 0.3, // Allow 30% difference
-  maxDiffPixels: 100
+  maxDiffPixels: 100,
 })
 ```
 
