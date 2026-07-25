@@ -751,7 +751,7 @@ jobs:
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
           prompt: ${{ steps.load-prompt.outputs.prompt }}
           response-mode: none
-          timeout: 20
+          timeout: 1200000
 
       - name: Verify candidate bundle and clean worktree
         shell: bash
