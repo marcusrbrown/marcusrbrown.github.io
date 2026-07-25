@@ -7,7 +7,8 @@ You are performing a bounded, read-only visual audit of the deployed site. The w
 - Read only `$LIVE_AUDIT_REPLAY_PLAN`; do not rewrite, replace, or augment it.
 - Write the sole candidate output to `$LIVE_AUDIT_CANDIDATE_BUNDLE`.
 - `$LIVE_AUDIT_CANDIDATE_BUNDLE` must remain beneath `$LIVE_AUDIT_WORKSPACE`.
-- All temporary files, if needed, must also remain beneath `$LIVE_AUDIT_WORKSPACE`; never write to the repository, home directory, system temporary directories, or another path.
+- If temporary files are necessary, write them only beneath the exact run-scoped `$LIVE_AUDIT_WORKSPACE`; do not create additional files outside that workspace.
+- Do not edit tracked repository files. The workflow's gitignored `temp/` workspace is the sole repository-local write exception. Never write to the home directory, system temporary directories, or another path.
 - Preserve the plan's version, run id, run kind, generated timestamp, exploration budget, and scheduled preset or manual issue number in the candidate bundle.
 - When there are no reportable candidates, emit the valid versioned bundle with an explicit no-operation signal: an empty `candidates` array and a bounded `diagnostics` array. Never omit the candidate bundle.
 
