@@ -25,6 +25,57 @@ const interpolatedDynamicImport = [
   '{part}`)',
 ].join('')
 
+const templateInterpolation = String.fromCharCode(36)
+
+const templatedRscPropertyAccess = [
+  'const router = {} as Record<string, unknown>; router[`unstable_',
+  templateInterpolation,
+  "{'RSC'}StaticRouter`]",
+].join('')
+
+const templatedRscObjectProperty = [
+  "const key = 'RSCStaticRouter'; const obj = {[`unstable_",
+  templateInterpolation,
+  '{key}`]: 1}',
+].join('')
+
+const budgetOverflowRscPropertyAccess = (() => {
+  const padding = Array.from({length: 80}, () => "''").join(' + ')
+  return `const router = {} as Record<string, unknown>; router['unstable_' + ${padding} + 'RSCStaticRouter']`
+})()
+
+const nestedForbiddenRscPropertyAccess = (() => {
+  const wrappers = Array.from({length: 8}, () => " + ''").join('')
+  return `const router = {} as Record<string, unknown>; router['unstable_RSCStaticRouter'${wrappers}]`
+})()
+
+const forbiddenRscNames = [
+  'unstable_BrowserCreateFromReadableStreamFunction',
+  'unstable_DecodeActionFunction',
+  'unstable_DecodeFormStateFunction',
+  'unstable_DecodeReplyFunction',
+  'unstable_EncodeReplyFunction',
+  'unstable_LoadServerActionFunction',
+  'unstable_RSCHydratedRouter',
+  'unstable_RSCHydratedRouterProps',
+  'unstable_RSCManifestPayload',
+  'unstable_RSCMatch',
+  'unstable_RSCPayload',
+  'unstable_RSCRenderPayload',
+  'unstable_RSCRouteConfig',
+  'unstable_RSCRouteConfigEntry',
+  'unstable_RSCRouteManifest',
+  'unstable_RSCRouteMatch',
+  'unstable_RSCStaticRouter',
+  'unstable_RSCStaticRouterProps',
+  'unstable_createCallServer',
+  'unstable_getRSCStream',
+  'unstable_matchRSCServerRequest',
+  'unstable_routeRSCServerRequest',
+] as const
+
+const safeRouterNames = ['unstable_HistoryRouter', 'unstable_usePrompt'] as const
+
 const evaluate = (files: readonly TrackedFile[], packageManifest: unknown = cleanManifest(), limits?: BoundaryLimits) =>
   evaluateReactRouterRscBoundary({files, packageManifest, limits})
 
@@ -151,13 +202,167 @@ describe('React Router RSC boundary evaluator', () => {
     )
   })
 
+  it.each(safeRouterNames)('allows safe named imports and re-exports from bare router modules: %s', name => {
+    expect.assertions(2)
+    expectClean(
+      evaluate([
+        file('src/rsc.tsx', `import {${name}} from 'react-router'`),
+        file('src/reexport.ts', `export {${name}} from 'react-router-dom'`),
+      ]),
+    )
+  })
+
+  it.each(forbiddenRscNames)('rejects forbidden named imports from bare router modules: %s', name => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', `import {${name}} from 'react-router'`)]), name)
+  })
+
+  it.each(forbiddenRscNames)('rejects forbidden aliased named imports from bare router modules: %s', name => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', `import {${name} as alias} from 'react-router-dom'`)]), name)
+  })
+
+  it.each(forbiddenRscNames)('rejects forbidden aliased named re-exports from bare router modules: %s', name => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', `export {${name} as alias} from 'react-router-dom'`)]), name)
+  })
+
+  it.each(['unstable_HistoryRouter', 'unstable_usePrompt'])(
+    'allows safe string-literal named imports and re-exports from bare router modules: %s',
+    name => {
+      expect.assertions(2)
+      expectClean(
+        evaluate([
+          file('src/rsc.tsx', `import {"${name}" as alias} from 'react-router'`),
+          file('src/reexport.ts', `export {"${name}" as alias} from 'react-router-dom'`),
+        ]),
+      )
+    },
+  )
+
+  it.each([
+    'import {"unstable_RSCStaticRouter" as alias} from \'react-router\'',
+    'export {"unstable_RSCStaticRouter" as alias} from \'react-router-dom\'',
+  ])('rejects forbidden string-literal named router forms: %s', source => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', source)]), 'unstable_RSCStaticRouter')
+  })
+
+  it.each([
+    "import {unstable_RSCStaticRouter} from './local-runtime'",
+    "import {unstable_RSCStaticRouter as alias} from './local-runtime'",
+    'import {"unstable_RSCStaticRouter" as alias} from \'./local-runtime\'',
+    "export {unstable_RSCStaticRouter} from './local-runtime'",
+    "export {unstable_RSCStaticRouter as alias} from './local-runtime'",
+    'export {"unstable_RSCStaticRouter" as alias} from \'./local-runtime\'',
+  ])('rejects forbidden named forms from local modules: %s', source => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', source)]), 'unstable_RSCStaticRouter')
+  })
+
+  it.each([
+    "import router from 'react-router'",
+    "import * as router from 'react-router'",
+    "import 'react-router'",
+    "import router = require('react-router')",
+  ])('rejects non-named bare router module forms: %s', source => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', source)]), 'react-router')
+  })
+
+  it.each(["export * from 'react-router'", "export * as router from 'react-router-dom'"])(
+    'rejects namespace and star exports from router modules: %s',
+    source => {
+      expect.assertions(2)
+      expectFinding(evaluate([file('src/rsc.tsx', source)]), 'react-router')
+    },
+  )
+
+  it.each([
+    "import('react-router')",
+    "require('react-router-dom')",
+    "import('react-router-dom/client')",
+    "require('react-router/foo')",
+  ])('rejects literal module loads for router families: %s', source => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', source)]), 'react-router')
+  })
+
+  it.each([
+    [
+      "const router = {} as Record<string, unknown>; router[(('unstable_RSCStaticRouter'))]",
+      'unstable_RSCStaticRouter',
+    ],
+    ["const router = {} as Record<string, unknown>; router?.['unstable_RSCStaticRouter']", 'unstable_RSCStaticRouter'],
+    [
+      "const router = {} as Record<string, unknown>; const {[(('unstable_RSCStaticRouter'))]: value} = router",
+      'unstable_RSCStaticRouter',
+    ],
+    ["const obj = {[(('unstable_RSCStaticRouter'))]: 1}", 'unstable_RSCStaticRouter'],
+    [
+      "const router = {} as Record<string, unknown>; router[('unstable_RSCStaticRouter' as const)]",
+      'unstable_RSCStaticRouter',
+    ],
+    [
+      "const router = {} as Record<string, unknown>; router[('unstable_RSCStaticRouter' as string)]",
+      'unstable_RSCStaticRouter',
+    ],
+    [
+      "const router = {} as Record<string, unknown>; router[('unstable_RSCStaticRouter' satisfies string)]",
+      'unstable_RSCStaticRouter',
+    ],
+    ["const router = {} as Record<string, unknown>; router[('unstable_RSCStaticRouter'!)]", 'unstable_RSCStaticRouter'],
+    [
+      "const router = {} as Record<string, unknown>; router['unstable_' + 'RSCStaticRouter']",
+      'unstable_RSCStaticRouter',
+    ],
+    [templatedRscPropertyAccess, 'unstable_RSCStaticRouter'],
+    [
+      "const router = {} as Record<string, unknown>; const {['unstable_' + 'RSCStaticRouter']: value} = router",
+      'unstable_RSCStaticRouter',
+    ],
+    ["const obj = {['unstable_' + 'RSCStaticRouter']: 1}", 'unstable_RSCStaticRouter'],
+  ])('rejects statically known RSC property-name forms: %s', (source, reason) => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', source)]), reason)
+  })
+
+  it('rejects a string-literal binding property name', () => {
+    expect.assertions(2)
+    expectFinding(
+      evaluate([file('src/rsc.tsx', "const {'unstable_RSCStaticRouter': value} = obj")]),
+      'unstable_RSCStaticRouter',
+    )
+  })
+
+  it('fails closed when a computed property expression exceeds the static-string budget', () => {
+    expect.assertions(2)
+    const result = evaluate([file('src/rsc.tsx', budgetOverflowRscPropertyAccess)])
+
+    expect(result.ok).toBe(false)
+    expect(JSON.stringify(result)).toContain('budget')
+  })
+
+  it('still rejects a deeply nested static binary property name without tripping the budget', () => {
+    expect.assertions(2)
+    expectFinding(evaluate([file('src/rsc.tsx', nestedForbiddenRscPropertyAccess)]), 'unstable_RSCStaticRouter')
+  })
+
+  it.each([templatedRscObjectProperty, "const suffix = 'RSCStaticRouter'; const obj = {['unstable_' + suffix]: 1}"])(
+    'keeps non-static unrelated computed properties clean: %s',
+    source => {
+      expect.assertions(2)
+      expectClean(evaluate([file('src/copy.ts', source)]))
+    },
+  )
+
   it('does not trigger on comments or string prose that mentions prohibited terms', () => {
     expect.assertions(2)
     expectClean(
       evaluate([
         file(
           'src/copy.ts',
-          "// import {unstable_RSCStaticRouter} from 'react-router'\nconst prose = 'use server and react-server-dom-webpack are not runtime code'",
+          "// import {unstable_RSCStaticRouter} from 'react-router'\nconst prose = 'use server and react-server-dom-webpack are not runtime code'\nconst template = `unstable_RSCStaticRouter`",
         ),
       ]),
     )

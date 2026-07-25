@@ -60,6 +60,14 @@ const RSC_API_IDENTIFIERS = new Set([
   'unstable_routeRSCServerRequest',
 ])
 
+const ROUTER_MODULE_FAMILIES = ['react-router', 'react-router-dom'] as const
+
+const STATIC_STRING_EVAL_LIMITS = {
+  maxDepth: 24,
+  maxNodes: 64,
+  maxLength: 160,
+} as const
+
 export interface TrackedFile {
   path: string
   content: string
@@ -207,6 +215,117 @@ const moduleSpecifierText = (node: ts.Node): string | null => {
   return null
 }
 
+const routerModuleBoundary = (moduleName: string): 'bare' | 'subpath' | null => {
+  for (const base of ROUTER_MODULE_FAMILIES) {
+    if (moduleName === base) return 'bare'
+    if (moduleName.startsWith(`${base}/`)) return 'subpath'
+  }
+  return null
+}
+
+interface StaticStringBudget {
+  remainingNodes: number
+  remainingOutput: number
+}
+
+type StaticStringEvaluation = {kind: 'static'; value: string} | {kind: 'dynamic'} | {kind: 'budget-exceeded'}
+
+const staticStringBudget = (): StaticStringBudget => ({
+  remainingNodes: STATIC_STRING_EVAL_LIMITS.maxNodes,
+  remainingOutput: STATIC_STRING_EVAL_LIMITS.maxLength,
+})
+
+const staticStringExceeded = (): StaticStringEvaluation => ({kind: 'budget-exceeded'})
+const staticStringDynamic = (): StaticStringEvaluation => ({kind: 'dynamic'})
+const staticStringValue = (value: string): StaticStringEvaluation => ({kind: 'static', value})
+
+const consumeStaticOutput = (budget: StaticStringBudget, value: string): boolean => {
+  if (value.length > budget.remainingOutput) return false
+  budget.remainingOutput -= value.length
+  return true
+}
+
+const evaluateStaticString = (node: ts.Node, budget: StaticStringBudget, depth = 0): StaticStringEvaluation => {
+  if (depth > STATIC_STRING_EVAL_LIMITS.maxDepth || budget.remainingNodes <= 0) return staticStringExceeded()
+  budget.remainingNodes -= 1
+
+  if (
+    ts.isParenthesizedExpression(node) ||
+    ts.isAsExpression(node) ||
+    ts.isTypeAssertionExpression(node) ||
+    ts.isSatisfiesExpression(node) ||
+    ts.isNonNullExpression(node)
+  ) {
+    return evaluateStaticString(node.expression, budget, depth + 1)
+  }
+
+  if (ts.isStringLiteralLike(node)) {
+    return consumeStaticOutput(budget, node.text) ? staticStringValue(node.text) : staticStringExceeded()
+  }
+
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = evaluateStaticString(node.left, budget, depth + 1)
+    if (left.kind !== 'static') return left
+    const right = evaluateStaticString(node.right, budget, depth + 1)
+    if (right.kind !== 'static') return right
+    return staticStringValue(`${left.value}${right.value}`)
+  }
+
+  if (ts.isTemplateExpression(node)) {
+    let value = node.head.text
+    if (!consumeStaticOutput(budget, value)) return staticStringExceeded()
+
+    for (const span of node.templateSpans) {
+      const expression = evaluateStaticString(span.expression, budget, depth + 1)
+      if (expression.kind !== 'static') return expression
+      value += expression.value + span.literal.text
+      if (!consumeStaticOutput(budget, span.literal.text)) return staticStringExceeded()
+    }
+
+    return staticStringValue(value)
+  }
+
+  return staticStringDynamic()
+}
+
+const evaluatePropertyName = (
+  name: ts.PropertyName | undefined,
+  budget: StaticStringBudget,
+): StaticStringEvaluation => {
+  if (!name) return staticStringDynamic()
+  if (ts.isIdentifier(name)) return staticStringValue(name.text)
+  if (ts.isStringLiteralLike(name)) return staticStringValue(name.text)
+  if (ts.isComputedPropertyName(name)) return evaluateStaticString(name.expression, budget)
+  return staticStringDynamic()
+}
+
+type RouterModuleForm = 'named-only' | 'unsafe-whole-module'
+
+const routerModulePolicyViolates = (moduleName: string, form: RouterModuleForm): boolean => {
+  const boundary = routerModuleBoundary(moduleName)
+  return boundary === 'subpath' || (boundary === 'bare' && form === 'unsafe-whole-module')
+}
+
+const inspectNamedSpecifiers = (
+  specifiers: readonly (ts.ImportSpecifier | ts.ExportSpecifier)[],
+  budget: StaticStringBudget,
+  addFinding: (reason: string) => void,
+): void => {
+  for (const specifier of specifiers) {
+    const sourceName = specifier.propertyName ?? specifier.name
+    if (ts.isIdentifier(sourceName)) continue
+
+    const evaluated = evaluateStaticString(sourceName, budget)
+    if (evaluated.kind === 'budget-exceeded') {
+      addFinding('computed property evaluation budget exceeded')
+      return
+    }
+    if (evaluated.kind === 'static' && RSC_API_IDENTIFIERS.has(evaluated.value)) {
+      addFinding(`React Router unstable RSC API: ${evaluated.value}`)
+    }
+  }
+}
+
 const isNonLiteralModuleLoading = (node: ts.Node): boolean => {
   if (!ts.isCallExpression(node)) return false
   const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
@@ -242,10 +361,100 @@ const evaluateSource = (trackedFile: TrackedFile): BoundaryDiagnostic[] => {
   const addFinding = (reason: string): void => {
     findings.push(diagnostic(trackedFile.path, reason))
   }
+  const staticBudget = staticStringBudget()
 
   const visit = (node: ts.Node): void => {
     if (ts.isIdentifier(node) && RSC_API_IDENTIFIERS.has(node.text)) {
       addFinding(`React Router unstable RSC API: ${node.text}`)
+    }
+
+    if (ts.isElementAccessExpression(node)) {
+      const name = node.argumentExpression
+        ? evaluateStaticString(node.argumentExpression, staticBudget)
+        : staticStringDynamic()
+      if (name.kind === 'static' && RSC_API_IDENTIFIERS.has(name.value)) {
+        addFinding(`React Router unstable RSC API: ${name.value}`)
+      } else if (name.kind === 'budget-exceeded') {
+        addFinding('computed property evaluation budget exceeded')
+      }
+    }
+
+    if (ts.isBindingElement(node)) {
+      const name = evaluatePropertyName(node.propertyName, staticBudget)
+      if (name.kind === 'static' && RSC_API_IDENTIFIERS.has(name.value)) {
+        addFinding(`React Router unstable RSC API: ${name.value}`)
+      } else if (name.kind === 'budget-exceeded') {
+        addFinding('computed property evaluation budget exceeded')
+      }
+    }
+
+    if (ts.isPropertyAssignment(node)) {
+      const name = evaluatePropertyName(node.name, staticBudget)
+      if (name.kind === 'static' && RSC_API_IDENTIFIERS.has(name.value)) {
+        addFinding(`React Router unstable RSC API: ${name.value}`)
+      } else if (name.kind === 'budget-exceeded') {
+        addFinding('computed property evaluation budget exceeded')
+      }
+    }
+
+    if (ts.isImportDeclaration(node)) {
+      const moduleName = moduleSpecifierText(node)
+      if (moduleName && isProhibitedModule(moduleName)) {
+        addFinding(`prohibited module boundary: ${safePackageName(moduleName)}`)
+      } else if (moduleName) {
+        const importClause = node.importClause
+        const form: RouterModuleForm =
+          !importClause ||
+          importClause.name ||
+          (importClause.namedBindings && ts.isNamespaceImport(importClause.namedBindings))
+            ? 'unsafe-whole-module'
+            : 'named-only'
+        if (routerModulePolicyViolates(moduleName, form)) {
+          addFinding(`prohibited module boundary: ${safePackageName(moduleName)}`)
+        }
+        if (importClause?.namedBindings && ts.isNamedImports(importClause.namedBindings)) {
+          inspectNamedSpecifiers(importClause.namedBindings.elements, staticBudget, addFinding)
+        }
+      }
+    }
+
+    if (ts.isExportDeclaration(node)) {
+      const moduleName = moduleSpecifierText(node)
+      if (moduleName && isProhibitedModule(moduleName)) {
+        addFinding(`prohibited module boundary: ${safePackageName(moduleName)}`)
+      } else if (moduleName) {
+        const exportClause = node.exportClause
+        const form: RouterModuleForm =
+          !exportClause || ts.isNamespaceExport(exportClause) ? 'unsafe-whole-module' : 'named-only'
+        if (routerModulePolicyViolates(moduleName, form)) {
+          addFinding(`prohibited module boundary: ${safePackageName(moduleName)}`)
+        }
+        if (exportClause && ts.isNamedExports(exportClause)) {
+          inspectNamedSpecifiers(exportClause.elements, staticBudget, addFinding)
+        }
+      }
+    }
+
+    if (ts.isImportEqualsDeclaration(node)) {
+      const moduleName =
+        ts.isExternalModuleReference(node.moduleReference) && node.moduleReference.expression
+          ? evaluateStaticString(node.moduleReference.expression, staticBudget)
+          : null
+      if (
+        moduleName &&
+        moduleName.kind === 'static' &&
+        (isProhibitedModule(moduleName.value) || routerModuleBoundary(moduleName.value))
+      ) {
+        addFinding(`prohibited module boundary: ${safePackageName(moduleName.value)}`)
+      }
+    }
+
+    if (ts.isCallExpression(node)) {
+      const moduleName = moduleSpecifierText(node)
+      const boundary = moduleName ? routerModuleBoundary(moduleName) : null
+      if (moduleName && (isProhibitedModule(moduleName) || boundary)) {
+        addFinding(`prohibited module boundary: ${safePackageName(moduleName)}`)
+      }
     }
 
     if (
@@ -256,10 +465,6 @@ const evaluateSource = (trackedFile: TrackedFile): BoundaryDiagnostic[] => {
       addFinding('use server directive')
     }
 
-    const moduleName = moduleSpecifierText(node)
-    if (moduleName && isProhibitedModule(moduleName)) {
-      addFinding(`prohibited module boundary: ${safePackageName(moduleName)}`)
-    }
     if (isNonLiteralModuleLoading(node)) addFinding('non-literal module loading')
 
     ts.forEachChild(node, visit)
