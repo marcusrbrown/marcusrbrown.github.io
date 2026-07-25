@@ -113,9 +113,31 @@ describe('live-audit finalizer CLI', () => {
 
   it('executes the finalizer CLI entrypoint and writes the result artifact', () => {
     const directory = mkdtempSync(join(tmpdir(), 'live-audit-finalizer-cli-entrypoint-'))
-    const fixture = writeCandidateFixture(directory, makeFinding())
+    const plan = buildScheduledReplayPlan({
+      runId: 'scheduled-cli-entrypoint',
+      generatedAt: '2026-07-24T03:30:00.000Z',
+      exploration: {steps: 0, durationMs: 0},
+      activeLedgers: [],
+    })
+    const planPath = join(directory, 'plan.json')
+    const candidatePath = join(directory, 'candidates.json')
     const outputPath = join(directory, 'artifact')
     const resultPath = join(directory, 'result.json')
+    const browsersPath = join(directory, 'missing-playwright-browsers')
+    writeFileSync(planPath, serializeReplayPlan(plan))
+    writeFileSync(
+      candidatePath,
+      JSON.stringify({
+        version: 1,
+        runId: plan.runId,
+        runKind: 'scheduled',
+        rotatingPresetId: plan.rotatingPresetId,
+        generatedAt: plan.generatedAt,
+        candidates: [],
+        diagnostics: [],
+        exploration: plan.exploration,
+      }),
+    )
 
     execFileSync(
       'pnpm',
@@ -124,15 +146,20 @@ describe('live-audit finalizer CLI', () => {
         'tsx',
         resolve('scripts/live-audit/finalize-discovery.ts'),
         '--plan',
-        fixture.planPath,
+        planPath,
         '--candidates',
-        fixture.candidatePath,
+        candidatePath,
         '--out',
         outputPath,
         '--result',
         resultPath,
       ],
-      {cwd: process.cwd(), encoding: 'utf8', stdio: 'pipe'},
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        env: {...process.env, PLAYWRIGHT_BROWSERS_PATH: browsersPath},
+        stdio: 'pipe',
+      },
     )
 
     expect(existsSync(resultPath)).toBe(true)

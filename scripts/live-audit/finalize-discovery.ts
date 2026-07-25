@@ -481,7 +481,11 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
     throw new Error('candidate is outside the planned core matrix')
   ensureFreshOutput(fileSystem, args.out)
   const scratch = join(dirname(args.out), `.finalizer-${plan.runId}-${randomBytes(8).toString('hex')}`)
-  const browser = input.browser ?? (await defaultBrowser(scratch))
+  let browser = input.browser
+  const getBrowser = async (): Promise<FinalizerBrowserAdapter> => {
+    if (browser === undefined) browser = await defaultBrowser(scratch)
+    return browser
+  }
   const diagnostics: string[] = [...candidateBundle.diagnostics]
   const timeoutMs = input.timeoutMs ?? MAX_FINALIZATION_MS
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_FINALIZATION_MS)
@@ -493,8 +497,9 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
   const files = new Map<string, Uint8Array>()
   try {
     for (const candidate of candidateBundle.candidates) {
+      const replayBrowser = await getBrowser()
       const output = await withTimeout(
-        () => browser.finalizeCandidate(candidate),
+        () => replayBrowser.finalizeCandidate(candidate),
         () => deadline - clock().getTime(),
         'candidate replay',
       )
@@ -506,8 +511,9 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
       }
     }
     for (const request of plan.activeRequests) {
+      const replayBrowser = await getBrowser()
       const output = await withTimeout(
-        () => browser.finalizeActive(request),
+        () => replayBrowser.finalizeActive(request),
         () => deadline - clock().getTime(),
         'active replay',
       )
@@ -595,7 +601,7 @@ export const runFinalizeDiscovery = async (input: RunFinalizeDiscoveryInput): Pr
     }
     throw error
   } finally {
-    await browser.close?.()
+    await browser?.close?.()
   }
 }
 
