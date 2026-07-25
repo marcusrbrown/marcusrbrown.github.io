@@ -17,6 +17,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 ## Key Files
 
 - `setup.ts` — Global Vitest setup (DOM mocks, theme providers, Shiki stubbing)
+- `scripts/check-react-router-rsc-boundary.test.ts` — Unit coverage for the fail-closed React Router RSC advisory boundary
 - `visual/utils.ts` — Theme mocking + visual test helpers
 - `e2e/base-path.spec.ts` — Smoke tests: asset loading, blank-page guard, sub-page routing
 - `e2e/fixtures/` — Viewport configs + test data (2 files)

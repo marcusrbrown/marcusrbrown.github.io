@@ -4,6 +4,11 @@ onlyBuiltDependencies:
   - simple-git-hooks
   - unrs-resolver
 
+auditConfig:
+  ignoreGhsas:
+    - GHSA-qwww-vcr4-c8h2
+    - GHSA-mh99-v99m-4gvg
+
 overrides:
   '@isaacs/brace-expansion@<=5.0.0': '>=5.0.1'
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
