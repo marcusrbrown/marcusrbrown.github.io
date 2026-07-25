@@ -15,6 +15,10 @@ inputs:
     description: Whether to install Playwright browsers
     required: false
     default: 'false'
+  install-agent-browser:
+    description: Whether to install the agent-browser binary
+    required: false
+    default: 'false'
   playwright-browsers:
     description: Playwright browsers to install (space-separated)
     required: false
@@ -86,3 +90,77 @@ runs:
       if: inputs.install-playwright == 'true'
       shell: bash
       run: pnpm exec playwright install ${{ inputs.playwright-browsers }}
+
+    - name: Install agent-browser binary
+      if: inputs.install-agent-browser == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [[ '${{ runner.os }}' != 'Linux' || '${{ runner.arch }}' != 'X64' ]]; then
+          echo '::error::install-agent-browser is only supported on Linux x64 runners.'
+          exit 1
+        fi
+
+        expected_version="$(node -p "require('./package.json').devDependencies['agent-browser']")"
+        if [[ "$expected_version" != '0.33.0' ]]; then
+          echo "::error::Unexpected agent-browser version in package.json: $expected_version (expected 0.33.0)."
+          exit 1
+        fi
+
+        expected_sha256='b77d85eb8d0d305be4170f9477c59f0304b3609dc39bf0e8b8c740a1abd1e08a'
+        download_url="https://github.com/vercel-labs/agent-browser/releases/download/v${expected_version}/agent-browser-linux-x64"
+        install_dir="$GITHUB_WORKSPACE/node_modules/agent-browser/bin"
+        install_path="$install_dir/agent-browser-linux-x64"
+        tmpdir=''
+        temp_download=''
+        temp_install=''
+        session=''
+
+        cleanup() {
+          if [[ -n "$session" ]]; then
+            pnpm exec agent-browser --session "$session" close >/dev/null 2>&1 || true
+          fi
+          if [[ -n "$temp_install" && -e "$temp_install" ]]; then
+            rm -f "$temp_install"
+          fi
+          if [[ -n "$tmpdir" && -d "$tmpdir" ]]; then
+            rm -rf "$tmpdir"
+          fi
+        }
+
+        trap cleanup EXIT
+
+        mkdir -p "$install_dir"
+        tmpdir="$(mktemp -d)"
+        temp_download="$tmpdir/agent-browser-linux-x64"
+        temp_install="$(mktemp "$install_dir/.agent-browser-linux-x64.XXXXXX")"
+
+        curl \
+          --proto '=https' \
+          --tlsv1.2 \
+          --fail \
+          --location \
+          --silent \
+          --show-error \
+          --retry 0 \
+          --connect-timeout 10 \
+          --max-time 60 \
+          --output "$temp_download" \
+          "$download_url"
+
+        printf '%s  %s\n' "$expected_sha256" "$temp_download" | sha256sum --check --strict
+        install -m 0755 "$temp_download" "$temp_install"
+        mv -f "$temp_install" "$install_path"
+        temp_install=''
+
+        cli_version_output="$(pnpm exec agent-browser --version)"
+        expected_cli_version="agent-browser $expected_version"
+        if [[ "$cli_version_output" != "$expected_cli_version" ]]; then
+          echo "::error::agent-browser version mismatch: expected $expected_cli_version, got $cli_version_output"
+          exit 1
+        fi
+
+        session="setup-agent-browser-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+        timeout 60s pnpm exec agent-browser --session "$session" open about:blank
+        timeout 60s pnpm exec agent-browser --session "$session" snapshot >/dev/null

@@ -35,7 +35,7 @@ shamefullyHoist: true
 
 allowBuilds:
   '@swc/core': true
-  agent-browser: true
+  agent-browser: false
   esbuild: true
   msgpackr-extract: false
   simple-git-hooks: true

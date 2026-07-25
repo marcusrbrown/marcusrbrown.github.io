@@ -131,6 +131,7 @@ A composite action that standardizes project setup across all workflows.
 - ✅ pnpm v11.1.3 setup (derived from `package.json`'s `packageManager` field)
 - ✅ Node.js v24 with automatic caching
 - ✅ Dependency installation with frozen lockfile
+- ✅ Optional checksum-verified `agent-browser` acquisition on Linux x64
 - ✅ Configurable inputs for flexibility
 - ✅ Outputs for downstream job coordination
 
@@ -139,6 +140,7 @@ A composite action that standardizes project setup across all workflows.
 - `node-version` (default: '24'): Node.js version
 - `install-dependencies` (default: 'true'): Whether to install deps
 - `install-playwright` (default: 'false'): Whether to install Playwright browsers
+- `install-agent-browser` (default: 'false'): Install the Linux x64 `agent-browser` binary with SHA-256 verification
 - `playwright-browsers` (default: 'chromium'): Playwright browsers to install (space-separated)
 
 **Outputs:**
@@ -159,6 +161,12 @@ A composite action that standardizes project setup across all workflows.
   uses: ./.github/actions/setup
   with:
     install-playwright: "true"
+
+# With deterministic agent-browser setup:
+- name: Setup project with agent-browser
+  uses: ./.github/actions/setup
+  with:
+    install-agent-browser: "true"
 ```
 
 ## Security & Best Practices

@@ -48,6 +48,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           install-playwright: 'true'
+          install-agent-browser: 'true'
 
   build-for-tests:
     name: Build for Testing
