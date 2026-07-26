@@ -40,6 +40,7 @@ import {
   type LedgerVariant,
 } from './issue-ledger'
 import {
+  assertStableRelease,
   evidenceAssetName,
   getOrCreateEvidenceRelease,
   inspectEvidenceRelease,
@@ -67,6 +68,7 @@ export interface ReporterDependencies {
 
 export type ReporterOperationKind =
   | 'release-create'
+  | 'release-update'
   | 'asset-upload'
   | 'asset-delete'
   | 'issue-create'
@@ -78,6 +80,7 @@ export type ReporterOperationKind =
 export interface ReporterOperation {
   readonly kind: ReporterOperationKind
   readonly key: string
+  readonly releaseId?: number
   readonly fingerprint?: string
   readonly variantKey?: string
   readonly assetName?: string
@@ -1526,11 +1529,15 @@ const createPlan = async (
   }
 
   const operations: ReporterOperation[] = []
-  const needsRelease = items.some(item =>
-    item.assets.some(asset => asset.plan === 'upload' || asset.plan.kind === 'upload' || asset.plan.kind === 'replace'),
-  )
-  if (releaseMissing && needsRelease)
+  const needsEvidence = items.some(item => item.assets.length > 0)
+  if (releaseMissing && needsEvidence)
     operations.push({kind: 'release-create', key: operationKey(manifest.runId, 'release', 'release', 'create')})
+  else if (release && !release.isPrerelease && needsEvidence)
+    operations.push({
+      kind: 'release-update',
+      key: operationKey(manifest.runId, 'release', 'release', 'update'),
+      releaseId: release.id,
+    })
   for (const item of items) operations.push(...item.operations)
   return {items, operations, diagnostics, diagnosticDetails, status: statusFromDiagnostics(diagnosticDetails)}
 }
@@ -1634,6 +1641,7 @@ const executePlan = async (
   if (releaseNeeded) {
     try {
       const releaseCreatePlanned = plan.operations.some(operation => operation.kind === 'release-create')
+      const releaseUpdatePlanned = plan.operations.find(operation => operation.kind === 'release-update')
       const currentRelease = await inspectEvidenceRelease(input.runner, input.repository)
       if (releaseCreatePlanned && currentRelease.status === 'found') {
         throw new ReporterError('evidence release state drifted after planning')
@@ -1641,12 +1649,25 @@ const executePlan = async (
       if (!releaseCreatePlanned && currentRelease.status === 'missing') {
         throw new ReporterError('evidence release disappeared after planning')
       }
-      release = releaseCreatePlanned
-        ? await getOrCreateEvidenceRelease(input.runner, input.repository)
-        : currentRelease.status === 'found'
-          ? currentRelease.release
-          : undefined
-      if (releaseCreatePlanned) writeCount += 1
+      if (releaseUpdatePlanned) {
+        if (
+          currentRelease.status !== 'found' ||
+          currentRelease.release.id !== releaseUpdatePlanned.releaseId ||
+          currentRelease.release.isPrerelease
+        )
+          throw new ReporterError('evidence release state drifted after planning')
+        release = await getOrCreateEvidenceRelease(input.runner, input.repository, releaseUpdatePlanned.releaseId)
+        writeCount += 1
+      } else {
+        release = releaseCreatePlanned
+          ? await getOrCreateEvidenceRelease(input.runner, input.repository)
+          : currentRelease.status === 'found'
+            ? currentRelease.release
+            : undefined
+        if (releaseCreatePlanned) writeCount += 1
+      }
+      if (!release) throw new ReporterError('evidence release was not planned')
+      assertStableRelease(release)
     } catch (error) {
       const message = diagnosticMessage(error, 'evidence release mutation failed')
       addDiagnostic(diagnostics, diagnosticDetails, diagnosticCodeForError(error, 'transport'), message)

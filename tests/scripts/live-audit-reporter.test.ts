@@ -189,6 +189,12 @@ interface MemoryOptions {
   readonly issue?: ReturnType<typeof rawIssue>
   readonly issues?: readonly ReturnType<typeof rawIssue>[]
   readonly release?: boolean
+  readonly releaseDraft?: boolean
+  readonly releasePrerelease?: boolean
+  readonly releasePrivate?: boolean
+  readonly releaseTag?: string
+  readonly onReleaseLookup?: (count: number, setRelease: (state: ReleaseState) => void) => void
+  readonly onReleaseUpdate?: (input: Record<string, unknown>) => void
   readonly assets?: readonly Record<string, unknown>[]
   readonly closeEvents?: readonly Record<string, unknown>[]
   readonly onIssueRead?: (issue: ReturnType<typeof rawIssue>, count: number) => void
@@ -198,6 +204,13 @@ interface MemoryOptions {
   readonly comments?: readonly {body: string; actor: string; createdAt?: string}[]
   readonly failReopenOnce?: boolean
   readonly failCommentOnce?: boolean
+}
+
+interface ReleaseState {
+  readonly draft?: boolean
+  readonly prerelease?: boolean
+  readonly isPrivate?: boolean
+  readonly tagName?: string
 }
 
 const memoryGithub = (options: MemoryOptions = {}) => {
@@ -216,24 +229,49 @@ const memoryGithub = (options: MemoryOptions = {}) => {
   let issueReadCount = 0
   let issueListCount = 0
   let assetListCount = 0
+  let releaseLookupCount = 0
   let failReopenOnce = options.failReopenOnce ?? false
   let releaseExists = options.release ?? true
+  let releaseDraft = options.releaseDraft ?? false
+  let releasePrerelease = options.releasePrerelease ?? true
+  let releasePrivate = options.releasePrivate ?? false
+  let releaseTag = options.releaseTag ?? 'live-audit-evidence'
   let failComment = options.failCommentOnce ?? false
+  const setRelease = (state: ReleaseState): void => {
+    if (state.draft !== undefined) releaseDraft = state.draft
+    if (state.prerelease !== undefined) releasePrerelease = state.prerelease
+    if (state.isPrivate !== undefined) releasePrivate = state.isPrivate
+    if (state.tagName !== undefined) releaseTag = state.tagName
+  }
   const release = () => ({
     id: 42,
-    tag_name: 'live-audit-evidence',
+    tag_name: releaseTag,
     upload_url: 'https://uploads.github.com/example',
-    draft: false,
-    prerelease: false,
+    draft: releaseDraft,
+    prerelease: releasePrerelease,
+    private: releasePrivate,
     assets,
   })
   const run = vi.fn(
     async (args: readonly string[], runOptions?: {readonly input?: string}): Promise<GhCommandResult> => {
       const endpoint = args[1] ?? ''
-      if (endpoint.includes('/releases/tags/'))
+      if (endpoint.includes('/releases/tags/')) {
+        releaseLookupCount += 1
+        options.onReleaseLookup?.(releaseLookupCount, setRelease)
         return releaseExists
           ? {stdout: JSON.stringify(release()), stderr: '', exitCode: 0}
           : {stdout: '', stderr: '404', exitCode: 1}
+      }
+      if (endpoint.endsWith('/releases/42') && args.includes('PATCH')) {
+        const input = JSON.parse(runOptions?.input ?? '{}') as Record<string, unknown>
+        options.onReleaseUpdate?.(input)
+        setRelease({
+          ...(typeof input.draft === 'boolean' ? {draft: input.draft} : {}),
+          ...(typeof input.prerelease === 'boolean' ? {prerelease: input.prerelease} : {}),
+        })
+        writes.push('release-update')
+        return {stdout: JSON.stringify(release()), stderr: '', exitCode: 0}
+      }
       if (endpoint.endsWith('/releases') && args.includes('POST')) {
         releaseExists = true
         writes.push('release-create')
@@ -345,7 +383,7 @@ const memoryGithub = (options: MemoryOptions = {}) => {
       return {stdout: '{}', stderr: '', exitCode: 0}
     },
   )
-  return {runner: {run} satisfies GhRunner, getIssue: () => issue, comments, assets, writes}
+  return {runner: {run} satisfies GhRunner, getIssue: () => issue, comments, assets, writes, setRelease}
 }
 
 const depsFor = (
@@ -618,6 +656,116 @@ describe('reporter reconciled lifecycle', () => {
       ...depsFor(root, memoryGithub({release: false}), 'disabled'),
     })
     expect(first.operations).toEqual(second.operations)
+  })
+
+  it('plans a release update after inspecting and listing a published normal release', async () => {
+    const memory = memoryGithub({releasePrerelease: false})
+    const decision = await decideAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory, 'disabled')})
+
+    expect(decision.status).toBe('success')
+    expect(decision.operations.map(operation => operation.kind)).toEqual([
+      'release-update',
+      'asset-upload',
+      'asset-upload',
+      'issue-create',
+    ])
+    expect(memory.runner.run.mock.calls.some(call => String(call[0]).includes('/releases/42/assets'))).toBe(true)
+  })
+
+  it('reports a planned release update while disabled without performing writes', async () => {
+    const memory = memoryGithub({releasePrerelease: false})
+    const result = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory, 'disabled')})
+
+    expect(result.operations.some(operation => operation.kind === 'release-update')).toBe(true)
+    expect(result.writeCount).toBe(0)
+    expect(memory.writes).toEqual([])
+  })
+
+  it('updates a normal release before enabled asset mutation and never makes it latest', async () => {
+    const updateInputs: Record<string, unknown>[] = []
+    const memory = memoryGithub({releasePrerelease: false, onReleaseUpdate: input => updateInputs.push(input)})
+    const result = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory)})
+
+    expect(result.status).toBe('success')
+    expect(result.writeCount).toBe(4)
+    expect(memory.writes.slice(0, 3)).toEqual(['release-update', 'asset-upload', 'asset-upload'])
+    expect(updateInputs).toEqual([{draft: false, prerelease: true, make_latest: 'false'}])
+  })
+
+  it('does not plan a release update for an already-correct prerelease', async () => {
+    const memory = memoryGithub({releasePrerelease: true})
+    const decision = await decideAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory, 'disabled')})
+
+    expect(decision.operations.some(operation => operation.kind === 'release-update')).toBe(false)
+  })
+
+  it('fails closed when a planned prerelease drifts to normal before reusable evidence processing', async () => {
+    const finding = makeFinding()
+    const operation = operationKey('run-reporter-1', findingFingerprint(finding), variantKey(finding.variant), 'report')
+    const assets = finding.evidence.map((reference, index) => ({
+      id: index + 1,
+      name: evidenceAssetName({
+        operationKey: operation,
+        fingerprint: findingFingerprint(finding),
+        variantKey: variantKey(finding.variant),
+        role: reference.role,
+        bytes: png,
+      }),
+      state: 'uploaded',
+      size: png.length,
+      content_type: 'image/png',
+      digest: `sha256:${digest(png)}`,
+      browser_download_url: `https://github.com/example/repo/releases/download/live-audit-evidence/${evidenceAssetName({
+        operationKey: operation,
+        fingerprint: findingFingerprint(finding),
+        variantKey: variantKey(finding.variant),
+        role: reference.role,
+        bytes: png,
+      })}`,
+    }))
+    const memory = memoryGithub({
+      issue: rawIssue({number: 204, body: renderIssueLedger(ledgerFor(finding))}),
+      assets,
+      onReleaseLookup: (count, setRelease) => {
+        if (count === 2) setRelease({prerelease: false})
+      },
+    })
+
+    const result = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory)})
+
+    expect(result.writeCount).toBe(0)
+    expect(memory.writes).toEqual([])
+    expect(result.diagnostics.some(message => message.includes('drift') || message.includes('prerelease'))).toBe(true)
+    expect(
+      result.diagnosticDetails.some(diagnostic => diagnostic.code === 'drift' || diagnostic.code === 'transport'),
+    ).toBe(true)
+  })
+
+  it.each([
+    ['draft', {releaseDraft: true}],
+    ['private', {releasePrivate: true}],
+    ['wrong tag', {releaseTag: 'unexpected-tag'}],
+  ])('fails closed for a %s evidence release', async (_name, releaseOptions) => {
+    const memory = memoryGithub(releaseOptions)
+    const decision = await decideAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory, 'disabled')})
+
+    expect(decision.status).toBe('failure')
+    expect(decision.operations).toEqual([])
+    expect(decision.diagnostics.some(message => message.includes('evidence release'))).toBe(true)
+  })
+
+  it('fails a planned release update when the release changes before execution', async () => {
+    const memory = memoryGithub({
+      releasePrerelease: false,
+      onReleaseLookup: (count, setRelease) => {
+        if (count === 3) setRelease({prerelease: true})
+      },
+    })
+    const result = await reportAudit({manifest: manifestFor(), ...depsFor(rootFor(), memory)})
+
+    expect(result.writeCount).toBe(0)
+    expect(memory.writes).toEqual([])
+    expect(result.diagnostics.some(message => message.includes('drift'))).toBe(true)
   })
 
   it('plans exact release, upload, issue, body, comment, and transition mutations while disabled performs zero writes', async () => {

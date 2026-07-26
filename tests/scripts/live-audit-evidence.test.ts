@@ -1074,7 +1074,7 @@ describe('live-audit evidence finalization', () => {
           tagName: EVIDENCE_RELEASE_TAG,
           uploadUrl: 'upload',
           isDraft: false,
-          isPrerelease: false,
+          isPrerelease: true,
           assets: [],
         },
         assetName: asset.name,

@@ -8,6 +8,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
+  MAX_DIAGNOSTIC_BYTES,
   MAX_MANIFEST_BYTES,
   MAX_RESULT_BYTES,
   MAX_SUMMARY_BYTES,
@@ -363,6 +364,73 @@ describe('live-audit report CLI', () => {
     }
   })
 
+  it('accepts valid PNG bytes delivered as octet-stream and rejects malformed or non-PNG octet-stream', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor())
+    const verified: {
+      readonly ok: boolean
+      readonly contentType?: string
+      readonly sha256?: string
+      readonly reason?: string
+    }[] = []
+    const malformedPng = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0])
+    const nonPng = Buffer.from('not-a-png')
+    reportAuditMock.mockImplementationOnce(
+      async (input: {
+        readonly manifest: AuditManifest
+        readonly verifyPublicImage: (url: string) => Promise<{
+          readonly ok: boolean
+          readonly contentType?: string
+          readonly sha256?: string
+          readonly reason?: string
+        }>
+      }) => {
+        verified.push(
+          await input.verifyPublicImage(
+            'https://github.com/example/repo/releases/download/live-audit-evidence/valid.png',
+          ),
+          await input.verifyPublicImage(
+            'https://github.com/example/repo/releases/download/live-audit-evidence/malformed.png',
+          ),
+          await input.verifyPublicImage(
+            'https://github.com/example/repo/releases/download/live-audit-evidence/non-png.png',
+          ),
+        )
+        return {
+          manifest: input.manifest,
+          status: verified.every(item => item.ok) ? ('success' as const) : ('failure' as const),
+          diagnosticDetails: verified.every(item => item.ok)
+            ? []
+            : [{code: 'asset-verification' as const, severity: 'failure' as const, message: 'invalid public PNG'}],
+          operations: [],
+          diagnostics: ['invalid public PNG'],
+          writeCount: 0,
+          issueNumbers: [],
+        }
+      },
+    )
+    const fetchImpl = vi.fn(async (input: URL | RequestInfo) => {
+      const url = String(input)
+      const body = url.endsWith('/valid.png') ? png : url.endsWith('/malformed.png') ? malformedPng : nonPng
+      return new Response(body, {status: 200, headers: {'content-type': 'application/octet-stream'}})
+    })
+    const resultPath = join(root, 'result.json')
+
+    await expect(
+      runReportAuditCli({
+        argv: argsFor(manifestPath, root, resultPath),
+        env: envFor(),
+        fs,
+        runnerFactory: () => emptyRunner(),
+        fetch: fetchImpl,
+      }),
+    ).resolves.toBe(1)
+    expect(verified[0]).toMatchObject({ok: true, contentType: 'application/octet-stream', sha256: digest(png)})
+    expect(verified[1]).toMatchObject({ok: false})
+    expect(verified[2]).toMatchObject({ok: false})
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({status: 'failure'})
+  })
+
   it.each([
     ['missing', undefined, 'disabled'],
     ['disabled', 'disabled', 'disabled'],
@@ -424,6 +492,42 @@ describe('live-audit report CLI', () => {
     expect(JSON.parse(await readFile(join(root, 'thrown-result.json'), 'utf8'))).toMatchObject({
       status: 'failure',
       diagnosticDetails: [{code: 'contract', severity: 'failure'}],
+    })
+  })
+
+  it('emits a bounded redacted failure diagnostic through an injectable writer after persisting the result', async () => {
+    const root = rootFor()
+    const manifestPath = await writeManifest(root, manifestFor({runId: 'run-report-cli-failure'}))
+    const resultPath = join(root, 'reporter-result.json')
+    const token = envFor().GH_TOKEN as string
+    const diagnosticWriter = vi.fn()
+    const longMessage = `${token} ${'actionable reporter failure '.repeat(200)}`
+    reportAuditMock.mockImplementationOnce(async (input: {readonly manifest: AuditManifest}) => ({
+      manifest: input.manifest,
+      status: 'failure' as const,
+      diagnosticDetails: [{code: 'asset-verification' as const, severity: 'failure' as const, message: longMessage}],
+      operations: [],
+      diagnostics: [longMessage],
+      writeCount: 0,
+      issueNumbers: [],
+    }))
+    const input = {
+      argv: argsFor(manifestPath, root, resultPath),
+      env: envFor(),
+      fs,
+      runnerFactory: () => emptyRunner(),
+      diagnosticWriter,
+    }
+
+    await expect(runReportAuditCli(input)).resolves.toBe(1)
+    expect(diagnosticWriter).toHaveBeenCalledTimes(1)
+    const diagnostic = diagnosticWriter.mock.calls[0]?.[0] as string
+    expect(diagnostic).toContain('asset-verification')
+    expect(diagnostic).not.toContain(token)
+    expect(Buffer.byteLength(diagnostic, 'utf8')).toBeLessThanOrEqual(MAX_DIAGNOSTIC_BYTES)
+    expect(JSON.parse(await readFile(resultPath, 'utf8'))).toMatchObject({
+      status: 'failure',
+      diagnosticDetails: [{code: 'asset-verification', severity: 'failure'}],
     })
   })
 

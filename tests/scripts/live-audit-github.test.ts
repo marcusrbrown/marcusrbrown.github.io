@@ -154,17 +154,18 @@ const expectedRealRelease: EvidenceRelease = {
   tagName: 'live-audit-evidence',
   uploadUrl: 'https://uploads.github.com/repos/example/repo/releases/42/assets{?name,label}',
   isDraft: false,
-  isPrerelease: false,
+  isPrerelease: true,
   isPrivate: undefined,
   assets: [],
 }
+const prereleaseReal = {...releaseReal, prerelease: true}
 
 describe('committed real-shape GitHub payloads', () => {
   const repository = {owner: 'example', repo: 'repo'}
 
   it('normalizes release and asset fixtures through release parsers', async () => {
     await expect(
-      inspectEvidenceRelease(fakeRunner([result(JSON.stringify(releaseReal))]), repository),
+      inspectEvidenceRelease(fakeRunner([result(JSON.stringify(prereleaseReal))]), repository),
     ).resolves.toEqual({status: 'found', release: expectedRealRelease})
     await expect(
       listEvidenceAssets(fakeRunner([result(JSON.stringify([[assetReal]]))]), repository, expectedRealRelease),
@@ -309,7 +310,7 @@ describe('bounded GitHub runner', () => {
           tagName: EVIDENCE_RELEASE_TAG,
           uploadUrl: 'upload',
           isDraft: false,
-          isPrerelease: false,
+          isPrerelease: true,
           assets: [],
         },
         assetName: collision.name,
@@ -328,7 +329,7 @@ describe('bounded GitHub runner', () => {
           tagName: EVIDENCE_RELEASE_TAG,
           uploadUrl: 'upload',
           isDraft: false,
-          isPrerelease: false,
+          isPrerelease: true,
           assets: [],
         },
         assetName: 'new.png',
@@ -395,7 +396,7 @@ describe('durable evidence release transport', () => {
     tagName: EVIDENCE_RELEASE_TAG,
     uploadUrl: 'https://uploads.github.com/repos/example/repo/releases/42/assets{?name,label}',
     isDraft: false,
-    isPrerelease: false,
+    isPrerelease: true,
     assets: [],
   }
 
@@ -407,7 +408,7 @@ describe('durable evidence release transport', () => {
           tag_name: EVIDENCE_RELEASE_TAG,
           upload_url: release.uploadUrl,
           draft: false,
-          prerelease: false,
+          prerelease: true,
           assets: [],
         }),
       ),
@@ -421,7 +422,7 @@ describe('durable evidence release transport', () => {
           tag_name: EVIDENCE_RELEASE_TAG,
           upload_url: release.uploadUrl,
           draft: false,
-          prerelease: false,
+          prerelease: true,
           assets: [],
         }),
       ),
@@ -448,9 +449,9 @@ describe('durable evidence release transport', () => {
       browser_download_url: 'https://github.com/example/repo/releases/download/live-audit-evidence/existing.png',
     }
     const runner = fakeRunner([result(JSON.stringify([[rawAsset]]))])
-    await expect(listEvidenceAssets(runner, {owner: 'example', repo: 'repo'}, release)).resolves.toMatchObject([
-      {name: rawAsset.name, digest: rawAsset.digest},
-    ])
+    await expect(
+      listEvidenceAssets(runner, {owner: 'example', repo: 'repo'}, {...release, isPrerelease: false}),
+    ).resolves.toMatchObject([{name: rawAsset.name, digest: rawAsset.digest}])
     expect(callArgs((runner.run as ReturnType<typeof vi.fn>).mock.calls, 0)).toEqual([
       'api',
       'repos/example/repo/releases/42/assets',
@@ -657,6 +658,41 @@ describe('durable evidence release transport', () => {
               tag_name: EVIDENCE_RELEASE_TAG,
               upload_url: release.uploadUrl,
               draft: false,
+              prerelease: false,
+              assets: [],
+            }),
+          ),
+        ]),
+        {owner: 'example', repo: 'repo'},
+      ),
+    ).resolves.toMatchObject({status: 'found', release: {isPrerelease: false}})
+    await expect(
+      inspectEvidenceRelease(
+        fakeRunner([
+          result(
+            JSON.stringify({
+              id: 42,
+              tag_name: EVIDENCE_RELEASE_TAG,
+              upload_url: release.uploadUrl,
+              draft: false,
+              prerelease: true,
+              private: true,
+              assets: [],
+            }),
+          ),
+        ]),
+        {owner: 'example', repo: 'repo'},
+      ),
+    ).rejects.toThrow(/published|prerelease/)
+    await expect(
+      inspectEvidenceRelease(
+        fakeRunner([
+          result(
+            JSON.stringify({
+              id: 42,
+              tag_name: EVIDENCE_RELEASE_TAG,
+              upload_url: release.uploadUrl,
+              draft: false,
               prerelease: true,
               assets: [],
             }),
@@ -664,13 +700,13 @@ describe('durable evidence release transport', () => {
         ]),
         {owner: 'example', repo: 'repo'},
       ),
-    ).rejects.toThrow(/published|stable/)
+    ).resolves.toMatchObject({status: 'found', release})
     await expect(
       inspectEvidenceRelease(fakeRunner([result('', 1, 'permission denied')]), {owner: 'example', repo: 'repo'}),
     ).rejects.toThrow(/lookup|exit code/)
   })
 
-  it('rejects draft or prerelease releases that would invalidate durable links', async () => {
+  it('rejects draft releases that would invalidate durable links', async () => {
     const runner = fakeRunner([
       result(
         JSON.stringify({
@@ -1050,6 +1086,35 @@ describe('durable evidence release transport', () => {
     ).resolves.toMatchObject({ok: false})
   })
 
+  it('accepts valid PNG bytes delivered as octet-stream and rejects malformed octet-stream', async () => {
+    const expected = {
+      owner: 'example',
+      repo: 'repo',
+      tag: EVIDENCE_RELEASE_TAG,
+      assetName: 'image.png',
+      expectedSha256: sha256(png),
+    }
+    const url = 'https://github.com/example/repo/releases/download/live-audit-evidence/image.png'
+    const response = (bytes: Uint8Array) => ({
+      ok: true,
+      url,
+      headers: new Headers({'content-type': 'application/octet-stream'}),
+      arrayBuffer: async () => new Uint8Array(bytes).buffer,
+    })
+
+    await expect(verifyPublicPng(url, vi.fn().mockResolvedValue(response(png)), expected)).resolves.toMatchObject({
+      ok: true,
+      contentType: 'application/octet-stream',
+      sha256: sha256(png),
+    })
+    await expect(
+      verifyPublicPng(url, vi.fn().mockResolvedValue(response(Buffer.from('not a PNG'))), expected),
+    ).resolves.toMatchObject({ok: false})
+    await expect(
+      verifyPublicPng(url, vi.fn().mockResolvedValue(response(png.subarray(0, -1))), expected),
+    ).resolves.toMatchObject({ok: false})
+  })
+
   it('bounds public verification to the expected release namespace, bytes, hash, and timeout', async () => {
     const expected = {owner: 'example', repo: 'repo', tag: EVIDENCE_RELEASE_TAG, assetName: 'image.png'}
     const validResponse = (url: string, bytes: Uint8Array = png) => ({
@@ -1133,6 +1198,66 @@ describe('durable evidence release transport', () => {
         {timeoutMs: 1},
       ),
     ).resolves.toMatchObject({ok: false})
+  })
+})
+
+describe('prerelease evidence release reconciliation', () => {
+  const repository = {owner: 'example', repo: 'repo'}
+  const uploadUrl = 'https://uploads.github.com/repos/example/repo/releases/42/assets{?name,label}'
+  const releasePayload = (overrides: Record<string, unknown> = {}) => ({
+    id: 42,
+    tag_name: EVIDENCE_RELEASE_TAG,
+    upload_url: uploadUrl,
+    draft: false,
+    prerelease: true,
+    assets: [],
+    ...overrides,
+  })
+
+  it('creates a missing release as a published prerelease that is never latest', async () => {
+    const runner = fakeRunner([result('', 1, 'HTTP 404 Not Found'), result(JSON.stringify(releasePayload()))])
+
+    await expect(getOrCreateEvidenceRelease(runner, repository)).resolves.toMatchObject({
+      id: 42,
+      tagName: EVIDENCE_RELEASE_TAG,
+      isDraft: false,
+      isPrerelease: true,
+    })
+
+    const calls = (runner.run as ReturnType<typeof vi.fn>).mock.calls
+    expect(JSON.parse(callInput(calls, 1))).toEqual(
+      expect.objectContaining({draft: false, prerelease: true, make_latest: 'false'}),
+    )
+  })
+
+  it('reconciles an existing published normal release by patching its release ID', async () => {
+    const runner = fakeRunner([
+      result(JSON.stringify(releasePayload({prerelease: false}))),
+      result(JSON.stringify(releasePayload())),
+    ])
+
+    await expect(getOrCreateEvidenceRelease(runner, repository)).resolves.toMatchObject({
+      id: 42,
+      tagName: EVIDENCE_RELEASE_TAG,
+      isDraft: false,
+      isPrerelease: true,
+    })
+
+    const calls = (runner.run as ReturnType<typeof vi.fn>).mock.calls
+    expect(callArgs(calls, 1)).toEqual(['api', 'repos/example/repo/releases/42', '--method', 'PATCH', '--input', '-'])
+    expect(JSON.parse(callInput(calls, 1))).toEqual({draft: false, prerelease: true, make_latest: 'false'})
+  })
+
+  it('reuses an already-correct published prerelease without mutation', async () => {
+    const runner = fakeRunner([result(JSON.stringify(releasePayload()))])
+
+    await expect(getOrCreateEvidenceRelease(runner, repository)).resolves.toMatchObject({
+      id: 42,
+      tagName: EVIDENCE_RELEASE_TAG,
+      isDraft: false,
+      isPrerelease: true,
+    })
+    expect(runner.run).toHaveBeenCalledOnce()
   })
 })
 
