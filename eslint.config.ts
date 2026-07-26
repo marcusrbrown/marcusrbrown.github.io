@@ -15,6 +15,7 @@ export default defineConfig(
       'PRODUCT.md',
       'docs/brainstorms/',
       'docs/plans/',
+      'docs/solutions/',
       'public/',
     ],
     typescript: true,
