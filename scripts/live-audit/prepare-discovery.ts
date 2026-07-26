@@ -17,13 +17,14 @@ import {parseIssueLedger, type IssueLedger} from './issue-ledger'
 import {buildManualReplayPlan, buildScheduledReplayPlan, serializeReplayPlan, type ReplayPlan} from './replay-plan'
 import {
   authorizeManualRoute,
+  MAX_EVENT_BYTES,
   parseLiveAuditEvent,
   type LiveAuditEventRoute,
   type LiveAuditIgnoredReason,
   type ManualCandidateRoute,
 } from './route-event'
 
-export const MAX_EVENT_BYTES = 256_000
+export {MAX_EVENT_BYTES}
 export const DEFAULT_EXPLORATION = {steps: 2, durationMs: 10_000} as const
 
 export interface PrepareDiscoveryFileSystem {

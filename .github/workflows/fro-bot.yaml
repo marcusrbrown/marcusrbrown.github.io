@@ -462,6 +462,7 @@ env:
 jobs:
   fro-bot:
     name: Fro Bot
+    needs: live-audit-preflight
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -469,13 +470,15 @@ jobs:
       pull-requests: write
       discussions: write
     if: >-
+      !cancelled() &&
       (
         github.event.pull_request == null ||
         (
           !github.event.pull_request.head.repo.fork &&
           !endsWith(github.event.pull_request.user.login || '', '[bot]')
         )
-      ) && (
+      ) &&
+      (
         (
           github.event_name == 'issues' &&
           !endsWith(github.event.issue.user.login || '', '[bot]') &&
@@ -490,15 +493,26 @@ jobs:
         github.event_name == 'schedule' ||
         (github.event_name == 'workflow_dispatch' && inputs.mode != 'live-audit') ||
         (
-          ((github.event_name == 'issue_comment' &&
-            (github.event.issue.pull_request ||
-             github.event.comment.body != format('@fro-bot validate #{0}', github.event.issue.number))) ||
-           github.event_name == 'pull_request_review_comment' ||
-           github.event_name == 'discussion_comment') &&
-          contains(github.event.comment.body || '', '@fro-bot') &&
-          (github.event.comment.user.login || '') != 'fro-bot' &&
-          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || '')
-        )
+          (
+            github.event_name == 'issue_comment' &&
+            (
+              (
+                needs.live-audit-preflight.result == 'success' &&
+                (github.event.issue.pull_request || needs.live-audit-preflight.outputs.manual-candidate != 'true')
+              ) ||
+              (
+                needs.live-audit-preflight.result != 'success' &&
+                !(github.event.issue.pull_request == null &&
+                  startsWith(github.event.comment.body || '', '@fro-bot validate #'))
+              )
+            )
+          ) ||
+          github.event_name == 'pull_request_review_comment' ||
+          github.event_name == 'discussion_comment'
+        ) &&
+        contains(github.event.comment.body || '', '@fro-bot') &&
+        (github.event.comment.user.login || '') != 'fro-bot' &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association || '')
       )
     steps:
       - name: Detect Sunday UTC for category 7 cadence
@@ -591,7 +605,29 @@ jobs:
       eligible: ${{ steps.preflight.outputs.eligible }}
       run-kind: ${{ steps.preflight.outputs.run-kind }}
       issue-number: ${{ steps.preflight.outputs.issue-number }}
+      manual-candidate: ${{ steps.preflight.outputs.manual-candidate }}
     steps:
+      - name: Checkout routing parser
+        if: >-
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request == null &&
+          startsWith(github.event.comment.body || '', '@fro-bot validate #')
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup routing parser dependencies
+        if: >-
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request == null &&
+          startsWith(github.event.comment.body || '', '@fro-bot validate #')
+        uses: ./.github/actions/setup
+        with:
+          node-version: '24'
+          install-playwright: 'false'
+
       - name: Check live-audit eligibility
         id: preflight
         shell: bash
@@ -606,6 +642,9 @@ jobs:
           eligible=false
           run_kind=''
           issue_number=''
+          candidate_prefix=false
+          manual_candidate=false
+          route=''
 
           if [[ "$EVENT_NAME" == 'schedule' ]]; then
             case "$EVENT_SCHEDULE" in
@@ -624,27 +663,16 @@ jobs:
             fi
           elif [[ "$EVENT_NAME" == 'issue_comment' ]]; then
             issue_number="$(jq -er '.issue.number | select(type == "number" and floor == . and . > 0) | tostring' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
-            if jq -e '
-              . as $event |
-              $event.action == "created" and
-              $event.issue.pull_request == null and
-              ($event.issue.number | type == "number" and floor == . and . > 0) and
-              ($event.comment.body |
-                if type == "string" then
-                  . == ("@fro-bot validate #" + ($event.issue.number | tostring))
-                else false end) and
-              ($event.comment.user.type | . != "Bot") and
-              ($event.comment.user.login |
-                if type == "string" then . != "fro-bot" else false end) and
-              ($event.comment.user.login |
-                if type == "string" then (endswith("[bot]") | not) else false end) and
-              ($event.comment.author_association == "OWNER" or
-               $event.comment.author_association == "MEMBER" or
-               $event.comment.author_association == "COLLABORATOR") and
-              ($event.comment.user.login |
-                if type == "string" then test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$") else false end)
-            ' "$GITHUB_EVENT_PATH" >/dev/null; then
-              actor="$(jq -er '.comment.user.login | select(type == "string" and test("^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$"))' "$GITHUB_EVENT_PATH")"
+            if [[ "$(jq -er '
+              .issue.pull_request == null and
+              (.comment.body | if type == "string" then startswith("@fro-bot validate #") else false end)
+            ' "$GITHUB_EVENT_PATH" 2>/dev/null || echo false)" == 'true' ]]; then
+              candidate_prefix=true
+              route="$(pnpm exec tsx scripts/live-audit/route-event.ts --event-name "$EVENT_NAME" --event-path "$GITHUB_EVENT_PATH")"
+            fi
+            if [[ "$candidate_prefix" == 'true' && "$(jq -er '.kind' <<<"$route")" == 'manual-candidate' ]]; then
+              manual_candidate=true
+              actor="$(jq -er '.actor' <<<"$route")"
               permission="$(gh api "repos/${REPOSITORY}/collaborators/${actor}/permission" --jq '.permission' 2>/dev/null || true)"
               case "$permission" in
                 write|maintain|admin)
@@ -659,6 +687,7 @@ jobs:
             echo "eligible=$eligible"
             echo "run-kind=$run_kind"
             echo "issue-number=$issue_number"
+            echo "manual-candidate=$manual_candidate"
           } >> "$GITHUB_OUTPUT"
 
   live-audit-discovery:

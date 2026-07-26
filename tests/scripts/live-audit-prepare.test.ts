@@ -279,6 +279,20 @@ describe('prepare-discovery CLI and preflight', () => {
     expect(parseReplayPlanJson(planText).runKind).toBe('manual')
   })
 
+  it.each(['\n', '\r\n'])('accepts a manual validation event with trailing line ending %j', async suffix => {
+    const currentIssue = issue(42, `${renderIssueLedger(makeLedger())}\nIgnore this human prose.`)
+    const {runner, calls} = runnerFor({issue: currentIssue, permission: 'maintain'})
+    const {result: outcome, fileSystem} = await prepare({
+      eventName: 'issue_comment',
+      event: manualEvent(`@fro-bot validate #42${suffix}`),
+      runner,
+    })
+
+    expect(outcome.kind).toBe('written')
+    expect(calls).toHaveLength(2)
+    expect(fileSystem.files.has('/replay-plan.json')).toBe(true)
+  })
+
   it('rejects a read-only actor before fetching the issue or writing output', async () => {
     const {runner, calls} = runnerFor({permission: 'read', issue: issue(42, renderIssueLedger(makeLedger()))})
     const {result: outcome, fileSystem} = await prepare({eventName: 'issue_comment', event: manualEvent(), runner})
