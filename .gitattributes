@@ -1,1 +1,4 @@
 *.png filter=lfs diff=lfs merge=lfs -text
+
+# Web-served preview images must be real blobs — GitHub Pages does not resolve LFS pointers
+public/project-previews/*.png filter= diff= merge= -text
