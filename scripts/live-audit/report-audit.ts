@@ -7,6 +7,7 @@ import {pathToFileURL} from 'node:url'
 import {parseArgs} from 'node:util'
 
 import {parseAuditManifest} from './contract'
+import {validatePng} from './evidence'
 import {createGhRunner, type GhRunner} from './github-runner'
 import {
   classifyReporterError,
@@ -21,6 +22,7 @@ export const REPORT_AUDIT_RESULT_VERSION = 1 as const
 export const MAX_MANIFEST_BYTES = 2_000_000
 export const MAX_RESULT_BYTES = 250_000
 export const MAX_SUMMARY_BYTES = 20_000
+export const MAX_DIAGNOSTIC_BYTES = 2_000
 export const MAX_ENV_VALUE_BYTES = 2_000
 export const MAX_PUBLIC_IMAGE_BYTES = 5_000_000
 export const PUBLIC_IMAGE_TIMEOUT_MS = 15_000
@@ -43,6 +45,7 @@ export interface ReportAuditCliFileSystem {
 
 export type ReportAuditRunnerFactory = (environment: Readonly<Record<string, string>>) => GhRunner
 export type ReportAuditSummaryWriter = (path: string, summary: string) => Promise<void> | void
+export type ReportAuditDiagnosticWriter = (diagnostic: string) => Promise<void> | void
 
 export interface ReportAuditCliOptions {
   readonly manifestPath: string
@@ -59,6 +62,7 @@ export interface RunReportAuditCliInput {
   readonly fetch?: typeof globalThis.fetch
   readonly clock?: () => Date
   readonly summaryWriter?: ReportAuditSummaryWriter
+  readonly diagnosticWriter?: ReportAuditDiagnosticWriter
 }
 
 export interface ReportAuditResultFile {
@@ -84,7 +88,6 @@ const repositoryPart = /^[A-Z0-9][\w.-]{0,99}$/i
 const runNumber = /^[1-9]\d{0,19}$/
 const allowedWriteModes: readonly ReporterWriteMode[] = ['disabled', 'manual-only', 'enabled']
 const REPORT_AUDIT_RELEASE_TAG = 'live-audit-evidence'
-const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
 
 class ReportAuditCliError extends Error {
   constructor(message: string) {
@@ -288,7 +291,9 @@ const publicImageVerifier = (fetchImpl: typeof globalThis.fetch | undefined) => 
     const response = await fetchImpl(url, {signal: controller.signal})
     if (!response.ok) return {ok: false, reason: 'public image request failed'}
     const contentType = response.headers.get('content-type') ?? ''
-    if (!contentType.toLowerCase().startsWith('image/png')) return {ok: false, reason: 'public image is not PNG'}
+    const normalizedContentType = contentType.split(';', 1)[0]?.trim().toLowerCase()
+    if (normalizedContentType !== 'image/png' && normalizedContentType !== 'application/octet-stream')
+      return {ok: false, reason: 'public image is not PNG'}
     const contentLength = response.headers.get('content-length')
     if (contentLength !== null) {
       const declaredLength = Number(contentLength)
@@ -325,8 +330,11 @@ const publicImageVerifier = (fetchImpl: typeof globalThis.fetch | undefined) => 
         bytes.set(chunk, offset)
         offset += chunk.byteLength
       }
-      if (bytes.byteLength < PNG_SIGNATURE.byteLength || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte))
+      try {
+        validatePng(bytes, MAX_PUBLIC_IMAGE_BYTES)
+      } catch {
         return {ok: false, reason: 'public image is not PNG'}
+      }
       return {
         ok: true,
         bytes,
@@ -344,7 +352,8 @@ const publicImageVerifier = (fetchImpl: typeof globalThis.fetch | undefined) => 
   }
 }
 
-const redact = (value: string, token: string): string => boundedText(value.split(token).join('[redacted]'), 2_000)
+const redact = (value: string, token: string): string =>
+  boundedText(token.length === 0 ? value : value.split(token).join('[redacted]'), 2_000)
 
 const resultFileFor = (
   status: ReporterStatus,
@@ -421,6 +430,13 @@ const summaryFor = (result: ReportAuditResultFile, token: string): string => {
   return boundedText(summary, MAX_SUMMARY_BYTES)
 }
 
+const failureDiagnosticFor = (result: ReportAuditResultFile, token: string): string => {
+  const details = result.diagnosticDetails
+    .map(diagnostic => `${diagnostic.severity}: ${diagnostic.code}: ${redact(diagnostic.message, token)}`)
+    .join('\n')
+  return boundedText(`Live audit reporter failed\n${details || 'no diagnostic details'}`, MAX_DIAGNOSTIC_BYTES)
+}
+
 export const runReportAuditCli = async (input: RunReportAuditCliInput = {}): Promise<number> => {
   const options = input.options ?? parseOptions(input.argv ?? process.argv.slice(2))
   const fileSystem = input.fs ?? nodeFileSystem
@@ -441,7 +457,10 @@ export const runReportAuditCli = async (input: RunReportAuditCliInput = {}): Pro
     })
   } catch (error) {
     const token = (input.env ?? process.env).GH_TOKEN ?? ''
-    await atomicWrite(fileSystem, options.resultPath, serializeResult(preflightResultFileFor(error, token)))
+    const result = preflightResultFileFor(error, token)
+    await atomicWrite(fileSystem, options.resultPath, serializeResult(result))
+    const diagnosticWriter = input.diagnosticWriter ?? ((diagnostic: string) => process.stderr.write(`${diagnostic}\n`))
+    await diagnosticWriter(failureDiagnosticFor(result, token))
     return 1
   }
   const clock = input.clock ?? (() => new Date())
@@ -472,6 +491,10 @@ export const runReportAuditCli = async (input: RunReportAuditCliInput = {}): Pro
     result = resultFileFor(classified.status, [classified.diagnostic], [], 0, [], environment.ghToken)
   }
   await atomicWrite(fileSystem, options.resultPath, serializeResult(result))
+  if (result.status === 'failure') {
+    const diagnosticWriter = input.diagnosticWriter ?? ((diagnostic: string) => process.stderr.write(`${diagnostic}\n`))
+    await diagnosticWriter(failureDiagnosticFor(result, environment.ghToken))
+  }
   if (environment.summaryPath !== undefined) {
     const summary = summaryFor(result, environment.ghToken)
     if (byteLength(summary) > MAX_SUMMARY_BYTES)

@@ -954,3 +954,12 @@ jobs:
             --manifest "$LIVE_AUDIT_REPORTER_WORKSPACE/manifest.json" \
             --artifact-root "$LIVE_AUDIT_REPORTER_WORKSPACE" \
             --result "$LIVE_AUDIT_REPORTER_WORKSPACE/reporter-result.json"
+
+      - name: Upload live-audit reporter result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: live-audit-reporter-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.workspace.outputs.workspace }}/reporter-result.json
+          if-no-files-found: error
+          retention-days: 7

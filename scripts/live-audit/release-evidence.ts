@@ -124,26 +124,41 @@ const toRelease = (value: unknown): EvidenceRelease => {
   }
 }
 
-const assertStableRelease = (release: EvidenceRelease): EvidenceRelease => {
-  if (release.tagName !== EVIDENCE_RELEASE_TAG || release.isDraft || release.isPrerelease || release.isPrivate)
-    throw new GhRunnerError('evidence release must be published and stable')
+const assertReadableRelease = (release: EvidenceRelease): EvidenceRelease => {
+  if (release.tagName !== EVIDENCE_RELEASE_TAG || release.isDraft || release.isPrivate)
+    throw new GhRunnerError('evidence release must be published with the expected tag')
+  return release
+}
+export const assertStableRelease = (release: EvidenceRelease): EvidenceRelease => {
+  assertReadableRelease(release)
+  if (!release.isPrerelease) throw new GhRunnerError('evidence release must be published and prerelease')
   return release
 }
 const isNotFound = (result: {readonly exitCode: number | null; readonly stderr: string}): boolean =>
   result.exitCode !== 0 && /\b404\b/.test(result.stderr)
 const releaseEndpoint = (repository: {readonly owner: string; readonly repo: string}): string =>
   `repos/${repository.owner}/${repository.repo}/releases/tags/${EVIDENCE_RELEASE_TAG}`
+const releaseByIdEndpoint = (repository: {readonly owner: string; readonly repo: string}, releaseId: number): string =>
+  `repos/${repository.owner}/${repository.repo}/releases/${releaseId}`
+const evidenceReleaseState = {draft: false, prerelease: true, make_latest: 'false'} as const
 const acceptsUnknown = (_value: unknown): _value is unknown => true
+
+const lookupEvidenceRelease = async (
+  runner: GhRunner,
+  repository: {readonly owner: string; readonly repo: string},
+): Promise<EvidenceReleaseLookup> => {
+  const existing = await runner.run(['api', releaseEndpoint(repository)])
+  if (existing.exitCode === 0) return {status: 'found', release: toRelease(parseGhJson(existing, isRecord))}
+  if (isNotFound(existing)) return {status: 'missing'}
+  throw new GhRunnerError(`GitHub release lookup failed with exit code ${existing.exitCode ?? 'unknown'}`)
+}
 
 export const inspectEvidenceRelease = async (
   runner: GhRunner,
   repository: {readonly owner: string; readonly repo: string},
 ): Promise<EvidenceReleaseLookup> => {
-  const existing = await runner.run(['api', releaseEndpoint(repository)])
-  if (existing.exitCode === 0)
-    return {status: 'found', release: assertStableRelease(toRelease(parseGhJson(existing, isRecord)))}
-  if (isNotFound(existing)) return {status: 'missing'}
-  throw new GhRunnerError(`GitHub release lookup failed with exit code ${existing.exitCode ?? 'unknown'}`)
+  const inspected = await lookupEvidenceRelease(runner, repository)
+  return inspected.status === 'found' ? {status: 'found', release: assertReadableRelease(inspected.release)} : inspected
 }
 
 export const listEvidenceAssets = async (
@@ -151,7 +166,7 @@ export const listEvidenceAssets = async (
   repository: {readonly owner: string; readonly repo: string},
   release: EvidenceRelease,
 ): Promise<readonly EvidenceAsset[]> => {
-  assertStableRelease(release)
+  assertReadableRelease(release)
   const endpoint = `repos/${repository.owner}/${repository.repo}/releases/${release.id}/assets`
   const listed = await runner.run(['api', endpoint, '--paginate', '--slurp'])
   return parseAssetList(parseGhJson(listed, acceptsUnknown))
@@ -160,9 +175,34 @@ export const listEvidenceAssets = async (
 export const getOrCreateEvidenceRelease = async (
   runner: GhRunner,
   repository: {readonly owner: string; readonly repo: string},
+  expectedExistingReleaseId?: number,
 ): Promise<EvidenceRelease> => {
-  const inspected = await inspectEvidenceRelease(runner, repository)
-  if (inspected.status === 'found') return inspected.release
+  const inspected = await lookupEvidenceRelease(runner, repository)
+  if (expectedExistingReleaseId !== undefined && inspected.status === 'missing')
+    throw new GhRunnerError('evidence release state drifted after planning')
+  if (inspected.status === 'found') {
+    const release = inspected.release
+    if (
+      expectedExistingReleaseId !== undefined &&
+      (release.id !== expectedExistingReleaseId ||
+        release.tagName !== EVIDENCE_RELEASE_TAG ||
+        release.isDraft ||
+        release.isPrivate ||
+        release.isPrerelease)
+    )
+      throw new GhRunnerError('evidence release state drifted after planning')
+    if (release.tagName !== EVIDENCE_RELEASE_TAG || release.isDraft || release.isPrivate)
+      return assertStableRelease(release)
+    if (expectedExistingReleaseId !== undefined && release.id !== expectedExistingReleaseId)
+      throw new GhRunnerError('evidence release state drifted after planning')
+    if (release.isPrerelease) return release
+
+    const reconciled = await runner.run(
+      ['api', releaseByIdEndpoint(repository, release.id), '--method', 'PATCH', '--input', '-'],
+      {input: JSON.stringify(evidenceReleaseState)},
+    )
+    return assertStableRelease(toRelease(parseGhJson(reconciled, isRecord)))
+  }
   const created = await runner.run(
     ['api', `repos/${repository.owner}/${repository.repo}/releases`, '--method', 'POST', '--input', '-'],
     {
@@ -170,8 +210,7 @@ export const getOrCreateEvidenceRelease = async (
         tag_name: EVIDENCE_RELEASE_TAG,
         name: EVIDENCE_RELEASE_TAG,
         body: 'Machine-managed live audit evidence. Do not rename or delete referenced assets.',
-        draft: false,
-        prerelease: false,
+        ...evidenceReleaseState,
       }),
     },
   )
@@ -266,7 +305,8 @@ export const verifyPublicPng = async (
     if (Number.isFinite(contentLength) && contentLength > maxBytes)
       return {ok: false, reason: 'public image exceeded byte limit'}
     const bytes = await readResponseBytes(response, maxBytes, signal)
-    if (!contentType.toLowerCase().startsWith('image/png'))
+    const normalizedContentType = contentType.split(';', 1)[0]?.trim().toLowerCase()
+    if (normalizedContentType !== 'image/png' && normalizedContentType !== 'application/octet-stream')
       return {ok: false, reason: 'public response was not a PNG image'}
     try {
       validatePng(bytes, maxBytes)
@@ -329,7 +369,7 @@ export const planEvidenceAsset = async (input: {
   readonly expectedBytes: Uint8Array
   readonly verifyPublicImage: (url: string) => Promise<PublicImageResult>
 }): Promise<EvidenceAssetPlan> => {
-  assertStableRelease(input.release)
+  assertReadableRelease(input.release)
   if (!isSafeAssetName(input.assetName)) throw new GhRunnerError('unsafe evidence asset name')
   assertExpectedPng(input.expectedBytes)
   const expectedUrl = {
