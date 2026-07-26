@@ -1,6 +1,12 @@
 import type {GitHubPermission} from './github-runner'
+import {readFileSync, statSync} from 'node:fs'
+import {resolve} from 'node:path'
+import process from 'node:process'
+import {pathToFileURL} from 'node:url'
+import {parseArgs} from 'node:util'
 
 export const LIVE_AUDIT_SCHEDULES = ['30 3 * * *', '30 15 * * *'] as const
+export const MAX_EVENT_BYTES = 256_000
 export type LiveAuditSchedule = (typeof LIVE_AUDIT_SCHEDULES)[number]
 
 export type LiveAuditIgnoredReason =
@@ -68,7 +74,7 @@ const parseManualCandidate = (event: Record<string, unknown>): LiveAuditEventRou
   if (typeof issue.number !== 'number' || !Number.isSafeInteger(issue.number) || issue.number < 1)
     return ignored('invalid-issue-number')
   if (typeof comment.body !== 'string') return ignored('invalid-event')
-  const match = MANUAL_VALIDATION.exec(comment.body)
+  const match = MANUAL_VALIDATION.exec(comment.body.trimEnd())
   if (!match) return ignored('not-validation-command')
   const capturedNumber = Number(match[1])
   if (!Number.isSafeInteger(capturedNumber) || capturedNumber < 1) return ignored('invalid-issue-number')
@@ -101,3 +107,42 @@ export const authorizeManualRoute = (
   if (!WRITE_PERMISSIONS.has(permission)) return {kind: 'rejected', reason: 'insufficient-permission'}
   return {kind: 'manual', issueNumber: route.issueNumber, actor: route.actor}
 }
+
+const parseCliArgs = (argv: readonly string[]): {readonly eventName: string; readonly eventPath: string} => {
+  const parsed = parseArgs({
+    args: [...argv],
+    options: {
+      'event-name': {type: 'string'},
+      'event-path': {type: 'string'},
+    },
+    strict: true,
+    allowPositionals: false,
+  })
+  const eventName = parsed.values['event-name']
+  const eventPath = parsed.values['event-path']
+  if (typeof eventName !== 'string' || eventName.length === 0) throw new Error('missing --event-name')
+  if (typeof eventPath !== 'string' || eventPath.length === 0) throw new Error('missing --event-path')
+  return {eventName, eventPath}
+}
+
+const cliErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error)) return 'route-event failed'
+  if (error.message === 'event payload exceeds size limit') return error.message
+  if (error.message === 'missing --event-name' || error.message === 'missing --event-path') return error.message
+  if (error instanceof SyntaxError) return 'event JSON is invalid'
+  return 'route-event failed'
+}
+
+export const main = (): void => {
+  try {
+    const {eventName, eventPath} = parseCliArgs(process.argv.slice(2))
+    if (statSync(eventPath).size > MAX_EVENT_BYTES) throw new Error('event payload exceeds size limit')
+    const event = JSON.parse(readFileSync(eventPath, 'utf8')) as unknown
+    process.stdout.write(`${JSON.stringify(parseLiveAuditEvent(eventName, event))}\n`)
+  } catch (error) {
+    process.stderr.write(`${cliErrorMessage(error)}\n`)
+    process.exitCode = 1
+  }
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main()

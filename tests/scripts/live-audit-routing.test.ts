@@ -1,6 +1,11 @@
+import {spawnSync} from 'node:child_process'
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join, resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {
   authorizeManualRoute,
+  MAX_EVENT_BYTES,
   parseLiveAuditEvent,
   type LiveAuditEventRoute,
   type ManualCandidateRoute,
@@ -42,6 +47,22 @@ const workflowDispatchEvent = (mode: string, schedule?: unknown): Record<string,
     ...(schedule === undefined ? {} : {'live-audit-slot': schedule}),
   },
 })
+
+const routeEventScript = resolve(process.cwd(), 'scripts/live-audit/route-event.ts')
+const runRouteEventCli = (eventText: string, args: readonly string[] = []): ReturnType<typeof spawnSync> => {
+  const directory = mkdtempSync(join(tmpdir(), 'live-audit-route-event-'))
+  const eventPath = join(directory, 'event.json')
+  writeFileSync(eventPath, eventText)
+  try {
+    return spawnSync(
+      'pnpm',
+      ['exec', 'tsx', routeEventScript, '--event-name', 'issue_comment', '--event-path', eventPath, ...args],
+      {cwd: process.cwd(), encoding: 'utf8'},
+    )
+  } finally {
+    rmSync(directory, {recursive: true, force: true})
+  }
+}
 
 describe('live-audit event routing', () => {
   it('routes both exact scheduled cron values', () => {
@@ -106,6 +127,60 @@ describe('live-audit event routing', () => {
     ).toEqual({kind: 'ignored', reason: 'pull-request'})
   })
 
+  it.each(['\n', '\r\n', '   '])('routes a trusted validation comment with trailing whitespace %j', suffix => {
+    expect(
+      parseLiveAuditEvent('issue_comment', validCommentEvent({comment: {body: `@fro-bot validate #42${suffix}`}})),
+    ).toEqual(manualCandidate())
+  })
+
+  it('CLI routes an LF-bearing exact command through the authoritative parser', () => {
+    const result = runRouteEventCli(JSON.stringify(validCommentEvent({comment: {body: '@fro-bot validate #42\n'}})))
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout as string)).toEqual(manualCandidate())
+  })
+
+  it('CLI rejects a non-whitespace suffix through the authoritative parser', () => {
+    const result = runRouteEventCli(JSON.stringify(validCommentEvent({comment: {body: '@fro-bot validate #42 now'}})))
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout as string)).toEqual({kind: 'ignored', reason: 'not-validation-command'})
+  })
+
+  it('CLI fails nonzero for invalid arguments and invalid JSON', () => {
+    const invalidArguments = spawnSync('pnpm', ['exec', 'tsx', routeEventScript, '--event-name', 'issue_comment'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    })
+    expect(invalidArguments.status).not.toBe(0)
+
+    const invalidJson = runRouteEventCli('{not-json')
+    expect(invalidJson.status).not.toBe(0)
+  })
+
+  it('CLI rejects an oversized event before parsing and keeps stderr concise', () => {
+    const oversizedBody = `@fro-bot validate #42${' '.repeat(MAX_EVENT_BYTES)}`
+    const result = runRouteEventCli(JSON.stringify(validCommentEvent({comment: {body: oversizedBody}})))
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain('event payload exceeds size limit')
+    expect((result.stderr as string).length).toBeLessThan(200)
+  })
+
+  it('CLI rejects an unreadable event without leaking its path', () => {
+    const eventPath = join(tmpdir(), 'live-audit-route-event-missing.json')
+    rmSync(eventPath, {force: true})
+    const result = spawnSync(
+      'pnpm',
+      ['exec', 'tsx', routeEventScript, '--event-name', 'issue_comment', '--event-path', eventPath],
+      {cwd: process.cwd(), encoding: 'utf8'},
+    )
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toBe('route-event failed\n')
+    expect(result.stderr).not.toContain(eventPath)
+  })
+
   it('ignores ordinary trusted bot mentions because generic routing owns them', () => {
     const route = parseLiveAuditEvent(
       'issue_comment',
@@ -117,7 +192,6 @@ describe('live-audit event routing', () => {
   it.each([
     '@fro-bot validate #42 now',
     ' @fro-bot validate #42',
-    '@fro-bot validate #42 ',
     'before @fro-bot validate #42',
     '@fro-bot validate #0',
     '@fro-bot validate #01',

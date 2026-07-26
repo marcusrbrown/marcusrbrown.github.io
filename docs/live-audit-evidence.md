@@ -37,6 +37,8 @@ The workflow entry point is `.github/workflows/fro-bot.yaml`.
 
 The manual command is issue-local and exact. It does not accept a pull-request comment, extra prose, a mismatched issue number, or a bot actor. Preflight also requires the target issue to carry `visual-audit`, not `visual-audit-suppressed`, and a valid machine-readable ledger.
 
+If live-audit preflight infrastructure fails, comments beginning with the literal `@fro-bot validate #` prefix—including malformed lookalikes—are intentionally excluded from generic Fro Bot; retry after preflight is healthy.
+
 The authorized association set is `OWNER`, `MEMBER`, or `COLLABORATOR`. The current GitHub permission check must resolve to `write`, `maintain`, or `admin`. A permission lookup failure is a rejection, not a best-effort approval.
 
 ## `LIVE_AUDIT_WRITE_MODE`
