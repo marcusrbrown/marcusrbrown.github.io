@@ -103,7 +103,7 @@ html {
 }
 
 .hero-cta-button--primary:hover {
-  background: var(--color-accent);
+  background: var(--color-cta-primary-bg-hover, #1e40af);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.4);
 }
