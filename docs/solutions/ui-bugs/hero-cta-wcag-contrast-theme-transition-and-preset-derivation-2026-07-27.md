@@ -48,8 +48,8 @@ The home-page hero primary CTA (`.hero-cta-button--primary`, "View My Work") int
 Define fixed, AA-passing CTA colors in `:root`, `[data-theme="light"]`, and `[data-theme="dark"]` (`src/styles/themes.css`):
 
 ```css
---color-cta-primary-bg: #1d4ed8;        /* 6.86:1 on white */
---color-cta-primary-bg-hover: #1e40af;  /* ~8.69:1 on white */
+--color-cta-primary-bg: #1d4ed8;        /* 6.70:1 on white */
+--color-cta-primary-bg-hover: #1e40af;  /* ~8.72:1 on white */
 ```
 
 Use them for the CTA (`src/styles/landing-page.css`):
@@ -72,7 +72,7 @@ The CTA intentionally stays fixed blue across all presets. Conversion-critical l
 ## Why This Works
 
 - The CTA background no longer derives from the runtime-injected preset primary (`ThemeContext.tsx` sets `--color-primary` via `root.style.setProperty`), so a light preset can no longer flow into a white-text element.
-- Both resting (`#1d4ed8`, 6.86:1) and hover (`#1e40af`, ~8.69:1) are fixed AA-compliant values.
+- Both resting (`#1d4ed8`, 6.70:1) and hover (`#1e40af`, ~8.72:1) are fixed AA-compliant values.
 - The animated property can no longer interpolate through the light blues that produced the sub-AA frames, because its start and end are the same fixed token in every theme.
 - Darker-on-hover adds contrast headroom and reads as a natural affordance.
 
