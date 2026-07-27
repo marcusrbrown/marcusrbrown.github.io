@@ -4,6 +4,8 @@
 :root {
   /* Default theme values (light theme) */
   --color-primary: #2563eb;
+  --color-cta-primary-bg: #1d4ed8;
+  --color-cta-primary-bg-hover: #1e40af;
   --color-secondary: #64748b;
   --color-accent: #0ea5e9;
   --color-background: #ffffff;
@@ -79,6 +81,8 @@
 /* Light theme explicit definitions (matches default) */
 [data-theme="light"] {
   --color-primary: #2563eb;
+  --color-cta-primary-bg: #1d4ed8;
+  --color-cta-primary-bg-hover: #1e40af;
   --color-secondary: #64748b;
   --color-accent: #0ea5e9;
   --color-background: #ffffff;
@@ -120,6 +124,8 @@
 /* Dark theme definitions */
 [data-theme="dark"] {
   --color-primary: #1d4ed8;
+  --color-cta-primary-bg: #1d4ed8;
+  --color-cta-primary-bg-hover: #1e40af;
   --color-secondary: #94a3b8;
   --color-accent: #0ea5e9;
   --color-background: #0f172a;
