@@ -139,3 +139,7 @@ archived-artifacts/
 # impeccable-ignore-end
 
 .context/
+
+# Blog refresh writes this run summary to the repo root; it is a transient
+# CI artifact (piped into the workflow step summary), never committed.
+.blog-refresh-summary.md
