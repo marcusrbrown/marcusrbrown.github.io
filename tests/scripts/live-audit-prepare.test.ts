@@ -207,6 +207,25 @@ describe('prepare-discovery CLI and preflight', () => {
     expect(fileSystem.files.has('/replay-plan.json')).toBe(true)
   })
 
+  it('tolerates delayed scheduled delivery and normalizes generatedAt to the canonical cron instant', async () => {
+    // GitHub schedule delivery is best-effort: a '30 3 * * *' run can fire late
+    // (e.g. 06:09 UTC). The plan must still be written, and generatedAt must be
+    // pinned to the exact cron instant so date-based preset rotation is stable.
+    const {result: outcome, fileSystem} = await prepare({
+      eventName: 'schedule',
+      event: scheduleEvent('30 3 * * *'),
+      clock: new Date('2026-07-24T06:09:07.000Z'),
+      runner: runnerFor({visualIssues: [issue(42, renderIssueLedger(makeLedger()))]}).runner,
+    })
+    expect(outcome.kind).toBe('written')
+    const plan = parseReplayPlanJson(fileSystem.files.get('/replay-plan.json') ?? Buffer.from(''))
+    expect(plan.runKind).toBe('scheduled')
+    if (plan.runKind === 'scheduled') {
+      expect(plan.cron).toBe('30 3 * * *')
+      expect(plan.generatedAt).toBe('2026-07-24T03:30:00.000Z')
+    }
+  })
+
   it.each(['30 3 * * *'])(
     'routes live-audit workflow dispatch slot %s and writes the canonical scheduled plan',
     async schedule => {
