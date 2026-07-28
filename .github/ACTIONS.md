@@ -73,7 +73,7 @@ Runs on:
 
 **Jobs:**
 
-- **Refresh**: Runs `pnpm run blog-refresh` and `pnpm run project-preview-refresh` to fetch gists/repos, validate, render, and write `src/data/blog-snapshot.json` + `public/project-previews/`. If content changed, it commits as `mrbro-bot[bot]`, force-updates the fixed bot branch `chore/blog-refresh`, and opens (or updates in place) one rolling content PR against `main`. `main` is a protected branch, so the refresh cannot push directly — the content lands through the PR, which you merge manually to trigger Deploy. No diff means no commit and no PR.
+- **Refresh**: Runs `pnpm run blog-refresh`, `pnpm run project-preview-refresh`, and `pnpm run projects-refresh` to fetch gists/repos, validate, render, and write `src/data/blog-snapshot.json`, `public/project-previews/`, and `src/data/projects-snapshot.json`. The projects snapshot makes `/projects` fully static — the browser no longer calls the GitHub API at runtime, so visitors never hit the anonymous rate limit. If content changed, it commits as `mrbro-bot[bot]`, force-updates the fixed bot branch `chore/blog-refresh`, and opens (or updates in place) one rolling content PR against `main`. `main` is a protected branch, so the refresh cannot push directly — the content lands through the PR, which you merge manually to trigger Deploy. No diff means no commit and no PR.
 
 **Permissions:** `contents: read` for the default `GITHUB_TOKEN` (the project-preview step reads the Repos API with it). All writes — the content branch push and the PR create/edit — are performed by a scoped `mrbro-bot` app installation token (minted via `actions/create-github-app-token` from `APPLICATION_ID`/`APPLICATION_PRIVATE_KEY`, matching CI/E2E), which the workflow `permissions` block does not govern.
 

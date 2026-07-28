@@ -66,10 +66,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      - name: Run projects snapshot refresh script
+        run: pnpm run projects-refresh
+        env:
+          # The Repos API accepts the Actions GITHUB_TOKEN (App token); authenticated
+          # listing gets the 5,000/hr budget instead of the anonymous 60/hr.
+          GITHUB_TOKEN: ${{ github.token }}
+
       - name: Check for snapshot and preview changes
         id: diff
         run: |
-          if git diff --quiet -- src/data/blog-snapshot.json public/project-previews/; then
+          if git diff --quiet -- src/data/blog-snapshot.json src/data/projects-snapshot.json public/project-previews/; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -99,7 +106,7 @@ jobs:
           # that pushes the branch and opens the PR, not github-actions[bot].
           git config user.name "mrbro-bot[bot]"
           git config user.email "137683033+mrbro-bot[bot]@users.noreply.github.com"
-          git add src/data/blog-snapshot.json public/project-previews/
+          git add src/data/blog-snapshot.json src/data/projects-snapshot.json public/project-previews/
           git commit -m "chore(blog): refresh snapshot and preview images"
 
           # Rebase onto latest main so the content branch is current, then publish
