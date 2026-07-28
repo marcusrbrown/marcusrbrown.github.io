@@ -3,10 +3,10 @@
 /**
  * Project preview-image refresh script.
  *
- * Fetches the GitHub Open Graph social card for every portfolio-tagged repo
- * (mirroring the curation filter in `src/hooks/UseGitHub.ts`) and writes it
- * to `public/project-previews/<repo.id>.png`, the deterministic path the
- * runtime transform reads via the shared `previewImagePath` helper.
+ * Resolves and fetches the GitHub Open Graph social image for every portfolio-tagged
+ * repo (mirroring the curation filter in `src/hooks/UseGitHub.ts`) and writes it to
+ * `public/project-previews/<repo.id>.png`, the deterministic path the runtime
+ * transform reads via the shared `previewImagePath` helper.
  *
  * Fails safe: a listing-fetch failure is always fatal and prunes nothing. A
  * previously-committed repo's image failing to (re)fetch is fatal and
@@ -89,6 +89,125 @@ export const isPortfolioRepo = (repo: RefreshRepo): boolean =>
   !repo.fork && !repo.archived && Boolean(repo.description) && isPortfolioTagged(repo) && !isSiteRepo(repo)
 
 const GITHUB_API_ORIGIN = 'https://api.github.com'
+const GITHUB_GRAPHQL_URL = `${GITHUB_API_ORIGIN}/graphql`
+const OPEN_GRAPH_IMAGE_ORIGINS = new Set([
+  'https://opengraph.githubassets.com',
+  'https://repository-images.githubusercontent.com',
+])
+const CUSTOM_OPEN_GRAPH_IMAGE_ORIGIN = 'https://repository-images.githubusercontent.com'
+const GENERATED_OPEN_GRAPH_IMAGE_ORIGIN = 'https://opengraph.githubassets.com'
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+const isAllowedOpenGraphImageUrl = (value: unknown): value is string => {
+  if (typeof value !== 'string') return false
+  try {
+    return OPEN_GRAPH_IMAGE_ORIGINS.has(new URL(value).origin)
+  } catch {
+    return false
+  }
+}
+
+const isCustomOpenGraphImageUrl = (value: string): boolean => {
+  try {
+    return new URL(value).origin === CUSTOM_OPEN_GRAPH_IMAGE_ORIGIN
+  } catch {
+    return false
+  }
+}
+
+const generatedOpenGraphImageUrl = (fullName: string): string | undefined => {
+  const [owner, name, ...extra] = fullName.split('/')
+  if (!owner || !name || extra.length > 0) return undefined
+  return `${GENERATED_OPEN_GRAPH_IMAGE_ORIGIN}/1/${owner}/${name}`
+}
+
+interface GraphQLRepoQuery {
+  alias: string
+  id: number
+  owner: string
+  name: string
+}
+
+const graphQLRepoQueries = (repos: readonly RefreshRepo[]): GraphQLRepoQuery[] => {
+  const queries: GraphQLRepoQuery[] = []
+  for (const repo of repos) {
+    const [owner, name, ...extra] = repo.full_name.split('/')
+    if (!owner || !name || extra.length > 0) continue
+    queries.push({alias: `r${queries.length}`, id: repo.id, owner, name})
+  }
+  return queries
+}
+
+const graphQLQuery = (repos: readonly GraphQLRepoQuery[]): string => `query ProjectPreviewOpenGraphImages {
+${repos
+  .map(
+    repo =>
+      `  ${repo.alias}: repository(owner: ${JSON.stringify(repo.owner)}, name: ${JSON.stringify(repo.name)}) { openGraphImageUrl }`,
+  )
+  .join('\n')}
+}`
+
+const graphQLErrorAliases = (body: Record<string, unknown>): Set<string> | null => {
+  if (!Array.isArray(body.errors)) return new Set()
+  const aliases = new Set<string>()
+  for (const error of body.errors) {
+    if (!isRecord(error) || !Array.isArray(error.path) || typeof error.path[0] !== 'string') return null
+    aliases.add(error.path[0])
+  }
+  return aliases
+}
+
+/** Resolves each portfolio repo's custom-or-generated GitHub Open Graph image URL. */
+export const resolveOpenGraphImageUrls = async (
+  repos: readonly RefreshRepo[],
+  token: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Map<number, string>> => {
+  const queries = graphQLRepoQueries(repos)
+  if (queries.length === 0) return new Map()
+
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    'content-type': 'application/json',
+  }
+  if (token) headers.authorization = `Bearer ${token}`
+
+  let response: Response
+  try {
+    response = await fetchImpl(GITHUB_GRAPHQL_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({query: graphQLQuery(queries)}),
+      signal: AbortSignal.timeout(30_000),
+    })
+  } catch {
+    return new Map()
+  }
+  if (!response.ok) return new Map()
+
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    return new Map()
+  }
+  if (!isRecord(body)) return new Map()
+
+  const errorAliases = graphQLErrorAliases(body)
+  if (errorAliases === null) return new Map()
+  const data = isRecord(body.data) ? body.data : null
+  if (!data) return new Map()
+
+  const urls = new Map<number, string>()
+  for (const repo of queries) {
+    if (errorAliases.has(repo.alias)) continue
+    const result = data[repo.alias]
+    if (!isRecord(result) || !isAllowedOpenGraphImageUrl(result.openGraphImageUrl)) continue
+    urls.set(repo.id, result.openGraphImageUrl)
+  }
+  return urls
+}
 
 /**
  * Extracts the `rel="next"` URL from a `Link` header, restricted to the
@@ -134,40 +253,45 @@ const fetchRepoListing = async (username: string, headers: Record<string, string
 
 // --- Per-repo image fetch + validation. ---
 
-export type ImageFetchResult = {ok: true; buffer: Buffer} | {ok: false; reason: string}
+export type ImageFetchResult = {ok: true; buffer: Buffer} | {ok: false; reason: string; kind: 'format' | 'transport'}
 
-const isValidPngPayload = (contentType: string | null, buffer: Buffer): {ok: true} | {ok: false; reason: string} => {
-  if (!contentType?.startsWith('image/')) {
-    return {ok: false, reason: `unexpected content-type: ${contentType ?? '(none)'}`}
-  }
+const isValidPngPayload = (
+  contentType: string | null,
+  buffer: Buffer,
+): {ok: true} | {ok: false; reason: string; kind: 'format' | 'transport'} => {
   if (buffer.length < MIN_IMAGE_BYTES) {
-    return {ok: false, reason: `response body too small (${buffer.length} bytes)`}
+    return {ok: false, reason: `response body too small (${buffer.length} bytes)`, kind: 'transport'}
+  }
+  if (!contentType?.startsWith('image/')) {
+    // A non-image content-type (e.g. a 200 text/html CDN error page) is a broken
+    // response, not a real non-PNG image — classify as transport so it never
+    // triggers the generated-card fallback that would overwrite a published asset.
+    return {ok: false, reason: `unexpected content-type: ${contentType ?? '(none)'}`, kind: 'transport'}
   }
   if (!PNG_MAGIC_BYTES.every((byte, index) => buffer[index] === byte)) {
-    return {ok: false, reason: 'response is missing PNG magic bytes'}
+    // A genuine image/* payload that isn't PNG (JPG/GIF custom preview): fall back
+    // to the always-PNG generated card via the format path.
+    return {ok: false, reason: 'response is missing PNG magic bytes', kind: 'format'}
   }
   return {ok: true}
 }
 
 /** Fetches and validates a single repo's GitHub Open Graph social card. */
-export const fetchPreviewImage = async (
-  repo: Pick<RefreshRepo, 'full_name'>,
-  headers: Record<string, string>,
-): Promise<ImageFetchResult> => {
-  const [owner, name] = repo.full_name.split('/')
-  if (!owner || !name) return {ok: false, reason: `unexpected full_name: ${repo.full_name}`}
+export const fetchPreviewImage = async (url: string, headers: Record<string, string>): Promise<ImageFetchResult> => {
+  if (!isAllowedOpenGraphImageUrl(url)) {
+    return {ok: false, reason: `unsupported Open Graph image origin: ${url}`, kind: 'transport'}
+  }
 
-  const url = `https://opengraph.githubassets.com/1/${owner}/${name}`
   let response: Response
   try {
     response = await fetch(url, {headers, signal: AbortSignal.timeout(30_000)})
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      return {ok: false, reason: `request timed out: ${url}`}
+      return {ok: false, reason: `request timed out: ${url}`, kind: 'transport'}
     }
-    return {ok: false, reason: error instanceof Error ? error.message : String(error)}
+    return {ok: false, reason: error instanceof Error ? error.message : String(error), kind: 'transport'}
   }
-  if (!response.ok) return {ok: false, reason: `HTTP ${response.status} ${response.statusText}`}
+  if (!response.ok) return {ok: false, reason: `HTTP ${response.status} ${response.statusText}`, kind: 'transport'}
 
   let buffer: Buffer
   try {
@@ -176,11 +300,12 @@ export const fetchPreviewImage = async (
     return {
       ok: false,
       reason: `failed to read response body: ${error instanceof Error ? error.message : String(error)}`,
+      kind: 'transport',
     }
   }
 
   const validation = isValidPngPayload(response.headers.get('content-type'), buffer)
-  if (!validation.ok) return {ok: false, reason: validation.reason}
+  if (!validation.ok) return validation
 
   return {ok: true, buffer}
 }
@@ -209,14 +334,27 @@ export const buildPreviewBatch = async (
   repos: RefreshRepo[],
   existingIds: ReadonlySet<number>,
   headers: Record<string, string>,
-  fetchImage: (repo: RefreshRepo, headers: Record<string, string>) => Promise<ImageFetchResult> = fetchPreviewImage,
+  urlMap: ReadonlyMap<number, string>,
+  fetchImage: (repo: RefreshRepo, url: string, headers: Record<string, string>) => Promise<ImageFetchResult> = (
+    _repo,
+    url,
+    imageHeaders,
+  ) => fetchPreviewImage(url, imageHeaders),
 ): Promise<BuildPreviewBatchResult> => {
   const images = new Map<number, Buffer>()
   const skipped: RefreshSkip[] = []
 
   for (const repo of repos) {
     const wasPublished = existingIds.has(repo.id)
-    const result = await fetchImage(repo, headers)
+    const url = urlMap.get(repo.id)
+    let result = url
+      ? await fetchImage(repo, url, headers)
+      : {ok: false as const, reason: 'no open graph image url resolved', kind: 'transport' as const}
+
+    if (!result.ok && result.kind === 'format' && url && isCustomOpenGraphImageUrl(url)) {
+      const fallbackUrl = generatedOpenGraphImageUrl(repo.full_name)
+      if (fallbackUrl) result = await fetchImage(repo, fallbackUrl, headers)
+    }
 
     if (!result.ok) {
       if (wasPublished) {
@@ -340,8 +478,8 @@ export const refreshPreviewImages = async (options: RefreshOptions = {}): Promis
   const token = options.token ?? process.env.GITHUB_TOKEN
 
   // Authenticated headers are for api.github.com ONLY. They must never be
-  // forwarded to opengraph.githubassets.com — that would leak this
-  // workflow's contents-write token to a third-party CDN.
+  // forwarded to either GitHub image CDN — that would leak this workflow's
+  // contents-write token outside the API boundary.
   const apiHeaders: Record<string, string> = {accept: 'application/vnd.github+json'}
   if (token) apiHeaders.authorization = `Bearer ${token}`
   const imageHeaders: Record<string, string> = {accept: 'image/*'}
@@ -359,7 +497,8 @@ export const refreshPreviewImages = async (options: RefreshOptions = {}): Promis
     return
   }
 
-  const batch = await buildPreviewBatch(repos, existingIds, imageHeaders)
+  const openGraphImageUrls = await resolveOpenGraphImageUrls(repos, token)
+  const batch = await buildPreviewBatch(repos, existingIds, imageHeaders, openGraphImageUrls)
 
   if (batch.fatalError) {
     console.error(`❌ Project preview refresh failed: ${truncateForLog(batch.fatalError)}`)
