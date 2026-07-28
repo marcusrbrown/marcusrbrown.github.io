@@ -512,17 +512,18 @@ jobs:
           persist-credentials: false
 
       - name: Enable authenticated git push for autoheal fixes
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal')
         env:
           FRO_BOT_PAT: ${{ secrets.FRO_BOT_PAT }}
         run: |
           set -euo pipefail
           # Checkout uses persist-credentials: false so the PAT is never written
           # into .git/config on the fork-PR-head comment path. This step runs
-          # ONLY for schedule and workflow_dispatch, which check out a
-          # repository-controlled ref (never a fork head), so the agent can push
-          # autoheal fix branches. Write the credential on disk (not via env or
-          # gh helper) because fro-bot/agent scrubs its child environment.
+          # ONLY for schedule and dispatched autoheal runs, which check out a
+          # repository-controlled ref (never a fork head) and actually open
+          # autoheal fix branches. Review-mode dispatch (custom prompt, no push)
+          # is excluded. Write the credential on disk (not via env or gh helper)
+          # because fro-bot/agent scrubs its child environment.
           #
           # This is intentionally NOT enabled for issue_comment / mention runs
           # (issue #212): fro-bot/agent v0.93.1 classifies those as
