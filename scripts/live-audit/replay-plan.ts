@@ -27,7 +27,7 @@ import {findingFingerprint, variantKey} from './identity'
 
 export const REPLAY_PLAN_VERSION = 1
 export const REPLAY_PLAN_CRON = '30 3 * * *'
-export const REPLAY_PLAN_CRONS = ['30 3 * * *', '30 15 * * *'] as const
+export const REPLAY_PLAN_CRONS = ['30 3 * * *'] as const
 export type ReplayPlanCron = (typeof REPLAY_PLAN_CRONS)[number]
 export const MAX_REPLAY_PLAN_BYTES = 256_000
 export const MAX_REPLAY_PLAN_REPRODUCTION = 20
@@ -87,8 +87,10 @@ const parseDateTime = (value: unknown): string => {
   if (!dateTime(value)) throw new Error('invalid replay plan timestamp')
   return value
 }
+const isReplayPlanCron = (value: unknown): value is ReplayPlanCron =>
+  typeof value === 'string' && REPLAY_PLAN_CRONS.includes(value as ReplayPlanCron)
 const parseCron = (value: unknown): ReplayPlanCron => {
-  if (value !== REPLAY_PLAN_CRONS[0] && value !== REPLAY_PLAN_CRONS[1]) throw new Error('invalid replay plan schedule')
+  if (!isReplayPlanCron(value)) throw new Error('invalid replay plan schedule')
   return value
 }
 const positiveIssue = (value: unknown): value is number =>

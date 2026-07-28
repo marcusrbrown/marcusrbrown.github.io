@@ -65,14 +65,14 @@ const runRouteEventCli = (eventText: string, args: readonly string[] = []): Retu
 }
 
 describe('live-audit event routing', () => {
-  it('routes both exact scheduled cron values', () => {
+  it('routes the approved scheduled cron and rejects the removed slot', () => {
     expect(parseLiveAuditEvent('schedule', {schedule: '30 3 * * *'})).toEqual({
       kind: 'scheduled',
       schedule: '30 3 * * *',
     })
     expect(parseLiveAuditEvent('schedule', {schedule: '30 15 * * *'})).toEqual({
-      kind: 'scheduled',
-      schedule: '30 15 * * *',
+      kind: 'ignored',
+      reason: 'unsupported-schedule',
     })
   })
 
@@ -87,7 +87,7 @@ describe('live-audit event routing', () => {
     })
   })
 
-  it.each(['30 3 * * *', '30 15 * * *'])('routes live-audit workflow dispatch slot %s', schedule => {
+  it.each(['30 3 * * *'])('routes live-audit workflow dispatch slot %s', schedule => {
     expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent('live-audit', schedule))).toEqual({
       kind: 'scheduled',
       schedule,
@@ -96,6 +96,10 @@ describe('live-audit event routing', () => {
 
   it('rejects invalid or missing live-audit workflow dispatch slots', () => {
     expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent('live-audit', '0 0 * * *'))).toEqual({
+      kind: 'ignored',
+      reason: 'unsupported-schedule',
+    })
+    expect(parseLiveAuditEvent('workflow_dispatch', workflowDispatchEvent('live-audit', '30 15 * * *'))).toEqual({
       kind: 'ignored',
       reason: 'unsupported-schedule',
     })

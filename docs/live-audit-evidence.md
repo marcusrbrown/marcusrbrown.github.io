@@ -31,8 +31,7 @@ The workflow entry point is `.github/workflows/fro-bot.yaml`.
 | Event | Accepted live-audit input | Run kind | Notes |
 | --- | --- | --- | --- |
 | `schedule` | `30 3 * * *` | scheduled | 03:30 UTC autoheal slot |
-| `schedule` | `30 15 * * *` | scheduled | 15:30 UTC maintenance slot |
-| `workflow_dispatch` | `mode: live-audit` and `live-audit-slot: 30 3 * * *` or `30 15 * * *` | scheduled | The slot is a closed choice, not freeform text; the reporter is forced to `disabled` |
+| `workflow_dispatch` | `mode: live-audit` and `live-audit-slot: 30 3 * * *` | scheduled | The slot is a closed choice, not freeform text; the reporter is forced to `disabled` |
 | `issue_comment` | Exact body `@fro-bot validate #N` on issue `#N` | manual | Created comment, non-bot actor, trusted association, and current write-capable repository permission are required |
 
 The manual command is issue-local and exact. It does not accept a pull-request comment, extra prose, a mismatched issue number, or a bot actor. Preflight also requires the target issue to carry `visual-audit`, not `visual-audit-suppressed`, and a valid machine-readable ledger.
