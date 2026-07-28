@@ -77,6 +77,8 @@ Runs on:
 
 **Permissions:** `contents: write` only (minimal scope for committing the snapshot).
 
+**Gist auth:** The Gists REST API rejects the Actions `GITHUB_TOKEN` (a GitHub App installation token) with `403`, so the blog step authenticates with `secrets.BLOG_REFRESH_TOKEN` — a fine-grained PAT with read-only Gists access. If that secret is unset, the script falls back to unauthenticated requests, which succeed for public gists but share the runner IP's 60 req/hr limit. The project-preview step keeps `GITHUB_TOKEN` (the Repos API accepts App tokens).
+
 **Concurrency:** Single group `blog-refresh`, `cancel-in-progress: false` — prevents overlapping refresh runs from racing on the push.
 
 ### 🔄 Renovate Workflow (`.github/workflows/renovate.yaml`)

@@ -31,7 +31,11 @@ jobs:
         id: refresh
         run: pnpm run blog-refresh
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          # The Gists REST API rejects the Actions GITHUB_TOKEN (a GitHub App
+          # token) with 403. Use a dedicated fine-grained PAT with read-only
+          # Gists access. If the secret is unset the script falls back to
+          # unauthenticated requests, which succeed for public gists.
+          BLOG_REFRESH_TOKEN: ${{ secrets.BLOG_REFRESH_TOKEN }}
           BLOG_REFRESH_SUMMARY_PATH: .blog-refresh-summary.md
 
       - name: Run project preview refresh script

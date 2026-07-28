@@ -609,7 +609,11 @@ const writeSummary = (path: string | undefined, previous: BlogSnapshot, result: 
 export const refreshBlogSnapshot = async (options: RefreshOptions = {}): Promise<void> => {
   const snapshotPath = options.snapshotPath ?? DEFAULT_SNAPSHOT_PATH
   const username = options.username ?? DEFAULT_USERNAME
-  const token = options.token ?? process.env.GITHUB_TOKEN
+  // The Gists REST API rejects the Actions default GITHUB_TOKEN (a GitHub App
+  // installation token) with 403. Authenticate gist reads with a dedicated
+  // fine-grained PAT (BLOG_REFRESH_TOKEN) instead; when it is absent, fall back
+  // to unauthenticated requests, which succeed for public gists.
+  const token = options.token ?? (process.env.BLOG_REFRESH_TOKEN || undefined)
 
   let previousSnapshot: BlogSnapshot
   try {
