@@ -5,7 +5,7 @@ import process from 'node:process'
 import {pathToFileURL} from 'node:url'
 import {parseArgs} from 'node:util'
 
-export const LIVE_AUDIT_SCHEDULES = ['30 3 * * *', '30 15 * * *'] as const
+export const LIVE_AUDIT_SCHEDULES = ['30 3 * * *'] as const
 export const MAX_EVENT_BYTES = 256_000
 export type LiveAuditSchedule = (typeof LIVE_AUDIT_SCHEDULES)[number]
 

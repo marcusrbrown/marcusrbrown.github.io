@@ -49,19 +49,20 @@ const makeLedger = (route: '/projects' | '/about' = '/projects', state = 'core')
 }
 
 describe('versioned live-audit replay plans', () => {
-  it('preserves either approved originating schedule', () => {
-    const afternoon = buildScheduledReplayPlan({
-      runId: 'scheduled-afternoon',
+  it('preserves the approved originating schedule', () => {
+    const plan = buildScheduledReplayPlan({
+      runId: 'scheduled-1',
       generatedAt,
-      cron: REPLAY_PLAN_CRONS[1],
+      cron: REPLAY_PLAN_CRONS[0],
       exploration: {steps: 0, durationMs: 0},
       activeLedgers: [{issueNumber: 204, ledger: makeLedger()}],
     })
-    expect(afternoon.cron).toBe('30 15 * * *')
-    const parsed = parseReplayPlan(afternoon)
+    expect(plan.cron).toBe('30 3 * * *')
+    const parsed = parseReplayPlan(plan)
     expect(parsed.runKind).toBe('scheduled')
-    if (parsed.runKind === 'scheduled') expect(parsed.cron).toBe('30 15 * * *')
-    expect(() => parseReplayPlan({...afternoon, cron: '0 0 * * *'})).toThrow(/schedule|cron/)
+    if (parsed.runKind === 'scheduled') expect(parsed.cron).toBe('30 3 * * *')
+    expect(() => parseReplayPlan({...plan, cron: '0 0 * * *'})).toThrow(/schedule|cron/)
+    expect(() => parseReplayPlan({...plan, cron: '30 15 * * *'})).toThrow(/schedule|cron/)
   })
   it('builds a canonical scheduled plan with the exact 24-state matrix', () => {
     const plan = buildScheduledReplayPlan({

@@ -55,7 +55,7 @@ Runs on:
 
 The existing `Fro Bot` job remains the generic required check. Its dedicated live-audit lane is report-only and runs as `live-audit-preflight` → `live-audit-discovery` / finalizer → `live-audit-reporter`:
 
-- **Triggers:** the existing `30 3 * * *` and `30 15 * * *` UTC schedules, `workflow_dispatch` with `mode: live-audit` and a closed `live-audit-slot` choice, and the exact authorized issue-local command `@fro-bot validate #N`.
+- **Triggers:** the existing `30 3 * * *` UTC schedule, `workflow_dispatch` with `mode: live-audit` and a closed `live-audit-slot` choice, and the exact authorized issue-local command `@fro-bot validate #N`.
 - **Write mode:** `LIVE_AUDIT_WRITE_MODE` defaults to `disabled`; `manual-only` permits approved manual writes while schedules remain dry-run; `enabled` permits both. A live-audit dispatch always forces `disabled`.
 - **Permissions:** preflight/discovery have `contents: read` and `issues: read`; the reporter alone has `contents: write` and `issues: write`, with no pull-request or discussion write permission. Discovery receives the model-auth secrets; reporter does not.
 - **Discovery token boundary:** Pinned `fro-bot/agent@v0.93.1` requires `github-token: ${{ github.token }}`. Scheduled and `workflow_dispatch` executions provide that ephemeral, job-scoped read-only token to the model/runtime; `response-mode: none` prevents intentional action responses. The dedicated lane supplies no `FRO_BOT_PAT` or new long-lived token. This is not credential-free isolation: the fixed no-GitHub-use prompt rule is defense in depth, not a hard API boundary.

@@ -173,29 +173,12 @@ const prepare = async (input: {
   const eventFile = '/event.json'
   fileSystem.files.set(eventFile, Buffer.from(JSON.stringify(input.event)))
   const outputPath = input.out ?? '/replay-plan.json'
-  const eventSchedule =
-    input.eventName === 'schedule' &&
-    typeof input.event === 'object' &&
-    input.event !== null &&
-    'schedule' in input.event &&
-    typeof input.event.schedule === 'string'
-      ? input.event.schedule
-      : input.eventName === 'workflow_dispatch' &&
-          typeof input.event === 'object' &&
-          input.event !== null &&
-          'inputs' in input.event &&
-          typeof input.event.inputs === 'object' &&
-          input.event.inputs !== null &&
-          'live-audit-slot' in input.event.inputs &&
-          typeof input.event.inputs['live-audit-slot'] === 'string'
-        ? input.event.inputs['live-audit-slot']
-        : undefined
   const result = await runPrepareDiscovery({
     eventFile,
     out: outputPath,
     env: {...env(input.eventName), ...input.envOverrides},
     fs: fileSystem,
-    clock: () => input.clock ?? new Date(eventSchedule === '30 15 * * *' ? '2026-07-24T15:30:00.000Z' : generatedAt),
+    clock: () => input.clock ?? new Date(generatedAt),
     runner: input.runner ?? runnerFor({}).runner,
   })
   return {fileSystem, outputPath, result}
@@ -213,21 +196,18 @@ describe('prepare-discovery CLI and preflight', () => {
     expect(() => parsePrepareArgs(['--event-file', 'event.json', '--out', 'plan', 'stdin'])).toThrow()
   })
 
-  it.each(['30 3 * * *', '30 15 * * *'])(
-    'routes exact scheduled cron %s and writes a canonical plan',
-    async schedule => {
-      const {result: outcome, fileSystem} = await prepare({
-        eventName: 'schedule',
-        event: scheduleEvent(schedule),
-        runner: runnerFor({visualIssues: [issue(42, renderIssueLedger(makeLedger()))]}).runner,
-      })
-      expect(outcome.kind).toBe('written')
-      if (outcome.kind === 'written') expect(outcome.issueNumbers).toEqual([42])
-      expect(fileSystem.files.has('/replay-plan.json')).toBe(true)
-    },
-  )
+  it.each(['30 3 * * *'])('routes exact scheduled cron %s and writes a canonical plan', async schedule => {
+    const {result: outcome, fileSystem} = await prepare({
+      eventName: 'schedule',
+      event: scheduleEvent(schedule),
+      runner: runnerFor({visualIssues: [issue(42, renderIssueLedger(makeLedger()))]}).runner,
+    })
+    expect(outcome.kind).toBe('written')
+    if (outcome.kind === 'written') expect(outcome.issueNumbers).toEqual([42])
+    expect(fileSystem.files.has('/replay-plan.json')).toBe(true)
+  })
 
-  it.each(['30 3 * * *', '30 15 * * *'])(
+  it.each(['30 3 * * *'])(
     'routes live-audit workflow dispatch slot %s and writes the canonical scheduled plan',
     async schedule => {
       const {result: outcome, fileSystem} = await prepare({
