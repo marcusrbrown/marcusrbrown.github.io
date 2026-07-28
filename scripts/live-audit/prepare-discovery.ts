@@ -294,12 +294,12 @@ const scheduledPlan = async (
   const when = input.clock()
   if (Number.isNaN(when.getTime())) return {kind: 'rejected', reason: 'invalid-clock'}
   const expectedHour = route.schedule === '30 3 * * *' ? 3 : 15
-  if (environment.eventName === 'schedule' && (when.getUTCHours() !== expectedHour || when.getUTCMinutes() !== 30))
-    return {kind: 'rejected', reason: 'invalid-clock'}
-  const scheduledAt =
-    environment.eventName === 'workflow_dispatch'
-      ? new Date(Date.UTC(when.getUTCFullYear(), when.getUTCMonth(), when.getUTCDate(), expectedHour, 30))
-      : when
+  // GitHub schedule delivery is best-effort and frequently fires minutes-to-hours
+  // late, so the wall-clock time is not the cron instant. Preset rotation is
+  // date-only (chooseRotatingPreset keys on the UTC day), so pin generatedAt to
+  // the canonical cron instant for the delivery's UTC date — identical to the
+  // workflow_dispatch path — rather than rejecting a delayed run.
+  const scheduledAt = new Date(Date.UTC(when.getUTCFullYear(), when.getUTCMonth(), when.getUTCDate(), expectedHour, 30))
 
   let visualIssues: readonly GitHubIssue[]
   let suppressedIssues: readonly GitHubIssue[]
