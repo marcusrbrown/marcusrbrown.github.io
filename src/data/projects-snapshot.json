@@ -1,0 +1,26 @@
+{
+  "projects": [
+    {
+      "id": "1297795539",
+      "title": "Dev Like",
+      "description": "Profile a shop's engineering culture from public sources and install develop-like-<target> agent skills. /dev-like Every",
+      "url": "https://github.com/marcusrbrown/dev-like",
+      "language": "JavaScript",
+      "stars": 2,
+      "homepage": "https://mrbro.dev/dev-like/",
+      "topics": [
+        "agent-skills",
+        "ai-agents",
+        "claude-code",
+        "codex",
+        "cursor",
+        "engineering-culture",
+        "portfolio"
+      ],
+      "lastUpdated": "2026-07-28T16:23:32Z",
+      "imageUrl": "/project-previews/1297795539.png"
+    }
+  ],
+  "generatedAt": "2026-07-28T19:03:45.186Z",
+  "generator": "projects-refresh"
+}

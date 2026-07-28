@@ -33,6 +33,7 @@
     "blog-refresh": "tsx scripts/blog-refresh.ts",
     "security:react-router-rsc": "tsx scripts/check-react-router-rsc-boundary.ts",
     "project-preview-refresh": "tsx scripts/project-preview-refresh.ts",
+    "projects-refresh": "tsx scripts/projects-refresh.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

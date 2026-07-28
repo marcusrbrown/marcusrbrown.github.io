@@ -40,7 +40,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | Add component | `src/components/` | PascalCase `.tsx`, no barrel exports |
 | Add hook | `src/hooks/` | **PascalCase** filenames: `UseMyHook.ts` |
 | Add route | `src/App.tsx` | React Router v7 Routes |
-| GitHub API | `src/utils/github.ts` → `src/hooks/UseGitHub.ts` | Pure fetch, no external deps |
+| Projects data | `scripts/projects-refresh.ts` → `src/data/projects-snapshot.json` → `src/hooks/UseProjects.ts` | Build-time snapshot; no runtime GitHub API call (avoids visitor rate limits) |
 | Syntax highlighting | `src/utils/syntax-highlighting.ts` → `src/hooks/UseSyntaxHighlighting.ts` | Shiki, externalized in build |
 | Build analysis | `scripts/analyze-build.ts` | Bundle size budgets + CI summaries |
 | Test dashboard | `scripts/test-dashboard.mjs` | Aggregated health scoring |

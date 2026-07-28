@@ -11,11 +11,18 @@ const blogSnapshotAlias = process.env.BLOG_SNAPSHOT
   ? [{find: '../data/blog-snapshot.json', replacement: path.resolve(process.cwd(), process.env.BLOG_SNAPSHOT)}]
   : []
 
+// Same fixture mechanism for the projects snapshot: when PROJECTS_SNAPSHOT is set,
+// alias the snapshot import so test builds are deterministic and independent of the
+// committed data file. Default (unset) resolves to `src/data/projects-snapshot.json`.
+const projectsSnapshotAlias = process.env.PROJECTS_SNAPSHOT
+  ? [{find: '../data/projects-snapshot.json', replacement: path.resolve(process.cwd(), process.env.PROJECTS_SNAPSHOT)}]
+  : []
+
 export default defineConfig({
   plugins: [react()],
 
   resolve: {
-    alias: blogSnapshotAlias,
+    alias: [...blogSnapshotAlias, ...projectsSnapshotAlias],
   },
 
   build: {

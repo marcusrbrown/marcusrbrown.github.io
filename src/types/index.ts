@@ -53,6 +53,14 @@ export interface BlogSnapshot {
   generator: string
 }
 
+/** Committed projects snapshot; the refresh workflow is the sole writer. */
+export interface ProjectsSnapshot {
+  projects: Project[]
+  generatedAt: string
+  /** Marker identifying the generator, e.g. `projects-refresh` script + version. */
+  generator: string
+}
+
 export interface GitHubRepository {
   id: number
   name: string

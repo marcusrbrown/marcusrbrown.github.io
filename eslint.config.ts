@@ -17,6 +17,7 @@ export default defineConfig(
       'docs/plans/',
       'docs/solutions/',
       'public/',
+      'src/data/*.json',
     ],
     typescript: true,
     react: true,

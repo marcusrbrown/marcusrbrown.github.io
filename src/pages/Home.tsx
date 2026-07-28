@@ -3,28 +3,26 @@ import React, {useState} from 'react'
 import AboutSection from '../components/AboutSection'
 import BlogPost from '../components/BlogPost'
 import HeroSection from '../components/HeroSection'
-import LoadingState, {ProjectCardSkeleton} from '../components/LoadingStates'
 import ProjectGallery from '../components/ProjectGallery'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import SmoothScrollNav from '../components/SmoothScrollNav'
-import {useErrorTracking, useProjectTracking, useSectionTracking} from '../hooks/UseAnalytics'
+import {useProjectTracking, useSectionTracking} from '../hooks/UseAnalytics'
 import {useBlogPosts} from '../hooks/UseBlogPosts'
-import {useGitHub} from '../hooks/UseGitHub'
 import {usePageTitle} from '../hooks/UsePageTitle'
+import {useProjects} from '../hooks/UseProjects'
 import '../styles/landing-page.css'
 
 const HOME_BLOG_PREVIEW_COUNT = 3
 
 const Home: React.FC = () => {
   usePageTitle('Home')
-  const {projects, loading, error} = useGitHub()
+  const {projects} = useProjects()
   const {posts: blogPosts} = useBlogPosts()
   const blogPreview = blogPosts.slice(0, HOME_BLOG_PREVIEW_COUNT)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Analytics tracking hooks
-  const {trackError} = useErrorTracking()
   const {trackProjectClick, trackProjectModal} = useProjectTracking()
   const heroRef = useSectionTracking<HTMLDivElement>('hero')
   const aboutRef = useSectionTracking<HTMLDivElement>('about')
@@ -54,19 +52,6 @@ const Home: React.FC = () => {
     setSelectedProject(project)
   }
 
-  // Track errors from GitHub API
-  if (error) {
-    trackError(`GitHub API Error: ${error}`, 'useGitHub')
-  }
-
-  const projectsSkeleton = (
-    <div className="project-list">
-      {Array.from({length: 6}).map((_, index) => (
-        <ProjectCardSkeleton key={`project-skeleton-${index}`} />
-      ))}
-    </div>
-  )
-
   return (
     <div className="home-page">
       {/* Hero Section */}
@@ -82,16 +67,14 @@ const Home: React.FC = () => {
       {/* Featured Projects Section */}
       <section id="projects" className="projects-section" ref={projectsRef}>
         <div className="container">
-          <LoadingState loading={loading} error={error} skeleton={projectsSkeleton}>
-            <ProjectGallery
-              projects={projects}
-              title="Featured Projects"
-              subtitle="A selection of my recent work showcasing modern web development practices"
-              maxProjects={6}
-              showFilter={false}
-              onProjectPreview={handleProjectPreview}
-            />
-          </LoadingState>
+          <ProjectGallery
+            projects={projects}
+            title="Featured Projects"
+            subtitle="A selection of my recent work showcasing modern web development practices"
+            maxProjects={6}
+            showFilter={false}
+            onProjectPreview={handleProjectPreview}
+          />
         </div>
       </section>
 

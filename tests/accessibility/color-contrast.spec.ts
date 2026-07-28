@@ -32,15 +32,14 @@ test.describe('Color contrast regressions', () => {
     expect(violations).toEqual([])
   })
 
-  test('projects error fallback has no contrast violations in dark theme', async ({page}) => {
+  test('projects page has no contrast violations in dark theme', async ({page}) => {
+    // Projects render from a committed build-time snapshot — no runtime GitHub
+    // API call, so there is no error/rate-limit fallback to audit. This checks
+    // the real rendered projects surface (gallery or empty state) for contrast.
     await setThemeMode(page, 'dark')
-    await page.route('**/users/*/repos*', async route => {
-      await route.fulfill({status: 500, body: JSON.stringify({message: 'forced test error'})})
-    })
-
     await page.goto('/projects')
     await page.waitForLoadState('networkidle')
-    await expect(page.getByRole('heading', {name: 'Error Loading Projects'})).toBeVisible()
+    await expect(page.getByRole('heading', {name: 'All Projects'})).toBeVisible()
 
     const violations = await getColorContrastViolations(page)
     expect(violations).toEqual([])
