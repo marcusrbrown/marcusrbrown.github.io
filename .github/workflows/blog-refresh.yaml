@@ -23,6 +23,12 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
+          # Push the refreshed snapshot with a PAT, not the default GITHUB_TOKEN:
+          # a push authenticated by GITHUB_TOKEN does not trigger other workflows
+          # (anti-recursion), so the Deploy workflow (push → main) would never
+          # fire and refreshed content would not go live until the next human
+          # push. FRO_BOT_PAT makes the content push trigger Deploy.
+          token: ${{ secrets.FRO_BOT_PAT }}
 
       - name: Setup project
         uses: ./.github/actions/setup
