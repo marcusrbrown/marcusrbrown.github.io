@@ -511,6 +511,29 @@ jobs:
           token: ${{ secrets.FRO_BOT_PAT }}
           persist-credentials: false
 
+      - name: Enable authenticated git push for autoheal fixes
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          FRO_BOT_PAT: ${{ secrets.FRO_BOT_PAT }}
+        run: |
+          set -euo pipefail
+          # Checkout uses persist-credentials: false so the PAT is never written
+          # into .git/config on the fork-PR-head comment path. This step runs
+          # ONLY for schedule and workflow_dispatch, which check out a
+          # repository-controlled ref (never a fork head), so the agent can push
+          # autoheal fix branches. Write the credential on disk (not via env or
+          # gh helper) because fro-bot/agent scrubs its child environment.
+          #
+          # This is intentionally NOT enabled for issue_comment / mention runs
+          # (issue #212): fro-bot/agent v0.93.1 classifies those as
+          # credential-withheld and FAILS CLOSED if it finds an on-disk
+          # http.*.extraheader, so writing one there would break the agent
+          # instead of enabling push. Mention-run push needs an upstream
+          # brokered-push facility; tracked in #212.
+          auth="$(printf '%s' "x-access-token:${FRO_BOT_PAT}" | base64 | tr -d '\n')"
+          echo "::add-mask::${auth}"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth}"
+
       - name: Setup project dependencies
         uses: ./.github/actions/setup
         with:
