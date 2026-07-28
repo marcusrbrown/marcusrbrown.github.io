@@ -2,12 +2,12 @@ import type {Project} from '../types'
 import React, {useState} from 'react'
 import ProjectGallery from '../components/ProjectGallery'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
-import {useGitHub} from '../hooks/UseGitHub'
 import {usePageTitle} from '../hooks/UsePageTitle'
+import {useProjects} from '../hooks/UseProjects'
 
 const Projects: React.FC = () => {
   usePageTitle('Projects')
-  const {projects, projectsLoading: loading, projectsError: error, retry} = useGitHub()
+  const {projects} = useProjects()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -23,31 +23,6 @@ const Projects: React.FC = () => {
 
   const handleNavigateProject = (project: Project) => {
     setSelectedProject(project)
-  }
-
-  if (loading && projects.length === 0) {
-    return (
-      <div className="projects-page-loading">
-        <div className="container">
-          <h1>Loading Projects...</h1>
-          <p>Fetching the latest projects from GitHub...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error && projects.length === 0) {
-    return (
-      <div className="projects-page-error">
-        <div className="container">
-          <h1>Error Loading Projects</h1>
-          <p>Unable to load projects: {error}</p>
-          <button type="button" onClick={retry}>
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
   }
 
   return (

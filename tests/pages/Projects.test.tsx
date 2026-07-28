@@ -2,12 +2,12 @@ import type {Project} from '../../src/types'
 import {fireEvent, render, screen} from '@testing-library/react'
 import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {useGitHub} from '../../src/hooks/UseGitHub'
+import {useProjects} from '../../src/hooks/UseProjects'
 import Projects from '../../src/pages/Projects'
 
 // Mock dependencies
-vi.mock('../../src/hooks/UseGitHub', () => ({
-  useGitHub: vi.fn(),
+vi.mock('../../src/hooks/UseProjects', () => ({
+  useProjects: vi.fn(),
 }))
 
 vi.mock('../../src/hooks/UsePageTitle', () => ({
@@ -15,8 +15,9 @@ vi.mock('../../src/hooks/UsePageTitle', () => ({
 }))
 
 vi.mock('../../src/components/ProjectGallery', () => ({
-  default: ({onProjectPreview}: {onProjectPreview: (project: Project) => void}) => (
+  default: ({projects, onProjectPreview}: {projects: Project[]; onProjectPreview: (project: Project) => void}) => (
     <div data-testid="project-gallery">
+      {projects.length === 0 && <p data-testid="empty-state">No projects found</p>}
       <button
         type="button"
         onClick={() =>
@@ -46,7 +47,20 @@ vi.mock('../../src/components/ProjectPreviewModal', () => ({
       </div>
     ) : null,
 }))
-const mockUseGitHub = vi.mocked(useGitHub)
+
+const mockUseProjects = vi.mocked(useProjects)
+
+const mockProjects: Project[] = [
+  {
+    id: 'proj-1',
+    title: 'My Project',
+    description: 'A portfolio project',
+    url: 'https://github.com/user/my-project',
+    language: 'TypeScript',
+    stars: 42,
+    topics: ['portfolio'],
+  },
+]
 
 const ProjectsWrapper: React.FC = () => (
   <MemoryRouter>
@@ -59,148 +73,61 @@ describe('Projects Page', () => {
     vi.clearAllMocks()
   })
 
-  it('should render loading state', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: true,
-      error: null,
-      projectsLoading: true,
-      projectsError: null,
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
-
-    render(<ProjectsWrapper />)
-    expect(screen.getByText('Loading Projects...')).toBeInTheDocument()
-  })
-
-  it('should render loading message text', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: true,
-      error: null,
-      projectsLoading: true,
-      projectsError: null,
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
-
-    render(<ProjectsWrapper />)
-    expect(screen.getByText('Fetching the latest projects from GitHub...')).toBeInTheDocument()
-  })
-
-  it('should render error state', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: false,
-      error: 'Connection failed',
-      projectsLoading: false,
-      projectsError: 'Connection failed',
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
-
-    render(<ProjectsWrapper />)
-    expect(screen.getByText('Error Loading Projects')).toBeInTheDocument()
-    expect(screen.getByText(/Unable to load projects: Connection failed/)).toBeInTheDocument()
-  })
-
-  it('should render try again button in error state', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: false,
-      error: 'Connection failed',
-      projectsLoading: false,
-      projectsError: 'Connection failed',
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
-
-    render(<ProjectsWrapper />)
-    expect(screen.getByRole('button', {name: 'Try Again'})).toBeInTheDocument()
-  })
-
-  it('should call retry instead of reloading the page when Try Again is clicked', () => {
-    const retry = vi.fn()
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: false,
-      error: 'Connection failed',
-      projectsLoading: false,
-      projectsError: 'Connection failed',
-      rateLimitReset: null,
-      retry,
-    })
-
-    render(<ProjectsWrapper />)
-    fireEvent.click(screen.getByRole('button', {name: 'Try Again'}))
-    expect(retry).toHaveBeenCalledOnce()
-  })
-
-  it('should render project gallery when loaded', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: false,
-      error: null,
-      projectsLoading: false,
-      projectsError: null,
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
+  it('should render project gallery when projects are present', () => {
+    mockUseProjects.mockReturnValue({projects: mockProjects})
 
     render(<ProjectsWrapper />)
     expect(screen.getByTestId('project-gallery')).toBeInTheDocument()
   })
 
+  it('should NOT show a loading spinner', () => {
+    mockUseProjects.mockReturnValue({projects: mockProjects})
+
+    render(<ProjectsWrapper />)
+    expect(screen.queryByText('Loading Projects...')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Fetching the latest projects/)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument()
+  })
+
+  it('should NOT show an error message or retry button', () => {
+    mockUseProjects.mockReturnValue({projects: mockProjects})
+
+    render(<ProjectsWrapper />)
+    expect(screen.queryByText('Error Loading Projects')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: 'Try Again'})).not.toBeInTheDocument()
+    expect(screen.queryByText(/rate limit/i)).not.toBeInTheDocument()
+  })
+
+  it('should render gallery (with empty state) when projects is empty — no retry, no rate-limit copy', () => {
+    mockUseProjects.mockReturnValue({projects: []})
+
+    render(<ProjectsWrapper />)
+    // Gallery is still rendered (shows its own empty state)
+    expect(screen.getByTestId('project-gallery')).toBeInTheDocument()
+    // No error or retry affordance
+    expect(screen.queryByRole('button', {name: 'Try Again'})).not.toBeInTheDocument()
+    expect(screen.queryByText(/rate limit/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Error Loading Projects')).not.toBeInTheDocument()
+  })
+
   it('should open modal when project is previewed', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: false,
-      error: null,
-      projectsLoading: false,
-      projectsError: null,
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
+    mockUseProjects.mockReturnValue({projects: mockProjects})
 
     render(<ProjectsWrapper />)
 
-    // Initially no modal
     expect(screen.queryByTestId('project-modal')).not.toBeInTheDocument()
-
-    // Click preview button
     fireEvent.click(screen.getByRole('button', {name: 'Preview Project'}))
-
-    // Modal should be open
     expect(screen.getByTestId('project-modal')).toBeInTheDocument()
   })
 
   it('should close modal when close is triggered', () => {
-    mockUseGitHub.mockReturnValue({
-      projects: [],
-      repos: [],
-      loading: false,
-      error: null,
-      projectsLoading: false,
-      projectsError: null,
-      rateLimitReset: null,
-      retry: vi.fn(),
-    })
+    mockUseProjects.mockReturnValue({projects: mockProjects})
 
     render(<ProjectsWrapper />)
 
-    // Open the modal
     fireEvent.click(screen.getByRole('button', {name: 'Preview Project'}))
     expect(screen.getByTestId('project-modal')).toBeInTheDocument()
 
-    // Close the modal
     fireEvent.click(screen.getByRole('button', {name: 'Close Modal'}))
     expect(screen.queryByTestId('project-modal')).not.toBeInTheDocument()
   })
