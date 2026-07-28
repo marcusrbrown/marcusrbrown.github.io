@@ -379,6 +379,7 @@ const x = 1
     afterEach(() => {
       rmSync(tmpDir, {recursive: true, force: true})
       vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
     })
 
     it('exits non-zero and leaves the snapshot file untouched on a GitHub fetch failure', async () => {
@@ -398,6 +399,48 @@ const x = 1
       expect(process.exitCode).toBe(1)
       process.exitCode = 0
       expect(readFileSync(snapshotPath, 'utf8')).toBe(before)
+    })
+
+    it('never sends GITHUB_TOKEN to the Gists API (App tokens are 403-rejected there)', async () => {
+      // The Actions default GITHUB_TOKEN is a GitHub App installation token, which
+      // the Gists REST API rejects with 403. Public gists list fine unauthenticated,
+      // so an absent BLOG_REFRESH_TOKEN must fall back to no Authorization header —
+      // never the App token.
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers(),
+        json: async () => [],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      vi.stubEnv('GITHUB_TOKEN', 'app-installation-token')
+      vi.stubEnv('BLOG_REFRESH_TOKEN', '')
+
+      await refreshBlogSnapshot({snapshotPath, username: 'marcusrbrown'})
+
+      expect(process.exitCode).toBe(0)
+      const [, init] = fetchMock.mock.calls[0] as [string, {headers: Record<string, string>}]
+      expect(init.headers.authorization).toBeUndefined()
+    })
+
+    it('uses BLOG_REFRESH_TOKEN as the gist API bearer when present', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers(),
+        json: async () => [],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      vi.stubEnv('GITHUB_TOKEN', 'app-installation-token')
+      vi.stubEnv('BLOG_REFRESH_TOKEN', 'fine-grained-pat')
+
+      await refreshBlogSnapshot({snapshotPath, username: 'marcusrbrown'})
+
+      expect(process.exitCode).toBe(0)
+      const [, init] = fetchMock.mock.calls[0] as [string, {headers: Record<string, string>}]
+      expect(init.headers.authorization).toBe('Bearer fine-grained-pat')
     })
 
     it('writes a snapshot with zero posts when no gists qualify, exiting zero', async () => {
