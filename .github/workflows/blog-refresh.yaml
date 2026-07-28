@@ -8,7 +8,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  # Writes (branch push, PR create/edit) are performed by the mrbro-bot app
+  # installation token minted below, which the workflow `permissions` block does
+  # not govern. The default GITHUB_TOKEN only needs read (the project-preview
+  # refresh reads the Repos API with it).
+  contents: read
 
 concurrency:
   group: blog-refresh
@@ -19,16 +23,27 @@ jobs:
     name: Refresh blog snapshot
     runs-on: ubuntu-latest
     steps:
+      - id: get-app-token
+        name: Get workflow access token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.APPLICATION_ID }}
+          private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-          # Push the refreshed snapshot with a PAT, not the default GITHUB_TOKEN:
-          # a push authenticated by GITHUB_TOKEN does not trigger other workflows
-          # (anti-recursion), so the Deploy workflow (push → main) would never
-          # fire and refreshed content would not go live until the next human
-          # push. FRO_BOT_PAT makes the content push trigger Deploy.
-          token: ${{ secrets.FRO_BOT_PAT }}
+          persist-credentials: true
+          # Check out with the mrbro-bot app installation token so the content
+          # branch push and PR are attributed to mrbro-bot and trigger the PR's
+          # required status checks. A branch pushed by the default GITHUB_TOKEN
+          # would land its PR runs in an approval-required state, so the checks
+          # would not run automatically and the protected-main PR could never
+          # satisfy protection.
+          token: ${{ steps.get-app-token.outputs.token }}
 
       - name: Setup project
         uses: ./.github/actions/setup
@@ -67,33 +82,51 @@ jobs:
           cat .blog-refresh-summary.md >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Commit and push snapshot
+      - name: Open or update content refresh PR
         if: steps.diff.outputs.changed == 'true'
+        env:
+          # gh authenticates with the mrbro-bot app token (not the default
+          # GITHUB_TOKEN): main is a protected branch, so the refresh cannot push
+          # directly and must land through a PR. A PR whose commits came from
+          # GITHUB_TOKEN would leave its required-check runs in an approval-required
+          # state, so it could never satisfy protection; the app token makes the
+          # checks run.
+          GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          set -euo pipefail
+          branch="chore/blog-refresh"
+          # Commit as the mrbro-bot identity behind the app installation token
+          # that pushes the branch and opens the PR, not github-actions[bot].
+          git config user.name "mrbro-bot[bot]"
+          git config user.email "137683033+mrbro-bot[bot]@users.noreply.github.com"
           git add src/data/blog-snapshot.json public/project-previews/
           git commit -m "chore(blog): refresh snapshot and preview images"
 
-          push_once() {
-            git fetch origin main
-            git rebase origin/main
-            git push origin HEAD:main
-          }
+          # Rebase onto latest main so the content branch is current, then publish
+          # it to a fixed, bot-owned branch force-updated each run — one rolling
+          # content PR, never a human integration target.
+          git fetch origin main
+          git rebase origin/main
+          git push --force origin "HEAD:${branch}"
 
-          if push_once; then
-            { cat .blog-refresh-summary.md; echo "- Commit SHA: $(git rev-parse HEAD)"; } >> "$GITHUB_STEP_SUMMARY"
-          elif push_once; then
-            {
-              cat .blog-refresh-summary.md
-              echo "- Blog snapshot pushed after retry"
-              echo "- Commit SHA: $(git rev-parse HEAD)"
-            } >> "$GITHUB_STEP_SUMMARY"
+          # Create the rolling PR if none is open, else refresh its body in place
+          # (the summary carries per-run added/removed/updated posts). Assign the
+          # lookup first so a gh/API failure aborts under set -e rather than being
+          # misread as "no PR" and attempting a duplicate create.
+          pr_number="$(gh pr list --base main --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+            gh pr create --base main --head "$branch" \
+              --title "chore(blog): refresh snapshot and preview images" \
+              --body-file .blog-refresh-summary.md
           else
-            echo "::error::Failed to push blog snapshot after retry."
-            echo "### Blog Refresh: push failed after retry" >> "$GITHUB_STEP_SUMMARY"
-            exit 1
+            gh pr edit "$pr_number" --body-file .blog-refresh-summary.md
           fi
+
+          {
+            cat .blog-refresh-summary.md
+            echo "- Content branch: \`$branch\`"
+            echo "- Commit SHA: $(git rev-parse HEAD)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report failure
         if: failure()
