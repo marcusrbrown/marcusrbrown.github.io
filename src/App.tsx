@@ -1,6 +1,6 @@
 import React from 'react'
 import {Route, BrowserRouter as Router, Routes} from 'react-router-dom'
-import Footer from './components/Footer'
+import {Footer} from './components/Footer'
 import Header from './components/Header'
 import {ThemeProvider} from './contexts/ThemeContext'
 import {useSyntaxHighlighting} from './hooks/UseSyntaxHighlighting'
