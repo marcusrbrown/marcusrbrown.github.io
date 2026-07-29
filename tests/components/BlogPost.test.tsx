@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react'
+import {render, screen, within} from '@testing-library/react'
 import {MemoryRouter} from 'react-router-dom'
 import {describe, expect, it} from 'vitest'
 import BlogPost from '../../src/components/BlogPost'
@@ -24,9 +24,11 @@ describe('BlogPost Component', () => {
     expect(screen.getByRole('heading', {name: 'My Blog Post'})).toBeInTheDocument()
   })
 
-  it('should render the post date', () => {
+  it('should render a human-readable post date while preserving the ISO dateTime attribute', () => {
     renderWithRouter(defaultProps)
-    expect(screen.getByText('2024-01-15')).toBeInTheDocument()
+    const timeEl = screen.getByText('January 15, 2024')
+    expect(timeEl.tagName.toLowerCase()).toBe('time')
+    expect(timeEl).toHaveAttribute('dateTime', '2024-01-15')
   })
 
   it('should render the post summary', () => {
@@ -34,12 +36,16 @@ describe('BlogPost Component', () => {
     expect(screen.getByText('This is a summary of the blog post.')).toBeInTheDocument()
   })
 
-  it('should link internally to the post slug', () => {
+  it('should have exactly one accessible link to the post slug, with a non-interactive "Read article" cue', () => {
     renderWithRouter(defaultProps)
-    const links = screen.getAllByRole('link', {name: /My Blog Post|Read more/})
-    for (const link of links) {
-      expect(link).toHaveAttribute('href', '/blog/my-blog-post')
-    }
+    const article = screen.getByRole('article')
+    const links = within(article).getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/blog/my-blog-post')
+
+    expect(screen.getByText('Read article')).toBeInTheDocument()
+    expect(screen.queryByRole('link', {name: 'Read article'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: 'Read article'})).not.toBeInTheDocument()
   })
 
   it('should render as an article element', () => {
@@ -47,20 +53,27 @@ describe('BlogPost Component', () => {
     expect(screen.getByRole('article')).toBeInTheDocument()
   })
 
-  it('should set dateTime attribute on time element', () => {
-    renderWithRouter(defaultProps)
-    const timeEl = screen.getByText('2024-01-15')
-    expect(timeEl.tagName.toLowerCase()).toBe('time')
-    expect(timeEl).toHaveAttribute('dateTime', '2024-01-15')
-  })
-
-  it('should render tags as non-interactive labels', () => {
+  it('should render tags as non-interactive labels introduced by a visible "Topics:" metadata label', () => {
     renderWithRouter(defaultProps)
     const tagsList = screen.getByLabelText('Tags')
     expect(tagsList).toBeInTheDocument()
+
+    // The tags must be visibly introduced with the exact text "Topics:" so that
+    // sighted users aren't left to infer meaning from color (blue hashtag prefixes) alone.
+    expect(screen.getByText('Topics:')).toBeInTheDocument()
+
     expect(screen.getByText('react')).toBeInTheDocument()
     expect(screen.getByText('typescript')).toBeInTheDocument()
+
+    // Tags remain non-interactive: no links or buttons for any tag, and the
+    // one-link-per-card contract (the title link) must be preserved.
     expect(screen.queryByRole('link', {name: 'react'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: 'react'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', {name: 'typescript'})).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: 'typescript'})).not.toBeInTheDocument()
+
+    const article = screen.getByRole('article')
+    expect(within(article).getAllByRole('link')).toHaveLength(1)
   })
 
   it('should render without tags when none are provided', () => {

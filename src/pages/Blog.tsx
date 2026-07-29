@@ -12,7 +12,12 @@ const Blog: React.FC = () => {
     <div className="blog-page">
       <div className="container">
         <header className="blog-page__header">
-          <h1>Blog</h1>
+          <div className="blog-page__heading-group">
+            <h1>Blog</h1>
+            <p className="blog-page__premise">
+              Notes on software systems, agent workflows, and the decisions behind maintained public work.
+            </p>
+          </div>
           <a className="blog-page__feed-link" href="/feed.xml">
             RSS Feed
           </a>

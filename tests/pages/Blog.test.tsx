@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react'
+import {render, screen, within} from '@testing-library/react'
 import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {useBlogPosts} from '../../src/hooks/UseBlogPosts'
@@ -40,6 +40,14 @@ describe('Blog Page', () => {
     expect(screen.getByRole('heading', {name: 'Blog'})).toBeInTheDocument()
   })
 
+  it('should render the editorial premise beneath the title', () => {
+    mockUseBlogPosts.mockReturnValue({posts: [], getPostBySlug: vi.fn()})
+    render(<BlogWrapper />)
+    expect(
+      screen.getByText('Notes on software systems, agent workflows, and the decisions behind maintained public work.'),
+    ).toBeInTheDocument()
+  })
+
   it('should render a visible RSS feed link', () => {
     mockUseBlogPosts.mockReturnValue({posts: [], getPostBySlug: vi.fn()})
     render(<BlogWrapper />)
@@ -67,16 +75,19 @@ describe('Blog Page', () => {
     }
   })
 
-  it('should link cards internally to /blog/<slug>', () => {
+  it('should have exactly one accessible link per card to /blog/<slug>', () => {
     mockUseBlogPosts.mockReturnValue({
       posts: [post({slug: 'my-post', title: 'My Post'})],
       getPostBySlug: vi.fn(),
     })
     render(<BlogWrapper />)
-    const links = screen.getAllByRole('link', {name: /My Post|Read more/})
-    for (const link of links) {
-      expect(link).toHaveAttribute('href', '/blog/my-post')
-    }
+    const article = screen.getByRole('article')
+    const links = within(article).getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/blog/my-post')
+
+    expect(screen.getByText('Read article')).toBeInTheDocument()
+    expect(screen.queryByRole('link', {name: 'Read article'})).not.toBeInTheDocument()
   })
 
   it('should render BlogEmptyState when there are no posts (no bare paragraph)', () => {
