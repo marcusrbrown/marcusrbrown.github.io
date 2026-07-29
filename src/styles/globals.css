@@ -184,8 +184,7 @@ a:hover {
     }
 }
 
-.project-card,
-.blog-post {
+.project-card {
     background: var(--color-card-bg);
     border: 1px solid var(--color-card-border);
     margin: 1rem 0;
@@ -237,19 +236,34 @@ a:hover {
 }
 
 .blog-post {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: var(--color-card-bg);
+    border: 1px solid var(--color-card-border);
     border-radius: 8px;
     padding: 1.5rem;
     color: var(--color-card-text);
     box-shadow: 0 1px 3px var(--color-shadow);
-    transition: var(--transition-theme), box-shadow 0.2s ease-in-out;
+    transition: var(--transition-theme), box-shadow 0.2s ease-in-out, border-color var(--transition-theme-fast);
+    position: relative;
+    cursor: pointer;
 }
 
 .blog-post:hover {
-    box-shadow: 0 4px 6px var(--color-shadow);
+    box-shadow: 0 4px 10px var(--color-shadow);
+    border-color: var(--color-link-hover);
+}
+
+.blog-post:focus-within {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px var(--color-focus-ring);
+    border-color: var(--color-focus);
 }
 
 .blog-post h2 {
-    margin: 0 0 0.5rem 0;
+    margin: 0;
     font-size: 1.25rem;
     font-weight: 600;
     line-height: 1.4;
@@ -262,22 +276,55 @@ a:hover {
 
 .blog-post h2 a {
     color: inherit;
+    outline: none;
+}
+
+/* Title link overlay */
+.blog-post__title-link::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
 }
 
 .blog-post__tags,
 .blog-post-page__tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
     list-style: none;
     padding: 0;
 }
 
 .blog-post__tags {
-    margin: 0 0 1rem 0;
+    margin: 0;
 }
 
-.blog-post__tag,
+.blog-post-page__tags {
+    gap: 0.5rem;
+}
+
+.blog-post__topics {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.blog-post__tag {
+    color: var(--color-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.blog-post__tag:not(:last-child)::after {
+    content: " \00b7 ";
+}
+
 .blog-post-page__tag {
     background: var(--color-surface);
     color: var(--color-text-secondary);
@@ -296,29 +343,29 @@ a:hover {
 }
 
 .blog-post time {
-    margin: 0 0 1rem 0;
+    margin: 0;
     font-weight: 500;
 }
 
 .blog-post p {
-    margin: 0 0 1rem 0;
+    margin: 0;
     color: var(--color-card-text);
     line-height: 1.6;
 }
 
-.blog-post a {
-    font-weight: 500;
-    transition: var(--transition-theme);
+.blog-post__read-more {
+    color: var(--color-link);
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-top: auto;
+    display: inline-flex;
+    align-items: center;
+    transition: color var(--transition-theme-fast);
 }
 
-.blog-post a:hover {
+.blog-post:hover .blog-post__read-more {
     color: var(--color-link-hover);
-}
-
-.blog-post a:focus {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-    border-radius: 4px;
+    text-decoration: underline;
 }
 
 /* Theme Toggle Component Styles */
@@ -2006,13 +2053,35 @@ a:hover {
 }
 
 /* Blog Index Page */
+.blog-page .container {
+    max-width: 52rem;
+    margin: 0 auto;
+}
+
 .blog-page__header {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 1.5rem;
+}
+
+.blog-page__heading-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1 1 auto;
+    max-width: 65ch;
+}
+
+.blog-page__premise {
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
 }
 
 .blog-page__feed-link,
@@ -2023,12 +2092,13 @@ a:hover {
 
 .blog-page__feed-link {
     font-size: 0.875rem;
+    padding-top: 0.25rem;
 }
 
 .blog-list {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 1.5rem;
 }
 
 /* Blog Empty State */
