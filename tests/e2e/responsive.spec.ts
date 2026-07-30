@@ -72,6 +72,27 @@ test.describe('Responsive Design Tests', () => {
       expect(navLinks.length).toBeGreaterThan(0)
     })
 
+    test('should keep mobile navigation touch targets from overlapping', async ({page}) => {
+      const homePage = new HomePage(page)
+
+      await page.setViewportSize({width: 320, height: 844})
+      await homePage.goto()
+
+      const navBoxes = await page.locator('.header__nav-link').evaluateAll(links =>
+        links.map(link => {
+          const {left, right} = link.getBoundingClientRect()
+          return {left, right}
+        }),
+      )
+
+      for (const [index, current] of navBoxes.entries()) {
+        const next = navBoxes[index + 1]
+        if (!next) break
+
+        expect(current.right).toBeLessThanOrEqual(next.left)
+      }
+    })
+
     test('should maintain navigation functionality across breakpoints', async ({page}) => {
       const homePage = new HomePage(page)
 

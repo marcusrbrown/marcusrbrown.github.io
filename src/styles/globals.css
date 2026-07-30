@@ -117,6 +117,7 @@ a:hover {
     position: relative;
     display: flex;
     align-items: center;
+    box-sizing: border-box;
     min-height: 44px;
 }
 
