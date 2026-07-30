@@ -10,7 +10,7 @@ Developer portfolio — React 19+, TypeScript strict, Vite 7+, pure ESM. Deploye
 
 ```
 src/
-├── components/    # 18 React components (see components/AGENTS.md)
+├── components/    # 19 React components (see components/AGENTS.md)
 ├── hooks/         # 11 custom hooks — PascalCase files! (see hooks/AGENTS.md)
 ├── contexts/      # ThemeContext — single provider wrapping App
 ├── pages/         # 5 route pages: Home, Blog, Projects, About, BlogPostPage (/blog/:slug)

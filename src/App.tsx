@@ -1,5 +1,6 @@
 import React from 'react'
 import {Route, BrowserRouter as Router, Routes} from 'react-router-dom'
+import {AnalyticsTracker} from './components/AnalyticsTracker'
 import {Footer} from './components/Footer'
 import Header from './components/Header'
 import {ThemeProvider} from './contexts/ThemeContext'
@@ -17,6 +18,7 @@ const AppContent: React.FC = () => {
 
   return (
     <Router>
+      <AnalyticsTracker />
       <Header />
       <main>
         <Routes>
