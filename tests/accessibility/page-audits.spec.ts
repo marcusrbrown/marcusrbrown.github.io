@@ -77,6 +77,16 @@ test.describe('Page Accessibility Audits', () => {
 })
 
 test.describe('Component Accessibility Audits', () => {
+  test('Page exposes the site header as its only banner landmark', async ({page}) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+
+    const banner = page.getByRole('banner')
+    await expect(banner).toHaveCount(1)
+    await expect(banner).toHaveClass(/header/)
+    await expect(banner.getByRole('navigation', {name: 'Main navigation'})).toBeVisible()
+  })
+
   test('Navigation menu accessibility', async ({page}) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
