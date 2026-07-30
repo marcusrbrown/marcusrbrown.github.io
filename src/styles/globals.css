@@ -51,11 +51,11 @@ a:hover {
 .header__container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 1rem;
+    padding: 0.5rem 1rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 2rem;
+    gap: 1.5rem;
 }
 
 .header__title {
@@ -69,11 +69,24 @@ a:hover {
     color: var(--color-text);
     text-decoration: none;
     transition: var(--transition-theme-fast);
+    display: flex;
+    align-items: center;
+    min-height: 44px;
 }
 
 .header__title-link:hover {
     color: var(--color-link-hover);
     text-decoration: none;
+}
+
+.header__title-link:focus {
+    outline: none;
+}
+
+.header__title-link:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 .header__nav {
@@ -86,7 +99,7 @@ a:hover {
     list-style: none;
     margin: 0;
     padding: 0;
-    gap: 2rem;
+    gap: 0.5rem;
     align-items: center;
 }
 
@@ -95,12 +108,16 @@ a:hover {
 }
 
 .header__nav-link {
+    --nav-link-px: 0.75rem;
     color: var(--color-text-secondary);
     text-decoration: none;
     font-weight: 500;
-    padding: 0.5rem 0;
+    padding: 0 var(--nav-link-px);
     transition: var(--transition-theme-fast);
     position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 44px;
 }
 
 .header__nav-link:hover {
@@ -109,6 +126,10 @@ a:hover {
 }
 
 .header__nav-link:focus {
+    outline: none;
+}
+
+.header__nav-link:focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
     border-radius: 2px;
@@ -123,9 +144,9 @@ a:hover {
 .header__nav-link[aria-current="page"]::after {
     content: '';
     position: absolute;
-    bottom: -2px;
-    left: 0;
-    right: 0;
+    bottom: 2px;
+    left: var(--nav-link-px);
+    right: var(--nav-link-px);
     height: 2px;
     background-color: var(--color-link);
     border-radius: 1px;
@@ -141,7 +162,7 @@ a:hover {
 /* Responsive Design */
 @media (max-width: 768px) {
     .header__container {
-        padding: 0.75rem;
+        padding: 0.5rem 0.75rem;
         gap: 1rem;
     }
 
@@ -149,38 +170,66 @@ a:hover {
         font-size: 1.25rem;
     }
 
-    .header__nav-list {
-        gap: 1rem;
-    }
-
     .header__nav-link {
+        --nav-link-px: 0.5rem;
         font-size: 0.875rem;
     }
 }
 
 @media (max-width: 640px) {
     .header__container {
-        flex-wrap: wrap;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: auto auto;
+        grid-template-rows: auto auto;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem 0;
+        padding: 0.75rem 1rem;
     }
 
     .header__title {
-        flex-basis: 100%;
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-
-    .header__nav {
-        flex: none;
-    }
-
-    .header__nav-list {
-        gap: 0.75rem;
-        font-size: 0.875rem;
+        grid-row: 1;
+        grid-column: 1;
+        justify-self: start;
+        margin: 0;
+        font-size: 1.25rem;
     }
 
     .header__actions {
-        flex: none;
+        grid-row: 1;
+        grid-column: 2;
+        justify-self: end;
+        margin: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    .header__nav {
+        grid-row: 2;
+        grid-column: 1 / span 2;
+        width: 100%;
+        max-width: none;
+    }
+
+    .header__nav-list {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        gap: 0;
+        padding: 0;
+        margin: 0;
+    }
+
+    .header__nav-item {
+        flex: 1;
+        text-align: center;
+    }
+
+    .header__nav-link {
+        --nav-link-px: 0.25rem;
+        justify-content: center;
+        font-size: 0.875rem;
+        width: 100%;
     }
 }
 
