@@ -38,6 +38,10 @@ jobs:
         run: pnpm run build
         env:
           GITHUB_PAGES: 'true'
+          # Public site ID, not a secret (see docs/analytics.md). Step-scoped only —
+          # kept out of workflow/job env so it cannot leak into unrelated steps.
+          # Stays unset until infra retention evidence is reviewed (Milestone 2).
+          VITE_UMAMI_WEBSITE_ID: ${{ vars.UMAMI_WEBSITE_ID }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0

@@ -288,6 +288,12 @@ on:
 - `GITHUB_PAGES=true`: Set automatically during GitHub Pages builds
 - `NODE_ENV=production`: Set during production builds
 
+### 📊 Analytics Website ID (`UMAMI_WEBSITE_ID`)
+
+The self-hosted Umami tracker (see `docs/analytics.md`) is activated by the repository variable `UMAMI_WEBSITE_ID`. It is mapped to the public Vite build variable `VITE_UMAMI_WEBSITE_ID` **only on the `Build project` step** of the `deploy.yaml` build job — not at workflow or job scope — matching the Systematic/dev-like step-scoped pattern. `vite.config.ts` injects exactly one hardened tracker `<script>` tag when the build is production-mode and this variable is a non-empty string; development builds and unconfigured production builds emit no tracker tag.
+
+The repository variable **remains unset** until the separate infra retention-enforcement work lands and its version-controlled evidence is reviewed (see `docs/analytics.md` and the feature plan's Milestone 2). Setting it prematurely would activate collection against an indefinite-retention Umami deployment. The website ID is intentionally public configuration, not a secret — Vite replaces `VITE_`-prefixed values at build time.
+
 ## Contributing
 
 When modifying workflows:

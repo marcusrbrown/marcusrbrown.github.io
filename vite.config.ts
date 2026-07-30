@@ -1,7 +1,48 @@
+import type {HtmlTagDescriptor} from 'vite'
 import path from 'node:path'
 import process from 'node:process'
 import react from '@vitejs/plugin-react-swc'
 import {defineConfig} from 'vitest/config'
+
+/**
+ * Self-hosted Umami tracker script origin (see docs/analytics.md).
+ * `metrics.fro.bot` is the only permitted analytics script/connect origin.
+ */
+export const UMAMI_SCRIPT_URL = 'https://metrics.fro.bot/script.js'
+
+/** Build/mode inputs that decide whether the Umami tracker tag is injected. */
+export interface UmamiInjectionInput {
+  command: 'build' | 'serve'
+  mode: string
+  /** Value of `VITE_UMAMI_WEBSITE_ID`; absent or empty disables the tracker. */
+  websiteId: string | undefined
+}
+
+/**
+ * The tracker is injected only for a production build with a non-empty website ID.
+ * Development or unconfigured production builds never receive the tag.
+ */
+export const shouldInjectUmamiTracker = ({command, mode, websiteId}: UmamiInjectionInput): boolean =>
+  command === 'build' && mode === 'production' && typeof websiteId === 'string' && websiteId.length > 0
+
+/**
+ * Builds the single hardened `<script>` tag descriptor for the configured production build.
+ * Async so analytics cannot delay rendering; DNT, search/hash exclusion, and automatic
+ * pageviews are fixed and non-configurable.
+ */
+export const buildUmamiTrackerTag = (websiteId: string): HtmlTagDescriptor => ({
+  tag: 'script',
+  injectTo: 'head',
+  attrs: {
+    src: UMAMI_SCRIPT_URL,
+    async: true,
+    'data-website-id': websiteId,
+    'data-do-not-track': 'true',
+    'data-exclude-search': 'true',
+    'data-exclude-hash': 'true',
+    'data-auto-pageview': 'false',
+  },
+})
 
 // E2E fixture mechanism (see docs/plans/2026-07-17-001-feat-first-party-blog-plan.md,
 // Unit 6 KTD): when BLOG_SNAPSHOT is set, alias the snapshot import to that path so
@@ -18,8 +59,20 @@ const projectsSnapshotAlias = process.env.PROJECTS_SNAPSHOT
   ? [{find: '../data/projects-snapshot.json', replacement: path.resolve(process.cwd(), process.env.PROJECTS_SNAPSHOT)}]
   : []
 
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({command, mode}) => ({
+  plugins: [
+    react(),
+    {
+      name: 'umami-tracker-injection',
+      transformIndexHtml() {
+        const websiteId = process.env.VITE_UMAMI_WEBSITE_ID
+        if (!shouldInjectUmamiTracker({command, mode, websiteId})) {
+          return undefined
+        }
+        return [buildUmamiTrackerTag(websiteId ?? '')]
+      },
+    },
+  ],
 
   resolve: {
     alias: [...blogSnapshotAlias, ...projectsSnapshotAlias],
@@ -94,4 +147,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))
