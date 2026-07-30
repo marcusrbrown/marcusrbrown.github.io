@@ -46,11 +46,12 @@ describe('HeroSection', () => {
   })
 
   describe('default rendering', () => {
-    it('should render the hero section with correct role', () => {
+    it('should expose the hero as a labeled region, not a banner', () => {
       render(<HeroSection />)
-      const section = screen.getByRole('banner')
+      const section = screen.getByRole('region', {name: 'Introduction and main call-to-action'})
       expect(section).toBeInTheDocument()
       expect(section).toHaveAttribute('id', 'hero')
+      expect(screen.queryByRole('banner')).not.toBeInTheDocument()
     })
 
     it('should render the default title', () => {
@@ -117,7 +118,7 @@ describe('HeroSection', () => {
 
     it('should apply custom className to section', () => {
       render(<HeroSection className="custom-hero" />)
-      const section = screen.getByRole('banner')
+      const section = screen.getByRole('region', {name: 'Introduction and main call-to-action'})
       expect(section).toHaveClass('custom-hero')
     })
   })

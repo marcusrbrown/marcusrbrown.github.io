@@ -121,7 +121,6 @@ const HeroSection: React.FC<HeroSectionProps> = ({
       className={`hero-section ${className}`}
       data-testid="hero-section"
       aria-label="Introduction and main call-to-action"
-      role="banner"
     >
       {/* Background Elements */}
       <div className="hero-background" aria-hidden="true" />

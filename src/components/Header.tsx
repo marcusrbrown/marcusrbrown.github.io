@@ -1,5 +1,5 @@
 import React from 'react'
-import {Link} from 'react-router-dom'
+import {Link, NavLink} from 'react-router-dom'
 import {ThemePicker} from './ThemePicker'
 
 const Header: React.FC = () => {
@@ -14,24 +14,24 @@ const Header: React.FC = () => {
         <nav className="header__nav" aria-label="Main navigation">
           <ul className="header__nav-list">
             <li className="header__nav-item">
-              <Link to="/" className="header__nav-link">
+              <NavLink to="/" className="header__nav-link" end>
                 Home
-              </Link>
+              </NavLink>
             </li>
             <li className="header__nav-item">
-              <Link to="/blog" className="header__nav-link">
+              <NavLink to="/blog" className="header__nav-link">
                 Blog
-              </Link>
+              </NavLink>
             </li>
             <li className="header__nav-item">
-              <Link to="/projects" className="header__nav-link">
+              <NavLink to="/projects" className="header__nav-link">
                 Projects
-              </Link>
+              </NavLink>
             </li>
             <li className="header__nav-item">
-              <Link to="/about" className="header__nav-link">
+              <NavLink to="/about" className="header__nav-link">
                 About
-              </Link>
+              </NavLink>
             </li>
           </ul>
         </nav>
