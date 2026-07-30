@@ -1,10 +1,10 @@
 # src/utils/
 
-12 utility modules — 6 theme-specific, plus accessibility, analytics, animation, GitHub API, syntax highlighting, and schema validation.
+13 utility modules — 5 theme-specific, plus accessibility, analytics, blog/slug transforms, blog frontmatter validation, projects, preview-image paths, syntax highlighting, and schema validation.
 
 ## By Domain
 
-### Theme System (6 files)
+### Theme System (5 files)
 
 | Utility                | Role                                                                    |
 | ---------------------- | ----------------------------------------------------------------------- |
@@ -13,15 +13,19 @@
 | `theme-validation.ts`  | Runtime theme object validation against schema                          |
 | `theme-export.ts`      | Theme import/export (JSON serialization)                                |
 | `theme-performance.ts` | Theme switching performance monitoring + metrics                        |
-| `theme-preloader.ts`   | Pre-transition setup to avoid FOUC                                      |
 
-### Core Utilities (6 files)
+FOUC-prevention theme preload now lives at `public/scripts/theme-preloader.js` — a public static bootstrap executed directly by the browser (see `tests/scripts/static-bootstraps.test.ts`), not a `src/utils/` module. There is no TypeScript generator; the shipped script is the tested source of truth.
+
+### Core Utilities (8 files)
 
 | Utility                  | Role                                                                        |
 | ------------------------ | --------------------------------------------------------------------------- |
 | `accessibility.ts`       | Keyboard handlers, focus traps, screen reader announcements, reduced motion |
 | `analytics.ts`           | Page view + interaction tracking                                            |
-| `github.ts`              | GitHub API client — pure `fetch`, repos + blog posts (`GITHUB_API_URL`)     |
+| `blog.ts`                | Browser-safe pure slug/blog transforms — slugify, resolution, collisions    |
+| `blog-validation.ts`     | Node/build-time Ajv frontmatter schema validation (not browser-safe)        |
+| `projects.ts`            | GitHub repo → project transforms, portfolio/site-repo filtering             |
+| `preview-image-path.ts`  | Computes public project-preview image path from a repo id                   |
 | `syntax-highlighting.ts` | Shiki integration — externalized from bundle via build config               |
 | `schema-validation.ts`   | JSON schema validation against `src/schemas/theme.schema.json`              |
 
@@ -29,10 +33,9 @@
 
 - **No barrel exports** — import directly: `import { presetThemes } from '../utils/preset-themes'`
 - **Pure functions preferred** — side effects isolated to storage and DOM utilities
-- **Theme chain**: `preset-themes` defines → `theme-validation` validates → `theme-storage` persists → `theme-preloader` applies
-- **GitHub API**: Pure fetch with AbortController support, no external HTTP deps
+- **Theme chain**: `preset-themes` defines → `theme-validation` validates → `theme-storage` persists → `public/scripts/theme-preloader.js` applies
+- **Blog validation split**: `blog.ts` holds browser-safe pure slug/blog transforms; `blog-validation.ts` is Node/build-time only (Ajv), used by scripts, not shipped to the client
 
 ## Testing
 
-- **Location**: `tests/utils/` (9 test files — good coverage)
-- **Gap**: `analytics.ts` lacks dedicated tests
+- **Location**: `tests/utils/` (14 test files — good coverage)

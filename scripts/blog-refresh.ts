@@ -30,7 +30,8 @@ import {unified} from 'unified'
 import {visit} from 'unist-util-visit'
 import {parse as parseYaml} from 'yaml'
 
-import {detectSlugCollisions, isSlugResolutionError, resolveSlug, validateBlogFrontmatter} from '../src/utils/blog'
+import {detectSlugCollisions, isSlugResolutionError, resolveSlug} from '../src/utils/blog'
+import {validateBlogFrontmatter} from '../src/utils/blog-validation'
 
 export const GENERATOR = 'blog-refresh'
 const DEFAULT_SNAPSHOT_PATH = 'src/data/blog-snapshot.json'
