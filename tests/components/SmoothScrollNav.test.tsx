@@ -1,6 +1,16 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {render, screen} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import SmoothScrollNav from '../../src/components/SmoothScrollNav'
+import {trackUmamiEvent} from '../../src/utils/analytics'
+
+vi.mock('../../src/utils/analytics', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/utils/analytics')>()
+  return {
+    ...actual,
+    trackUmamiEvent: vi.fn(),
+  }
+})
 
 // Mock IntersectionObserver
 // eslint-disable-next-line prefer-arrow-callback
@@ -59,53 +69,6 @@ describe('SmoothScrollNav', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
-  it('handles smooth scroll navigation on click', () => {
-    render(<SmoothScrollNav />)
-
-    const heroSection = document.querySelector('#hero') as HTMLElement
-    const scrollIntoViewSpy = vi.spyOn(heroSection, 'scrollIntoView')
-
-    const homeButton = screen.getByRole('button', {name: /navigate to home section/i})
-    fireEvent.click(homeButton)
-
-    expect(scrollIntoViewSpy).toHaveBeenCalledWith({
-      behavior: 'smooth',
-      block: 'start',
-    })
-  })
-
-  it('handles keyboard navigation', () => {
-    render(<SmoothScrollNav />)
-
-    const aboutSection = document.querySelector('#about') as HTMLElement
-    const scrollIntoViewSpy = vi.spyOn(aboutSection, 'scrollIntoView')
-
-    const aboutButton = screen.getByRole('button', {name: /navigate to about section/i})
-
-    // Test Enter key
-    fireEvent.keyDown(aboutButton, {key: 'Enter', code: 'Enter'})
-    expect(scrollIntoViewSpy).toHaveBeenCalledWith({
-      behavior: 'smooth',
-      block: 'start',
-    })
-
-    // Test Space key
-    fireEvent.keyDown(aboutButton, {key: ' ', code: 'Space'})
-    expect(scrollIntoViewSpy).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not scroll for other keys', () => {
-    render(<SmoothScrollNav />)
-
-    const aboutSection = document.querySelector('#about') as HTMLElement
-    const scrollIntoViewSpy = vi.spyOn(aboutSection, 'scrollIntoView')
-
-    const aboutButton = screen.getByRole('button', {name: /navigate to about section/i})
-    fireEvent.keyDown(aboutButton, {key: 'Tab', code: 'Tab'})
-
-    expect(scrollIntoViewSpy).not.toHaveBeenCalled()
-  })
-
   it('renders custom navigation items', () => {
     const customItems = [
       {id: 'custom1', label: 'Custom 1', icon: '🎯'},
@@ -149,6 +112,87 @@ describe('SmoothScrollNav', () => {
     expect(globalThis.IntersectionObserver).toHaveBeenCalledWith(expect.any(Function), {
       threshold: [0.1, 0.5, 1],
       rootMargin: '-20% 0px -60% 0px',
+    })
+  })
+
+  describe('scroll navigation', () => {
+    it('scrolls to the target section on pointer click', async () => {
+      const user = userEvent.setup()
+      render(<SmoothScrollNav />)
+
+      const heroSection = document.querySelector('#hero') as HTMLElement
+      const scrollIntoViewSpy = vi.spyOn(heroSection, 'scrollIntoView')
+
+      const homeButton = screen.getByRole('button', {name: /navigate to home section/i})
+      await user.click(homeButton)
+
+      expect(trackUmamiEvent).toHaveBeenCalledTimes(1)
+      expect(trackUmamiEvent).toHaveBeenCalledWith('navigation', {
+        destination: 'hero',
+        method: 'smooth_scroll',
+      })
+      expect(scrollIntoViewSpy).toHaveBeenCalledTimes(1)
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+
+    it('scrolls to the target section on Enter key when focused', async () => {
+      const user = userEvent.setup()
+      render(<SmoothScrollNav />)
+
+      const aboutSection = document.querySelector('#about') as HTMLElement
+      const scrollIntoViewSpy = vi.spyOn(aboutSection, 'scrollIntoView')
+      const aboutButton = screen.getByRole('button', {name: /navigate to about section/i})
+
+      aboutButton.focus()
+      await user.keyboard('{Enter}')
+
+      expect(trackUmamiEvent).toHaveBeenCalledTimes(1)
+      expect(trackUmamiEvent).toHaveBeenCalledWith('navigation', {
+        destination: 'about',
+        method: 'smooth_scroll',
+      })
+      expect(scrollIntoViewSpy).toHaveBeenCalledTimes(1)
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+
+    it('scrolls to the target section on Space key when focused', async () => {
+      const user = userEvent.setup()
+      render(<SmoothScrollNav />)
+
+      const projectsSection = document.querySelector('#projects') as HTMLElement
+      const scrollIntoViewSpy = vi.spyOn(projectsSection, 'scrollIntoView')
+      const projectsButton = screen.getByRole('button', {name: /navigate to projects section/i})
+
+      projectsButton.focus()
+      await user.keyboard(' ')
+
+      expect(trackUmamiEvent).toHaveBeenCalledTimes(1)
+      expect(trackUmamiEvent).toHaveBeenCalledWith('navigation', {
+        destination: 'projects',
+        method: 'smooth_scroll',
+      })
+      expect(scrollIntoViewSpy).toHaveBeenCalledTimes(1)
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    })
+
+    it('does not track or scroll when target section is absent', async () => {
+      const user = userEvent.setup()
+      render(<SmoothScrollNav items={[{id: 'nonexistent', label: 'Missing'}]} />)
+
+      const missingButton = screen.getByRole('button', {name: /navigate to missing section/i})
+      await user.click(missingButton)
+
+      expect(trackUmamiEvent).not.toHaveBeenCalled()
+      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
     })
   })
 })

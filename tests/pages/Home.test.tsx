@@ -5,7 +5,6 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {useBlogPosts} from '../../src/hooks/UseBlogPosts'
 import {useProjects} from '../../src/hooks/UseProjects'
 import Home from '../../src/pages/Home'
-
 // Mock hooks
 vi.mock('../../src/hooks/UseProjects', () => ({
   useProjects: vi.fn(),
@@ -20,13 +19,6 @@ vi.mock('../../src/hooks/UsePageTitle', () => ({
 }))
 
 vi.mock('../../src/hooks/UseAnalytics', () => ({
-  useErrorTracking: vi.fn(() => ({trackError: vi.fn(), trackApiError: vi.fn()})),
-  useProjectTracking: vi.fn(() => ({
-    trackProjectClick: vi.fn(),
-    trackProjectModal: vi.fn(),
-    trackProjectView: vi.fn(),
-    trackProjectHover: vi.fn(),
-  })),
   useSectionTracking: vi.fn(() => ({current: null})),
 }))
 
@@ -66,8 +58,18 @@ vi.mock('../../src/components/ProjectGallery', () => ({
 }))
 
 vi.mock('../../src/components/ProjectPreviewModal', () => ({
-  default: ({isOpen, onClose, onNavigate}: {isOpen: boolean; onClose: () => void; onNavigate: (p: Project) => void}) =>
-    isOpen ? (
+  default: ({
+    project,
+    isOpen,
+    onClose,
+    onNavigate,
+  }: {
+    project: Project | null
+    isOpen: boolean
+    onClose: () => void
+    onNavigate: (p: Project) => void
+  }) =>
+    isOpen && project ? (
       <div data-testid="project-modal">
         <button type="button" onClick={onClose}>
           Close Modal
@@ -87,6 +89,14 @@ vi.mock('../../src/components/ProjectPreviewModal', () => ({
         >
           Navigate Project
         </button>
+        <a href={project.url} data-testid="modal-code-link">
+          View Code
+        </a>
+        {project.homepage && (
+          <a href={project.homepage} data-testid="modal-demo-link">
+            Live Demo
+          </a>
+        )}
       </div>
     ) : null,
 }))

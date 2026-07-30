@@ -1,6 +1,7 @@
 import type {BlogPostMeta} from '../types'
 import React from 'react'
 import {Link} from 'react-router-dom'
+import {buildUmamiEventAttributes} from '../utils/analytics'
 
 const BlogPost: React.FC<BlogPostMeta> = ({slug, title, date, summary, tags}) => {
   const formatDate = (dateStr: string): string => {
@@ -17,7 +18,11 @@ const BlogPost: React.FC<BlogPostMeta> = ({slug, title, date, summary, tags}) =>
   return (
     <article className="blog-post">
       <h2 className="blog-post__title">
-        <Link className="blog-post__title-link" to={`/blog/${slug}`}>
+        <Link
+          className="blog-post__title-link"
+          to={`/blog/${slug}`}
+          {...buildUmamiEventAttributes('blog_open', {slug, source: 'card'})}
+        >
           {title}
         </Link>
       </h2>

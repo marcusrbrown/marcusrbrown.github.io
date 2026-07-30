@@ -1,11 +1,8 @@
-/**
- * @jest-environment happy-dom
- */
-
 import type {Project} from '../../src/types'
 import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import ProjectPreviewModal from '../../src/components/ProjectPreviewModal'
+import {buildUmamiEventAttributes} from '../../src/utils/analytics'
 
 // Mock the UseProgressiveImage hook
 vi.mock('../../src/hooks/UseProgressiveImage', () => ({
@@ -61,16 +58,35 @@ const mockProjects: Project[] = [
     topics: ['python', 'ml'],
     lastUpdated: '2025-01-03T00:00:00Z',
   },
+  {
+    id: '1297795539',
+    title: 'Dev Like',
+    description: 'Profile a shop',
+    url: 'https://github.com/marcusrbrown/dev-like',
+    language: 'JavaScript',
+    stars: 2,
+    homepage: 'https://mrbro.dev/dev-like/',
+  },
+  {
+    id: 'unknown-id',
+    title: 'Unknown Project',
+    description: 'An unknown project',
+    url: 'https://github.com/unknown/project',
+    language: 'Go',
+    stars: 1,
+    homepage: 'https://unknown.dev/',
+  },
 ]
 
 describe('ProjectPreviewModal', () => {
   const mockOnClose = vi.fn()
   const mockOnNavigate = vi.fn()
 
-  // Safely extract projects with proper typing
   const project1 = mockProjects[0] as Project
   const project2 = mockProjects[1] as Project
   const project3 = mockProjects[2] as Project
+  const validProject = mockProjects[3] as Project
+  const unknownProject = mockProjects[4] as Project
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -242,9 +258,10 @@ describe('ProjectPreviewModal', () => {
   })
 
   it('disables next button on last project', () => {
+    const lastProject = mockProjects.at(-1) as Project
     render(
       <ProjectPreviewModal
-        project={project3}
+        project={lastProject}
         projects={mockProjects}
         isOpen={true}
         onClose={mockOnClose}
@@ -352,7 +369,7 @@ describe('ProjectPreviewModal', () => {
       />,
     )
 
-    expect(screen.getByText('Project 2 of 3')).toBeInTheDocument()
+    expect(screen.getByText(`Project 2 of ${mockProjects.length}`)).toBeInTheDocument()
     expect(screen.getByText(/Use ← → keys to navigate/i)).toBeInTheDocument()
   })
 
@@ -505,5 +522,71 @@ describe('ProjectPreviewModal', () => {
 
     const modalElement = container.querySelector('.project-preview-modal')
     expect(modalElement).toHaveClass('project-preview-modal--open')
+  })
+
+  it('applies analytics attributes to View Code in the modal for a valid snapshot project ID', () => {
+    render(
+      <ProjectPreviewModal
+        project={validProject}
+        projects={mockProjects}
+        isOpen={true}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />,
+    )
+
+    const codeLink = screen.getByRole('link', {name: /View Code/i})
+    const expectedAttrs = buildUmamiEventAttributes('project_open', {
+      action: 'source',
+      project_id: '1297795539',
+      source: 'modal',
+    })
+
+    expect(codeLink).toHaveAttribute('data-umami-event', expectedAttrs?.['data-umami-event'])
+    expect(codeLink).toHaveAttribute('data-umami-event-action', expectedAttrs?.['data-umami-event-action'])
+    expect(codeLink).toHaveAttribute('data-umami-event-project_id', expectedAttrs?.['data-umami-event-project_id'])
+    expect(codeLink).toHaveAttribute('data-umami-event-source', expectedAttrs?.['data-umami-event-source'])
+  })
+
+  it('applies analytics attributes to Live Demo in the modal for a valid snapshot project ID', () => {
+    render(
+      <ProjectPreviewModal
+        project={validProject}
+        projects={mockProjects}
+        isOpen={true}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />,
+    )
+
+    const demoLink = screen.getByRole('link', {name: /Live Demo/i})
+    const expectedAttrs = buildUmamiEventAttributes('project_open', {
+      action: 'demo',
+      project_id: '1297795539',
+      source: 'modal',
+    })
+
+    expect(demoLink).toHaveAttribute('data-umami-event', expectedAttrs?.['data-umami-event'])
+    expect(demoLink).toHaveAttribute('data-umami-event-action', expectedAttrs?.['data-umami-event-action'])
+    expect(demoLink).toHaveAttribute('data-umami-event-project_id', expectedAttrs?.['data-umami-event-project_id'])
+    expect(demoLink).toHaveAttribute('data-umami-event-source', expectedAttrs?.['data-umami-event-source'])
+  })
+
+  it('fails closed and does NOT apply analytics attributes for an unknown project ID', () => {
+    render(
+      <ProjectPreviewModal
+        project={unknownProject}
+        projects={mockProjects}
+        isOpen={true}
+        onClose={mockOnClose}
+        onNavigate={mockOnNavigate}
+      />,
+    )
+
+    const codeLink = screen.getByRole('link', {name: /View Code/i})
+    expect(codeLink).not.toHaveAttribute('data-umami-event')
+    expect(codeLink).not.toHaveAttribute('data-umami-event-action')
+    expect(codeLink).not.toHaveAttribute('data-umami-event-project_id')
+    expect(codeLink).not.toHaveAttribute('data-umami-event-source')
   })
 })

@@ -1,6 +1,7 @@
 import type {Project} from '../types'
 import React from 'react'
 import {useProgressiveImage} from '../hooks/UseProgressiveImage'
+import {buildUmamiEventAttributes, trackUmamiEvent} from '../utils/analytics'
 
 interface ProjectCardProps extends Project {
   onPreview?: (project: Project) => void
@@ -56,6 +57,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               onClick={e => {
                 e.stopPropagation()
                 if (onPreview) {
+                  trackUmamiEvent('project_open', {
+                    action: 'preview',
+                    project_id: id,
+                    source: 'gallery',
+                  })
                   onPreview({id, title, description, url, language, stars, homepage, topics, lastUpdated, imageUrl})
                 }
               }}
@@ -71,6 +77,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 aria-label={`View ${title} on GitHub`}
+                {...buildUmamiEventAttributes('project_open', {
+                  action: 'source',
+                  project_id: id,
+                  source: 'gallery',
+                })}
               >
                 📂 Code
               </a>
@@ -82,6 +93,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                   rel="noopener noreferrer"
                   onClick={e => e.stopPropagation()}
                   aria-label={`View live demo of ${title}`}
+                  {...buildUmamiEventAttributes('project_open', {
+                    action: 'demo',
+                    project_id: id,
+                    source: 'gallery',
+                  })}
                 >
                   🚀 Demo
                 </a>

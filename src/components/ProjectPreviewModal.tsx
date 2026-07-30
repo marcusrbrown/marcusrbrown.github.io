@@ -9,6 +9,7 @@ import type {Project} from '../types'
 import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {useProgressiveImage} from '../hooks/UseProgressiveImage'
 import {handleEscapeKey, trapFocus} from '../utils/accessibility'
+import {buildUmamiEventAttributes} from '../utils/analytics'
 
 interface ProjectPreviewModalProps {
   project: Project | null
@@ -321,6 +322,11 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
                 className="project-preview-modal__button project-preview-modal__button--primary"
                 target="_blank"
                 rel="noopener noreferrer"
+                {...buildUmamiEventAttributes('project_open', {
+                  action: 'source',
+                  project_id: project.id,
+                  source: 'modal',
+                })}
               >
                 📂 View Code
               </a>
@@ -330,6 +336,11 @@ const ProjectPreviewModal: React.FC<ProjectPreviewModalProps> = ({project, proje
                   className="project-preview-modal__button project-preview-modal__button--secondary"
                   target="_blank"
                   rel="noopener noreferrer"
+                  {...buildUmamiEventAttributes('project_open', {
+                    action: 'demo',
+                    project_id: project.id,
+                    source: 'modal',
+                  })}
                 >
                   🚀 Live Demo
                 </a>

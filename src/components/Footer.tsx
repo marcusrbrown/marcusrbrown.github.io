@@ -1,4 +1,5 @@
 import {Link} from 'react-router-dom'
+import {buildUmamiEventAttributes} from '../utils/analytics'
 
 export const Footer = () => {
   const currentYear = new Date().getFullYear()
@@ -17,22 +18,38 @@ export const Footer = () => {
               <nav aria-label="Footer navigation">
                 <ul className="footer__links-list">
                   <li>
-                    <Link to="/" className="footer__link">
+                    <Link
+                      to="/"
+                      className="footer__link"
+                      {...buildUmamiEventAttributes('navigation', {destination: 'home', method: 'route_link'})}
+                    >
                       Home
                     </Link>
                   </li>
                   <li>
-                    <Link to="/projects" className="footer__link">
+                    <Link
+                      to="/projects"
+                      className="footer__link"
+                      {...buildUmamiEventAttributes('navigation', {destination: 'projects', method: 'route_link'})}
+                    >
                       Projects
                     </Link>
                   </li>
                   <li>
-                    <Link to="/blog" className="footer__link">
+                    <Link
+                      to="/blog"
+                      className="footer__link"
+                      {...buildUmamiEventAttributes('navigation', {destination: 'blog', method: 'route_link'})}
+                    >
                       Blog
                     </Link>
                   </li>
                   <li>
-                    <Link to="/about" className="footer__link">
+                    <Link
+                      to="/about"
+                      className="footer__link"
+                      {...buildUmamiEventAttributes('navigation', {destination: 'about', method: 'route_link'})}
+                    >
                       About
                     </Link>
                   </li>
@@ -49,6 +66,7 @@ export const Footer = () => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="footer__link"
+                      {...buildUmamiEventAttributes('external_profile_open', {destination: 'github'})}
                     >
                       GitHub
                     </a>
@@ -59,12 +77,17 @@ export const Footer = () => {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="footer__link"
+                      {...buildUmamiEventAttributes('external_profile_open', {destination: 'twitter'})}
                     >
                       @mrbrodev
                     </a>
                   </li>
                   <li>
-                    <a href="mailto:hello@mrbro.dev" className="footer__link">
+                    <a
+                      href="mailto:hello@mrbro.dev"
+                      className="footer__link"
+                      {...buildUmamiEventAttributes('contact_open', {method: 'email'})}
+                    >
                       hello@mrbro.dev
                     </a>
                   </li>

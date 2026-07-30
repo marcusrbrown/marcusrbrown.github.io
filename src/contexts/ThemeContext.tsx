@@ -2,7 +2,7 @@ import type {Theme, ThemeContextValue, ThemeMode, ThemeSelection} from '../types
 import {useCallback, useEffect, useMemo, useState, type ReactNode} from 'react'
 import {ThemeContext} from '../hooks/UseThemeContext'
 import {prefersReducedMotion} from '../utils/accessibility'
-import {analytics} from '../utils/analytics'
+import {trackUmamiEvent} from '../utils/analytics'
 import {
   cleanupThemeOptimizations,
   getOptimalPerformanceLevel,
@@ -102,11 +102,6 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
   // Enhanced setThemeMode that persists to localStorage and optimizes performance
   const setThemeMode = useCallback(
     (mode: ThemeMode) => {
-      const previousMode = themeModeValue
-
-      // Track theme change analytics
-      analytics.trackThemeChange(previousMode, mode)
-
       // Skip animations entirely if user prefers reduced motion
       if (prefersReducedMotion()) {
         setThemeModeValue(mode)
@@ -154,15 +149,23 @@ export const ThemeProvider = ({children}: ThemeProviderProps) => {
   const setActiveTheme = useCallback(
     (selection: ThemeSelection) => {
       if (selection.type === 'mode') {
+        const isNoOp = customThemeValue === null && selection.mode === themeModeValue
+        if (!isNoOp) {
+          trackUmamiEvent('theme_change', {kind: 'mode', value: selection.mode})
+        }
         setThemeMode(selection.mode)
         setCustomTheme(null)
         removeCustomTheme()
         return
       }
 
+      const isNoOp = customThemeValue?.id === selection.theme.id
+      if (!isNoOp) {
+        trackUmamiEvent('theme_change', {kind: 'preset', value: selection.theme.id})
+      }
       setCustomTheme(selection.theme)
     },
-    [setCustomTheme, setThemeMode],
+    [customThemeValue, setCustomTheme, setThemeMode, themeModeValue],
   )
 
   // Detect system preference and listen for changes
