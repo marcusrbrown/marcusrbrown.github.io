@@ -59,8 +59,8 @@ The existing Umami server at `metrics.fro.bot` already measures Systematic and d
 - R3. Analytics must honor the browser Do Not Track signal by sending no pageview or custom-event data when DNT is enabled.
 - R4. Analytics must use no cookies, persistent identifiers, fingerprinting, cross-site tracking, query strings, or URL hashes.
 - R5. Analytics must not collect names, email addresses, visitor-authored text, raw URLs, error messages, or other personally identifiable information.
-- R6. Production analytics must remain disabled until a version-controlled verification artifact confirms that the shared metrics service enforces 13-month rolling retention.
-- R7. mrbro.dev must publish a `/privacy` page linked from the global site footer that documents the complete collection scope, exclusions, DNT behavior, IP and approximate-location processing, infrastructure ownership, and 13-month retention policy.
+- R6. Production analytics must remain disabled until a version-controlled verification artifact confirms that the shared metrics service retains pageview and custom-interaction records no longer than 13 months and bounds monthly session parent records to the period supporting retained events. The artifact must prove both controls, including parent deletion after the last retained child expires; the normal Umami monthly model bounds those rows to less than 14 months.
+- R7. mrbro.dev must publish a `/privacy` page linked from the global site footer that documents the complete collection scope, exclusions, DNT behavior, IP and approximate-location processing, infrastructure ownership, the pageview and custom-interaction retention boundary, and the bounded parent-row lifecycle.
 
 **Pageviews and interactions**
 
@@ -95,7 +95,7 @@ The existing Umami server at `metrics.fro.bot` already measures Systematic and d
 - AE3. **Covers R4, R8.** Given a visit to `/blog/example?ref=campaign#section`, when a pageview is recorded, the analytics path contains neither the query string nor the hash.
 - AE4. **Covers R10-R12, R18.** Given a visitor opens a known project from the projects section, when the event is recorded, it contains only the allowlisted event name and categorical project, action, and source values.
 - AE5. **Covers R5, R12.** Given arbitrary error text, a search query, or a full outbound URL, the typed analytics interface provides no valid way to submit that value.
-- AE6. **Covers R6, R7, R22.** Given that 13-month retention lacks a current version-controlled verification artifact, the production tracker remains disabled and the privacy page does not claim active analytics under that policy.
+- AE6. **Covers R6, R7, R22.** Given that current version-controlled evidence does not prove the pageview and custom-interaction retention boundary and bounded parent-row cleanup, the production tracker remains disabled and the privacy page does not claim active retention-backed analytics.
 
 ---
 
@@ -105,7 +105,7 @@ The existing Umami server at `metrics.fro.bot` already measures Systematic and d
 - The dashboard receives section impressions and the approved interaction families with only bounded categorical properties.
 - The site operator can compare content discovery, project interest, and contact intent without inspecting visitor-level records.
 - DNT-enabled visitors and builds without an analytics website identifier generate no analytics requests.
-- The privacy page accurately describes every collected field, event family, exclusion, processor, and retention rule.
+- The privacy page accurately describes every collected field, event family, exclusion, processor, the pageview and custom-interaction retention boundary, and the bounded parent-row lifecycle.
 - The dormant analytics framework and stale event taxonomy are removed rather than carried alongside the Umami integration.
 - Planning can derive implementation units without inventing event scope, privacy behavior, launch gating, or migration boundaries.
 
@@ -128,7 +128,8 @@ The existing Umami server at `metrics.fro.bot` already measures Systematic and d
 - **Thin typed adapter:** Preserve useful React integration and categorical safety without retaining the current analytics manager's unused machinery.
 - **Modernized taxonomy:** Keep relevant behavioral coverage, but remove stale families and prohibit free-form payloads.
 - **Section views without hover:** Measure content reach while avoiding noisy, pointer-dependent events.
-- **Fail-closed launch:** Analytics remains disabled until both the site identifier and current version-controlled retention evidence are available.
+- **Fail-closed launch:** Analytics remains disabled until both the site identifier and current version-controlled evidence for pageview/custom-interaction cleanup and bounded parent cleanup are available.
+- **Retention refinement:** The approved boundary refines the existing 13-month policy; it is not a GDPR or privacy redesign.
 - **Separate retention work:** Server enforcement and cross-repo privacy reconciliation do not share the mrbro.dev implementation PR.
 
 ---
@@ -138,7 +139,7 @@ The existing Umami server at `metrics.fro.bot` already measures Systematic and d
 - A dedicated Umami website entry and public website identifier are available for mrbro.dev.
 - `metrics.fro.bot` continues to be controlled by the same operator and does not forward analytics data to third parties.
 - The shared service's documented behavior for cookies, monthly identifier rotation, IP handling, and local approximate-location derivation remains accurate.
-- A separate coordinated work item will enforce 13-month rolling retention and produce the version-controlled verification artifact before mrbro.dev analytics is enabled.
+- A separate coordinated work item will enforce the pageview and custom-interaction retention boundary, verify bounded monthly session parent cleanup, and produce the version-controlled evidence before mrbro.dev analytics is enabled.
 
 ---
 

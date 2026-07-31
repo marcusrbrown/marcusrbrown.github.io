@@ -21,7 +21,7 @@ mrbro.dev currently carries a large consent, session, queue, error, performance,
 
 The existing self-hosted Umami service at `metrics.fro.bot` provides the approved aggregate analytics model, but the deployed tracker does not observe browser back/forward navigation. The site therefore needs an integration that owns SPA pageviews explicitly, keeps custom events categorical, and does not preserve the old manager's unsafe or unused machinery (see origin: `docs/brainstorms/2026-07-30-mrbro-dev-umami-metrics-requirements.md`).
 
-The shared Umami deployment currently retains data indefinitely. Site integration can land disabled, but production activation is blocked until separate infrastructure work enforces 13-month retention and produces version-controlled verification evidence.
+The shared Umami deployment currently retains data indefinitely. Site integration can land disabled, but production activation is blocked until separate infrastructure work enforces the approved pageview and custom-interaction retention boundary, bounds monthly session parent records to retained events, proves parent deletion after the last retained child expires, and produces version-controlled evidence.
 
 ---
 
@@ -48,7 +48,7 @@ The shared Umami deployment currently retains data indefinitely. Site integratio
 | DNT enabled | The static tracker may load, but no pageview or custom-event request is sent. |
 | SPA navigation | Initial, link, replace, back, and forward navigation each produce one normalized pageview; same-path rerenders produce none. |
 | Custom interaction | Only approved categorical events and properties reach the tracker; arbitrary payloads are not representable through the application API. |
-| Missing or stale retention evidence | Production remains disabled and `/privacy` does not claim active analytics under an unverified policy. |
+| Missing or stale retention evidence | Production remains disabled and `/privacy` does not claim active retention-backed analytics until evidence proves the pageview and custom-interaction retention boundary and bounded parent-row cleanup. |
 | Integration-ready milestone | The disabled integration, privacy page, CSP-compatible bootstraps, and full fixture verification can merge and deploy without enabling production collection. |
 | Activation milestone | A separate approved operation sets the website ID only after revision-matched infra evidence and completes the live go/no-go checks. |
 
@@ -69,7 +69,7 @@ The shared Umami deployment currently retains data indefinitely. Site integratio
 
 ### Deferred to Separate Tasks
 
-- **Shared retention enforcement (`marcusrbrown/infra`):** Replace the current indefinite-retention posture with a tested 13-month cleanup mechanism and commit durable verification evidence.
+- **Shared retention enforcement (`marcusrbrown/infra`):** Replace the current indefinite-retention posture with tested cleanup for the pageview and custom-interaction retention boundary, protected-parent counts, and parent deletion after the last retained child expires; commit durable verification evidence.
 - **Shared disclosure reconciliation:** Update Systematic and dev-like privacy disclosures after the server-wide retention policy is enforced.
 - **Production activation:** Set the mrbro.dev `UMAMI_WEBSITE_ID` repository variable and redeploy only after the infrastructure evidence is reviewed.
 
@@ -114,7 +114,7 @@ The shared Umami deployment currently retains data indefinitely. Site integratio
 | Use one typed event catalog | Event names, property names, fixed values, privacy descriptions, and runtime checks derive from one committed catalog; project/blog identifiers are accepted only from committed snapshots. |
 | Inject the tracker at build time | A Vite HTML transform omits the script unless the build is production and the public website ID is present; no placeholder tag ships. |
 | Apply a browser-enforced meta CSP guard | Existing SPA/theme bootstraps become self-hosted executable assets before meta CSP is enabled; the policy precedes all resource-fetching markup. This is a document-delivered browser guard, not a substitute for unavailable response headers. Inline styles remain allowed because the theme system uses CSS custom-property style attributes. |
-| Use the website ID as the launch switch | Keep the repository variable unset until infra retention evidence exists; rollback removes the variable and redeploys. No second policy flag is introduced. |
+| Use the website ID as the launch switch | Keep the repository variable unset until infra evidence proves pageview/custom-interaction cleanup and bounded parent cleanup; rollback removes the variable and redeploys. No second policy flag is introduced. |
 | Add no dependency | The browser, React Router, Vite, and existing test stack already provide the required script, route, observer, and network-verification primitives. |
 
 ---
@@ -434,7 +434,7 @@ flowchart TB
 - Add `/privacy` to the router and the existing quiet footer metadata row, without adding it to the compact primary header navigation.
 - Render the enabled/disabled status from the same build-time configuration used for script injection.
 - Order the content for scanability: current status, what is and is not collected, DNT behavior, processing/retention, approved event inventory, then operator/service details.
-- Explain self-hosting, no cookies/PII/fingerprinting/cross-site sharing, DNT behavior, query/hash exclusion, approximate-location/IP processing boundaries, event inventory, and 13-month retention.
+- Explain self-hosting, no cookies/PII/fingerprinting/cross-site sharing, DNT behavior, query/hash exclusion, approximate-location/IP processing boundaries, event inventory, the pageview and custom-interaction retention boundary, and the bounded monthly session parent-row lifecycle.
 - State accurately that the tracker script may be fetched when DNT is enabled while pageview/custom-event payloads are suppressed.
 - Render the event inventory directly from privacy metadata in the typed catalog; do not create a parallel event-taxonomy projection.
 - Use semantic grouped content or a definition list that wraps cleanly at mobile widths and 200% zoom.
@@ -449,8 +449,8 @@ flowchart TB
 
 **Test scenarios:**
 
-- **Disabled build:** The page says analytics is disabled and does not claim active retention-backed collection.
-- **Enabled build:** The page describes the approved active collection and 13-month policy without exposing the website ID.
+- **Disabled build:** The page says analytics is disabled and names the verified activation prerequisite without claiming active retention-backed collection.
+- **Enabled build:** The page distinguishes the pageview and custom-interaction retention boundary from monthly session parent records, which remain only while they support retained events and are removed after the last retained child expires; the normal Umami monthly model bounds them to less than 14 months, without exposing the website ID.
 - **Inventory:** Every typed event family appears once; removed or arbitrary families do not appear.
 - **Responsive inventory:** Labels and descriptions remain readable without horizontal scrolling at mobile widths and 200% zoom.
 - **Navigation:** The footer link reaches `/privacy` from every public route and has an unambiguous accessible name.
@@ -486,8 +486,8 @@ flowchart TB
 - Use intercepted fixture tracker responses and collector requests for deterministic browser tests; do not send CI events to the production Umami website.
 - Verify the built HTML/tag contract separately from adapter behavior so a green mock cannot hide a malformed production tag.
 - Document the external infra prerequisite, the reviewed evidence reference, repository variable activation, production dashboard smoke event, and rollback by removing the variable and redeploying.
-- Require the activation record to reference evidence for the currently deployed infra commit and Umami version, and verify `UMAMI_WEBSITE_ID` is absent before the code merge/deploy that precedes activation.
-- Define a go/no-go matrix across retention evidence, repository-variable state, live tracker presence, privacy-page status, DNT behavior, and collector smoke results. Any disagreement is a no-go rather than a partial success.
+- Require the activation record to reference evidence for the currently deployed infra commit and Umami version, including pageview/custom-interaction cleanup, protected-parent counts, and parent deletion after the last retained child expires; verify `UMAMI_WEBSITE_ID` is absent before the code merge/deploy that precedes activation.
+- Define a go/no-go matrix across pageview/custom-interaction cleanup evidence, bounded parent cleanup evidence, repository-variable state, live tracker presence, privacy-page status, DNT behavior, and collector smoke results. Any disagreement is a no-go rather than a partial success.
 - Define rollback as variable removal followed by a verified deploy. If deployment fails or Pages still serves the enabled artifact, record an incident and continue remediation because collection may remain active despite the configuration change.
 - Require a final live check against the deployed tracker version before activation because the tracker is served by mutable shared infrastructure; exercise both manual pageviews and a catalog-generated declarative event under DNT.
 - Update agent documentation to remove stale analytics descriptions/counts and make the operational path discoverable.
@@ -502,7 +502,7 @@ flowchart TB
 - **CSP fixture:** Main and 404 routes operate under the emitted policy with no unexpected script/connect origin.
 - **CSP denial:** Supported-browser tests observe explicit disallowed script/connect attempts being blocked; documentation keeps the result scoped to meta-CSP behavior rather than claiming response-header parity.
 - **Direct-route integration:** A built non-root route enters through the 404 document under CSP, restores the final pathname, emits that pathname once, and never emits the temporary redirect query.
-- **Production smoke after activation:** One `/privacy` pageview and one real catalog event appear for the mrbro.dev website with exact expected properties and no query/hash data; repeating under DNT produces none.
+- **Production smoke after activation:** One `/privacy` pageview and one real catalog event appear for the mrbro.dev website with exact expected properties and no query/hash data; repeating under DNT produces none. Activation evidence separately proves pageview/custom-interaction cleanup and bounded parent cleanup.
 - **Rollback:** Removing the repository variable and redeploying removes the tag and returns `/privacy` to disabled status; stale Pages output or disclosure/script disagreement is a failed rollback that remains open until the live artifact is corrected.
 
 **Verification:**
@@ -527,7 +527,7 @@ flowchart TB
 
 | Risk | Mitigation |
 | --- | --- |
-| Current Umami server retains data indefinitely | Keep the website ID unset until separate infra cleanup/evidence work is merged and reviewed against the currently deployed infra commit and Umami version. |
+| Current Umami server retains data indefinitely | Keep the website ID unset until separate infra cleanup/evidence work proves the pageview and custom-interaction retention boundary, protected-parent counts, and parent deletion after the last retained child expires, reviewed against the currently deployed infra commit and Umami version. |
 | Manual pageviews double with tracker automation | Emit `data-auto-pageview="false"` and test exact request counts across initial/link/replace/back/forward navigation. |
 | Async tracker loads after navigation | Retain only the latest pending pathname and send it once on readiness; drop nonessential pre-readiness custom events. |
 | Tracker source changes on shared infrastructure | Verify the live script contract before activation and after server upgrades; keep activation reversible through the repository variable. |

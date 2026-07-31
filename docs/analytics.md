@@ -2,7 +2,7 @@
 
 ## Current state
 
-**Disabled.** As of July 31, 2026, the repository variable `UMAMI_WEBSITE_ID` must remain unset. The self-hosted Umami service at `metrics.fro.bot` currently retains data indefinitely, so production collection is not approved. Separate work in `marcusrbrown/infra` must enforce 13-month rolling retention and publish version-controlled evidence before activation review.
+**Disabled.** As of July 31, 2026, the repository variable `UMAMI_WEBSITE_ID` must remain unset. The self-hosted Umami service at `metrics.fro.bot` currently retains data indefinitely, so production collection is not approved. Separate work in `marcusrbrown/infra` must enforce the approved retention boundary and publish version-controlled evidence before activation review.
 
 This repository's feature work does not set the variable and must not be described as production analytics activation. With the variable unset, the production build contains no analytics tracker.
 
@@ -25,14 +25,17 @@ The contract is:
 - Search queries, error strings, and custom user-authored theme values are not collected.
 - The event catalog is bounded and typed. Current event families are: `navigation`, `section_view`, `project_open`, `blog_open`, `contact_open`, `external_profile_open`, and `theme_change`. Properties are restricted to approved destinations, mechanisms, actions, sources, snapshot-backed project IDs and blog slugs, contact method, profile destination, theme mode, and committed preset ID.
 - The processor is self-hosted at `metrics.fro.bot` and is not a third-party analytics processor.
-- A 13-month maximum retention target applies only after version-controlled infrastructure evidence proves rolling cleanup and enforcement. It is not the current state.
+- Pageview and custom-interaction records are retained no longer than 13 months.
+- Monthly session parent records remain only while they support retained events and are removed after the last retained child expires—less than 14 months under Umami's monthly model.
+- This refines the existing 13-month policy; it is not a GDPR or privacy redesign. The boundary applies only after version-controlled infrastructure evidence proves both controls. It is not the current state.
 
 ## Preconditions for activation
 
 Activation is a deliberate human gate. Do not set `UMAMI_WEBSITE_ID` until all of the following are recorded and reviewed:
 
 - A version-controlled `marcusrbrown/infra` evidence artifact is pinned to the exact deployed infrastructure commit and exact deployed Umami version.
-- The evidence proves 13-month rolling cleanup and enforcement, not merely a configuration intent or an unverified dashboard setting.
+- The evidence proves pageview and custom-interaction records are retained no longer than 13 months, not merely a configuration intent or an unverified dashboard setting.
+- The evidence includes protected-parent counts and proves that monthly session parent records are deleted after their last retained child expires. It must also show that the normal Umami monthly model bounds them to less than 14 months.
 - Service ownership, processing behavior, and retention match this disclosure and the `/privacy` page.
 - The exact `mrbro.dev` repository commit and GitHub Pages deployment to activate are identified.
 - The repository variable is still unset immediately before the activation review.
@@ -43,7 +46,7 @@ Every row must pass. Any mismatch is **NO-GO**.
 
 | Check | PASS condition |
 | --- | --- |
-| Retention evidence | Version-controlled evidence is pinned to the deployed infra commit and Umami version and proves 13-month rolling cleanup/enforcement. |
+| Retention evidence | Version-controlled evidence is pinned to the deployed infra commit and Umami version, proves pageview and custom-interaction records are retained no longer than 13 months, includes protected-parent counts, and proves parent deletion after the last retained child expires. |
 | Variable state | `UMAMI_WEBSITE_ID` is unset during review; it is set only after approval and contains the approved public site ID. |
 | Built tag | The activation build has exactly one `https://metrics.fro.bot/script.js` tag with `data-website-id`, `data-do-not-track="true"`, `data-exclude-search="true"`, `data-exclude-hash="true"`, and `data-auto-pageview="false"`. |
 | `/privacy` status | The live page reports analytics enabled for the same build that contains the tracker. |
@@ -55,7 +58,7 @@ Every row must pass. Any mismatch is **NO-GO**.
 
 This procedure is future-facing and gated. Do not use it while retention evidence is incomplete. Do not place a real website ID in this document.
 
-1. Verify the preconditions and complete the go/no-go matrix. Record the exact infra commit, Umami version, evidence path/hash, site commit, and deployment.
+1. Verify the preconditions and complete the go/no-go matrix. Record the exact infra commit, Umami version, evidence path/hash, pageview/custom-interaction cleanup result, protected-parent counts, parent-deletion-after-last-retained-child result, site commit, and deployment.
 2. After approval, set the repository variable `UMAMI_WEBSITE_ID` to the approved public site ID. Do not expose it as a secret or at workflow/job scope.
 3. Dispatch or await the deploy workflow and identify the resulting GitHub Pages deployment.
 4. Inspect the live document head. Confirm the exact tracker URL, one tag only, the required privacy attributes, and the expected `data-website-id`.
@@ -143,7 +146,7 @@ printf 'mrbro.dev commit: %s\nDeploy workflow run: %s\nInfra commit: %s\nUmami v
   "$SITE_COMMIT" "$DEPLOY_RUN_URL" "$INFRA_COMMIT" "$UMAMI_VERSION" "$RETENTION_EVIDENCE_PATH" "$RETENTION_EVIDENCE_HASH"
 ```
 
-In a browser, open `https://mrbro.dev/privacy` and confirm the visible status says: **“Analytics are enabled for this build.”** Complete the controlled smoke and Do Not Track checks before recording results. Create and commit `docs/analytics-activation-records/YYYY-MM-DD.md` from the template below, including the exact site commit/deploy run, infra commit, Umami version, evidence path/hash, live tag result, visible `/privacy` result, smoke results, and rollback evidence. Do not create a record during preparation.
+In a browser, open `https://mrbro.dev/privacy` and confirm the visible status says: **“Analytics are enabled for this build.”** Complete the controlled smoke and Do Not Track checks before recording results. Create and commit `docs/analytics-activation-records/YYYY-MM-DD.md` from the template below, including the exact site commit/deploy run, infra commit, Umami version, evidence path/hash, pageview/custom-interaction cleanup result, protected-parent counts, parent-deletion-after-last-retained-child result, live tag result, visible `/privacy` result, smoke results, and rollback evidence. Do not create a record during preparation.
 
 ## Activation record template
 
@@ -154,6 +157,9 @@ Deploy workflow run/deploy:
 Infra commit:
 Umami version:
 Retention evidence path/hash:
+Pageview/custom-interaction cleanup result:
+Protected-parent counts:
+Parent deletion after last retained child result:
 Review date:
 Reviewer:
 Repository variable state before review:

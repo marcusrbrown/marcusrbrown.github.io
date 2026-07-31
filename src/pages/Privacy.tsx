@@ -23,8 +23,9 @@ export const Privacy: React.FC<PrivacyProps> = ({isEnabled = __UMAMI_ENABLED__})
           <div className="privacy-page__status-prose" data-analytics-state={isEnabled ? 'enabled' : 'disabled'}>
             {isEnabled ? (
               <p>
-                <strong>Analytics are enabled for this build.</strong> Records are retained no longer than 13 months and
-                are subject to the limits described below.
+                <strong>Analytics are enabled for this build.</strong> Pageview and custom-interaction records are
+                retained no longer than 13 months. Monthly session parent rows persist only until the last retained
+                child expires. Under Umami's monthly model, this bounds session data to less than 14 months.
               </p>
             ) : (
               <p>
@@ -97,11 +98,17 @@ export const Privacy: React.FC<PrivacyProps> = ({isEnabled = __UMAMI_ENABLED__})
         <div className="privacy-page__section-body">
           <ul className="privacy-page__list">
             {isEnabled ? (
-              <li>When enabled, records are retained no longer than 13 months.</li>
+              <>
+                <li>Pageview and custom-interaction records are retained no longer than 13 months.</li>
+                <li>
+                  Monthly session parent records remain only while they support retained events and are removed after
+                  the last retained child expires—less than 14 months under Umami's monthly session model.
+                </li>
+              </>
             ) : (
               <li>
-                Analytics stays off until the 13-month retention policy has current version-controlled verification.
-                Deployment configuration and the operator control activation.
+                Analytics remains disabled until version-controlled evidence proves both controls. Deployment
+                configuration alone does not activate collection; the operator controls activation.
               </li>
             )}
             <li>

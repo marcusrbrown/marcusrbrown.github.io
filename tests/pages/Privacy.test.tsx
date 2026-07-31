@@ -35,10 +35,17 @@ describe('Privacy Page Component', () => {
 
     const retention = container.querySelector('#retention-heading')?.parentElement
     expect(retention).toHaveTextContent(
-      /analytics stays off until the 13-month retention policy has current version-controlled verification/i,
+      'Analytics remains disabled until version-controlled evidence proves both controls.',
     )
-    expect(retention).toHaveTextContent(/deployment configuration and the operator control activation/i)
-    expect(retention).not.toHaveTextContent(/records are retained no longer than 13 months/i)
+    expect(retention).toHaveTextContent(
+      'Deployment configuration alone does not activate collection; the operator controls activation.',
+    )
+    expect(retention).not.toHaveTextContent(
+      'Pageview and custom-interaction records are retained no longer than 13 months.',
+    )
+    expect(retention).not.toHaveTextContent(
+      'Monthly session parent records remain only while they support retained events',
+    )
   })
 
   it('renders enabled status and conditional retention policy', () => {
@@ -47,7 +54,15 @@ describe('Privacy Page Component', () => {
 
     expect(statusProse).toBeInTheDocument()
     expect(statusProse).toHaveTextContent(/analytics are enabled/i)
-    expect(statusProse).toHaveTextContent(/retained no longer than 13 months/i)
+    expect(statusProse).toHaveTextContent(
+      'Pageview and custom-interaction records are retained no longer than 13 months.',
+    )
+    expect(statusProse).toHaveTextContent(
+      'Monthly session parent rows persist only until the last retained child expires.',
+    )
+    expect(statusProse).toHaveTextContent(
+      "Under Umami's monthly model, this bounds session data to less than 14 months.",
+    )
     expect(statusProse).toHaveAttribute('data-analytics-state', 'enabled')
 
     const statusLead = statusProse?.querySelector('strong')
@@ -55,7 +70,12 @@ describe('Privacy Page Component', () => {
     expect(statusLead).toHaveTextContent('Analytics are enabled for this build.')
 
     const retention = container.querySelector('#retention-heading')?.parentElement
-    expect(retention).toHaveTextContent(/records are retained no longer than 13 months/i)
+    expect(retention).toHaveTextContent(
+      'Pageview and custom-interaction records are retained no longer than 13 months.',
+    )
+    expect(retention).toHaveTextContent(
+      "Monthly session parent records remain only while they support retained events and are removed after the last retained child expires—less than 14 months under Umami's monthly session model.",
+    )
   })
 
   it('renders the sections in the published order', () => {
