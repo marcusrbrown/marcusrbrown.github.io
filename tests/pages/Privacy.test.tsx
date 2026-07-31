@@ -27,6 +27,11 @@ describe('Privacy Page Component', () => {
     expect(statusProse).toHaveTextContent(/analytics are disabled/i)
     expect(statusProse).toHaveTextContent(/no tracker script/i)
     expect(statusProse).toHaveTextContent(/no pageview/i)
+    expect(statusProse).toHaveAttribute('data-analytics-state', 'disabled')
+
+    const statusLead = statusProse?.querySelector('strong')
+    expect(statusLead).toBeInTheDocument()
+    expect(statusLead).toHaveTextContent('Analytics are disabled for this build.')
 
     const retention = container.querySelector('#retention-heading')?.parentElement
     expect(retention).toHaveTextContent(
@@ -43,6 +48,11 @@ describe('Privacy Page Component', () => {
     expect(statusProse).toBeInTheDocument()
     expect(statusProse).toHaveTextContent(/analytics are enabled/i)
     expect(statusProse).toHaveTextContent(/retained no longer than 13 months/i)
+    expect(statusProse).toHaveAttribute('data-analytics-state', 'enabled')
+
+    const statusLead = statusProse?.querySelector('strong')
+    expect(statusLead).toBeInTheDocument()
+    expect(statusLead).toHaveTextContent('Analytics are enabled for this build.')
 
     const retention = container.querySelector('#retention-heading')?.parentElement
     expect(retention).toHaveTextContent(/records are retained no longer than 13 months/i)
@@ -59,6 +69,30 @@ describe('Privacy Page Component', () => {
       'Approved event inventory',
       'Operator/service details',
     ])
+  })
+
+  it('renders collection subgroups in order', () => {
+    render(<PrivacyWrapper isEnabled={false} />)
+
+    expect(screen.getAllByRole('heading', {level: 3}).map(heading => heading.textContent)).toEqual([
+      'Collected when enabled',
+      'Never collected',
+    ])
+  })
+
+  it('pairs every level-two section with exactly one section body wrapper', () => {
+    render(<PrivacyWrapper isEnabled={false} />)
+
+    expect(document.querySelectorAll('.privacy-page__section-body')).toHaveLength(6)
+
+    screen.getAllByRole('heading', {level: 2}).forEach(heading => {
+      const section = heading.closest('section')
+      expect(section).toBeInTheDocument()
+
+      if (section === null) return
+
+      expect(section.querySelectorAll('.privacy-page__section-body')).toHaveLength(1)
+    })
   })
 
   it('renders approved event inventory exactly once from the metadata', () => {
