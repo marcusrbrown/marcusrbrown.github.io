@@ -11,6 +11,9 @@ interface Window {
    * unconfigured production builds, or before the async script mounts.
    */
   umami?: {
-    track: (nameOrPayload?: string | Record<string, unknown>, data?: Record<string, unknown>) => void
+    track: {
+      (transform: (properties: Record<string, unknown>) => Record<string, unknown>): void
+      (name: string, data?: Record<string, unknown>): void
+    }
   }
 }

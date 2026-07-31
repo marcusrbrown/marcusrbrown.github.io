@@ -210,7 +210,7 @@ export const trackUmamiPageview = (pathname: string): UmamiSendOutcome => {
   if (normalizedPathname === undefined) return 'dropped-by-policy'
   if (!isUmamiTrackerAvailable()) return 'unavailable'
   try {
-    window.umami?.track({url: normalizedPathname})
+    window.umami?.track(properties => ({...properties, url: normalizedPathname}))
     return 'sent'
   } catch {
     return 'unavailable'

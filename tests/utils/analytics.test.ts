@@ -130,13 +130,33 @@ describe('typed Umami adapter and catalog', () => {
   })
 
   describe('trackUmamiPageview', () => {
-    it('sends a normalized pageview when the tracker is ready and DNT is off', async () => {
-      const track = vi.fn()
+    type TrackerProperties = Record<string, unknown> & {url?: string}
+    const defaultTrackerProperties: TrackerProperties = {
+      website: 'website-id',
+      hostname: 'example.test',
+      referrer: 'https://referrer.example/',
+      screen: '1440x900',
+      language: 'en-US',
+      title: 'Example',
+      url: '/current',
+    }
+
+    const expectNormalizedPageview = async (pathname: string, expectedUrl: string): Promise<void> => {
+      let transformedProperties: TrackerProperties | undefined
+      const track = vi.fn((transform: (properties: TrackerProperties) => TrackerProperties) => {
+        transformedProperties = transform(defaultTrackerProperties)
+      })
       vi.stubGlobal('umami', {track})
       const {trackUmamiPageview} = await importCore()
-      const outcome = trackUmamiPageview(`/blog/${KNOWN_BLOG_SLUG}?ref=campaign#section`)
-      expect(outcome).toBe('sent')
-      expect(track).toHaveBeenCalledWith({url: `/blog/${KNOWN_BLOG_SLUG}`})
+
+      expect(trackUmamiPageview(pathname)).toBe('sent')
+      expect(track).toHaveBeenCalledWith(expect.any(Function))
+      expect(transformedProperties).toStrictEqual({...defaultTrackerProperties, url: expectedUrl})
+    }
+
+    it('sends a normalized pageview when the tracker is ready and DNT is off', async () => {
+      expect.assertions(3)
+      await expectNormalizedPageview(`/blog/${KNOWN_BLOG_SLUG}?ref=campaign#section`, `/blog/${KNOWN_BLOG_SLUG}`)
     })
 
     it('reports unavailable and sends nothing before the tracker mounts', async () => {
@@ -213,36 +233,24 @@ describe('typed Umami adapter and catalog', () => {
     })
 
     it('accepts a bare "/" pathname', async () => {
-      const track = vi.fn()
-      vi.stubGlobal('umami', {track})
-      const {trackUmamiPageview} = await importCore()
-      expect(trackUmamiPageview('/')).toBe('sent')
-      expect(track).toHaveBeenCalledWith({url: '/'})
+      expect.assertions(3)
+      await expectNormalizedPageview('/', '/')
     })
 
     it.each(['/about', '/projects', '/blog', '/privacy'])('sends approved static path %s', async pathname => {
-      const track = vi.fn()
-      vi.stubGlobal('umami', {track})
-      const {trackUmamiPageview} = await importCore()
-      expect(trackUmamiPageview(pathname)).toBe('sent')
-      expect(track).toHaveBeenCalledWith({url: pathname})
+      expect.assertions(3)
+      await expectNormalizedPageview(pathname, pathname)
     })
 
     it('sends a known committed blog slug', async () => {
-      const track = vi.fn()
-      vi.stubGlobal('umami', {track})
-      const {trackUmamiPageview} = await importCore()
+      expect.assertions(3)
       const path = `/blog/${KNOWN_BLOG_SLUG}`
-      expect(trackUmamiPageview(path)).toBe('sent')
-      expect(track).toHaveBeenCalledWith({url: path})
+      await expectNormalizedPageview(path, path)
     })
 
     it('strips query and hash from a valid pathname before sending', async () => {
-      const track = vi.fn()
-      vi.stubGlobal('umami', {track})
-      const {trackUmamiPageview} = await importCore()
-      expect(trackUmamiPageview('/projects?filter=react#top')).toBe('sent')
-      expect(track).toHaveBeenCalledWith({url: '/projects'})
+      expect.assertions(3)
+      await expectNormalizedPageview('/projects?filter=react#top', '/projects')
     })
 
     it.each([

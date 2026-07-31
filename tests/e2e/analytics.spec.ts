@@ -22,7 +22,7 @@ interface CspViolation {
 }
 
 type FixtureCollectorPayload =
-  {type: 'pageview'; url: string} | {type: 'event'; name: string; data: Record<string, string>}
+  {type: 'pageview'; website: string; url: string} | {type: 'event'; name: string; data: Record<string, string>}
 
 interface FixtureTrackerBoundary {
   collectorRequests: FixtureCollectorPayload[]
@@ -50,12 +50,31 @@ const FIXTURE_TRACKER_SCRIPT = `
   }
 
   window.umami = {
-    track(nameOrPayload, data) {
-      if (typeof nameOrPayload === 'string') {
-        send({type: 'event', name: nameOrPayload, data: data ?? {}})
-      } else {
-        send({type: 'pageview', url: nameOrPayload?.url ?? ''})
+    track(nameOrTransform, data) {
+      if (typeof nameOrTransform === 'function') {
+        const properties = nameOrTransform({
+          website: script?.dataset.websiteId ?? '',
+          hostname: location.hostname,
+          referrer: document.referrer,
+          screen: window.screen.width + 'x' + window.screen.height,
+          language: navigator.language,
+          title: document.title,
+          url: location.pathname,
+        })
+        send({
+          type: 'pageview',
+          website: properties?.website,
+          url: typeof properties?.url === 'string' ? properties.url : '',
+        })
+        return
       }
+
+      if (typeof nameOrTransform === 'string') {
+        send({type: 'event', name: nameOrTransform, data: data ?? {}})
+        return
+      }
+
+      throw new TypeError('Unsupported Umami track overload')
     },
   }
 
@@ -80,8 +99,30 @@ const stubReadyUmamiTracker = async (page: Page) => {
   await page.addInitScript(() => {
     window.__umamiTrackCalls = []
     window.umami = {
-      track: (...args: unknown[]) => {
-        window.__umamiTrackCalls?.push(args)
+      track: (
+        nameOrTransform: string | ((properties: Record<string, unknown>) => Record<string, unknown>),
+        data?: Record<string, unknown>,
+      ) => {
+        if (typeof nameOrTransform === 'function') {
+          const properties = nameOrTransform({
+            website: 'e2e-fixture',
+            hostname: location.hostname,
+            referrer: document.referrer,
+            screen: `${window.screen.width}x${window.screen.height}`,
+            language: navigator.language,
+            title: document.title,
+            url: location.pathname,
+          })
+          window.__umamiTrackCalls?.push([properties])
+          return
+        }
+
+        if (typeof nameOrTransform === 'string') {
+          window.__umamiTrackCalls?.push([nameOrTransform, data])
+          return
+        }
+
+        throw new TypeError('Unsupported Umami track overload')
       },
     }
   })
@@ -117,7 +158,9 @@ const isStringRecord = (value: unknown): value is Record<string, string> =>
 
 const isFixtureCollectorPayload = (value: unknown): value is FixtureCollectorPayload => {
   if (!isRecord(value) || (value.type !== 'pageview' && value.type !== 'event')) return false
-  if (value.type === 'pageview') return typeof value.url === 'string'
+  if (value.type === 'pageview') {
+    return typeof value.website === 'string' && value.website.length > 0 && typeof value.url === 'string'
+  }
   return typeof value.name === 'string' && isStringRecord(value.data)
 }
 
@@ -354,7 +397,7 @@ test.describe('Configured analytics fixture integration', () => {
     await page.waitForLoadState('networkidle')
     await expectFixtureTrackerReady(page, boundary)
     await expect.poll(() => boundary.collectorRequests.length).toBe(1)
-    expect(boundary.collectorRequests).toStrictEqual([{type: 'pageview', url: '/projects'}])
+    expect(boundary.collectorRequests).toStrictEqual([{type: 'pageview', website: 'e2e-fixture', url: '/projects'}])
 
     const projectCard = await openAndCloseProjectPreview(page)
     const projectId = await projectCard
@@ -371,10 +414,10 @@ test.describe('Configured analytics fixture integration', () => {
 
     expect(boundary.collectorRequests).toHaveLength(4)
     expect(boundary.collectorRequests).toStrictEqual([
-      {type: 'pageview', url: '/projects'},
+      {type: 'pageview', website: 'e2e-fixture', url: '/projects'},
       {type: 'event', name: 'project_open', data: {action: 'preview', project_id: projectId, source: 'gallery'}},
       {type: 'event', name: 'navigation', data: {destination: 'privacy', method: 'route_link'}},
-      {type: 'pageview', url: '/privacy'},
+      {type: 'pageview', website: 'e2e-fixture', url: '/privacy'},
     ])
     expect(boundary.collectorRequests.filter(request => request.type === 'event')).toHaveLength(2)
     expect(boundary.unexpectedRequests).toHaveLength(0)
@@ -434,10 +477,12 @@ test.describe('Configured analytics fixture integration', () => {
     expect(finalUrl.search).toBe('')
     expect(finalUrl.hash).toBe('')
     expect(page.url()).not.toContain('?p=')
-    await expect.poll(() => boundary.collectorRequests).toStrictEqual([{type: 'pageview', url: '/projects'}])
+    await expect
+      .poll(() => boundary.collectorRequests)
+      .toStrictEqual([{type: 'pageview', website: 'e2e-fixture', url: '/projects'}])
     await waitForCollectorStability(page)
     expect(boundary.collectorRequests).toHaveLength(1)
-    expect(boundary.collectorRequests).toStrictEqual([{type: 'pageview', url: '/projects'}])
+    expect(boundary.collectorRequests).toStrictEqual([{type: 'pageview', website: 'e2e-fixture', url: '/projects'}])
     expect(JSON.stringify(boundary.collectorRequests)).not.toMatch(/[?#]/)
     await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1)
     await assertMetaCspBlocksEvilOrigins(page)
@@ -490,8 +535,30 @@ test.describe('Analytics DNT suppression', () => {
       window.__umamiTrackCalls = []
       Object.defineProperty(navigator, 'doNotTrack', {value: '1', configurable: true})
       window.umami = {
-        track: (...args: unknown[]) => {
-          window.__umamiTrackCalls?.push(args)
+        track: (
+          nameOrTransform: string | ((properties: Record<string, unknown>) => Record<string, unknown>),
+          data?: Record<string, unknown>,
+        ) => {
+          if (typeof nameOrTransform === 'function') {
+            const properties = nameOrTransform({
+              website: 'e2e-fixture',
+              hostname: location.hostname,
+              referrer: document.referrer,
+              screen: `${window.screen.width}x${window.screen.height}`,
+              language: navigator.language,
+              title: document.title,
+              url: location.pathname,
+            })
+            window.__umamiTrackCalls?.push([properties])
+            return
+          }
+
+          if (typeof nameOrTransform === 'string') {
+            window.__umamiTrackCalls?.push([nameOrTransform, data])
+            return
+          }
+
+          throw new TypeError('Unsupported Umami track overload')
         },
       }
     })
@@ -568,8 +635,30 @@ test.describe('Analytics tracker unavailability', () => {
     // fixture script tag — the exact signal onUmamiTrackerReady waits for.
     await page.evaluate(() => {
       window.umami = {
-        track: (...args: unknown[]) => {
-          window.__umamiTrackCalls?.push(args)
+        track: (
+          nameOrTransform: string | ((properties: Record<string, unknown>) => Record<string, unknown>),
+          data?: Record<string, unknown>,
+        ) => {
+          if (typeof nameOrTransform === 'function') {
+            const properties = nameOrTransform({
+              website: 'e2e-fixture',
+              hostname: location.hostname,
+              referrer: document.referrer,
+              screen: `${window.screen.width}x${window.screen.height}`,
+              language: navigator.language,
+              title: document.title,
+              url: location.pathname,
+            })
+            window.__umamiTrackCalls?.push([properties])
+            return
+          }
+
+          if (typeof nameOrTransform === 'string') {
+            window.__umamiTrackCalls?.push([nameOrTransform, data])
+            return
+          }
+
+          throw new TypeError('Unsupported Umami track overload')
         },
       }
       const script = document.querySelector<HTMLScriptElement>(
