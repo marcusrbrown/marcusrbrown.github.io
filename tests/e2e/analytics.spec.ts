@@ -185,9 +185,23 @@ const installFixtureTracker = async (page: Page, doNotTrack = false): Promise<Fi
   return boundary
 }
 
-const expectFixtureTrackerReady = async (page: Page, boundary: FixtureTrackerBoundary): Promise<void> => {
-  await expect.poll(() => boundary.scriptRequests).toStrictEqual([FIXTURE_TRACKER_URL])
-  await expect.poll(() => boundary.scriptFulfillments).toStrictEqual([FIXTURE_TRACKER_URL])
+interface FixtureTrackerReadyOptions {
+  allowCrossDocumentRequests?: boolean
+}
+
+const expectFixtureTrackerReady = async (
+  page: Page,
+  boundary: FixtureTrackerBoundary,
+  options: FixtureTrackerReadyOptions = {},
+): Promise<void> => {
+  if (options.allowCrossDocumentRequests) {
+    await expect.poll(() => boundary.scriptRequests).toContain(FIXTURE_TRACKER_URL)
+    await expect.poll(() => boundary.scriptFulfillments).toContain(FIXTURE_TRACKER_URL)
+  } else {
+    await expect.poll(() => boundary.scriptRequests).toStrictEqual([FIXTURE_TRACKER_URL])
+    await expect.poll(() => boundary.scriptFulfillments).toStrictEqual([FIXTURE_TRACKER_URL])
+  }
+
   const script = page.locator(`script[src="${FIXTURE_TRACKER_URL}"][data-website-id="e2e-fixture"]`)
   await expect(script).toHaveCount(1)
   await expect(script).toHaveAttribute('data-do-not-track', 'true')
@@ -412,7 +426,7 @@ test.describe('Configured analytics fixture integration', () => {
     await page.goto('/projects', {waitUntil: 'commit'})
     await expect(page).toHaveURL(/\/projects$/)
     await expect(page.locator('#root')).toBeVisible()
-    await expectFixtureTrackerReady(page, boundary)
+    await expectFixtureTrackerReady(page, boundary, {allowCrossDocumentRequests: true})
 
     expect(interceptedUrl).toMatch(/\/projects$/)
     const finalUrl = new URL(page.url())
@@ -427,6 +441,33 @@ test.describe('Configured analytics fixture integration', () => {
     expect(JSON.stringify(boundary.collectorRequests)).not.toMatch(/[?#]/)
     await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveCount(1)
     await assertMetaCspBlocksEvilOrigins(page)
+  })
+
+  test('restores an unknown 404 route but sends no analytics payloads', async ({page}) => {
+    const boundary = await installFixtureTracker(page)
+    let interceptedUrl: string | undefined
+
+    await page.route('**/*', async route => {
+      const requestUrl = new URL(route.request().url())
+      if (requestUrl.pathname !== '/reset/alice@example.com' || requestUrl.search !== '') {
+        await route.fallback()
+        return
+      }
+
+      interceptedUrl = route.request().url()
+      await route.fulfill({status: 404, contentType: 'text/html', body: FOUR_OH_FOUR_BODY})
+    })
+
+    await page.goto('/reset/alice@example.com', {waitUntil: 'commit'})
+    await expect(page).toHaveURL(/\/reset\/alice@example\.com$/)
+    await expect(page.locator('#root')).toBeVisible()
+    await expectFixtureTrackerReady(page, boundary, {allowCrossDocumentRequests: true})
+
+    expect(interceptedUrl).toMatch(/\/reset\/alice@example\.com$/)
+    expect((await page.locator('body').textContent())?.trim().length ?? 0).toBeGreaterThan(50)
+    await waitForCollectorStability(page)
+    expect(boundary.collectorRequests).toStrictEqual([])
+    expect(boundary.unexpectedRequests).toHaveLength(0)
   })
 })
 
