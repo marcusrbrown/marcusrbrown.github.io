@@ -1,5 +1,28 @@
+import {readFileSync} from 'node:fs'
+import {resolve} from 'node:path'
 import {expect, test} from '@playwright/test'
 import {BlogPostPage} from './pages/BlogPostPage'
+
+interface BlogSnapshotPost {
+  slug: string
+  frontmatter: {
+    title: string
+  }
+}
+
+interface BlogSnapshot {
+  posts: BlogSnapshotPost[]
+}
+
+const blogSnapshotPath = resolve(process.cwd(), process.env.BLOG_SNAPSHOT ?? 'src/data/blog-snapshot.json')
+const blogSnapshot = JSON.parse(readFileSync(blogSnapshotPath, 'utf8')) as BlogSnapshot
+
+const getFirstBlogPost = (): BlogSnapshotPost => {
+  const firstPost = blogSnapshot.posts[0]
+  expect(firstPost, 'The selected E2E blog snapshot must contain at least one post').toBeDefined()
+  if (!firstPost) throw new Error('The selected E2E blog snapshot must contain at least one post')
+  return firstPost
+}
 
 /**
  * Smoke tests that verify the deployed site loads correctly and all
@@ -63,7 +86,8 @@ test.describe('Base Path Smoke Tests', () => {
   })
 
   test('sub-pages load successfully', async ({page}) => {
-    const paths = ['/about', '/projects', '/blog', '/blog/welcome-to-the-blog']
+    const firstPost = getFirstBlogPost()
+    const paths = ['/about', '/projects', '/blog', '/privacy', `/blog/${firstPost.slug}`]
 
     for (const path of paths) {
       const response = await page.goto(path)
@@ -72,16 +96,24 @@ test.describe('Base Path Smoke Tests', () => {
 
       const rootElement = page.locator('#root')
       await expect(rootElement, `${path} should render content`).toBeVisible()
+
+      if (path === '/privacy') {
+        await expect(page.getByRole('heading', {name: 'Privacy & analytics disclosure', exact: true})).toBeVisible()
+        await expect(
+          page.getByRole('heading', {name: 'What analytics collects — and what it does not', exact: true}),
+        ).toBeVisible()
+      }
     }
   })
 
   test('direct load of a prerendered post renders content without SPA redirect', async ({page}) => {
+    const firstPost = getFirstBlogPost()
     const blogPostPage = new BlogPostPage(page)
-    const response = await page.goto('/blog/welcome-to-the-blog')
+    const response = await page.goto(`/blog/${firstPost.slug}`)
     expect(response?.status()).toBeLessThan(400)
     await page.waitForLoadState('networkidle')
 
-    await expect(blogPostPage.title).toHaveText('Welcome to the Blog')
+    await expect(blogPostPage.title).toHaveText(firstPost.frontmatter.title)
     await expect(blogPostPage.body).toBeVisible()
   })
 

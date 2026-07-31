@@ -2,6 +2,7 @@ import {render, screen, within} from '@testing-library/react'
 import {MemoryRouter} from 'react-router-dom'
 import {describe, expect, it} from 'vitest'
 import BlogPost from '../../src/components/BlogPost'
+import {buildUmamiEventAttributes} from '../../src/utils/analytics'
 
 describe('BlogPost Component', () => {
   const defaultProps = {
@@ -93,5 +94,29 @@ describe('BlogPost Component', () => {
     expect(screen.getByRole('heading')).toHaveTextContent('<img src=x onerror=alert(1)>Hostile Title')
     expect(document.querySelector('script')).not.toBeInTheDocument()
     expect(document.querySelector('.blog-post__tag img')).not.toBeInTheDocument()
+  })
+
+  it('should apply umami analytics attributes if the slug is valid (snapshot ID)', () => {
+    const validProps = {
+      ...defaultProps,
+      slug: 'i-taught-my-agent-to-develop-like-the-shops-i-admire',
+    }
+    renderWithRouter(validProps)
+    const link = screen.getByRole('link', {name: 'My Blog Post'})
+    const expectedAttrs = buildUmamiEventAttributes('blog_open', {
+      slug: 'i-taught-my-agent-to-develop-like-the-shops-i-admire',
+      source: 'card',
+    })
+
+    expect(link).toHaveAttribute('data-umami-event', expectedAttrs?.['data-umami-event'])
+    expect(link).toHaveAttribute('data-umami-event-slug', expectedAttrs?.['data-umami-event-slug'])
+    expect(link).toHaveAttribute('data-umami-event-source', expectedAttrs?.['data-umami-event-source'])
+  })
+
+  it('should NOT apply umami analytics attributes if the slug is invalid (fails closed)', () => {
+    renderWithRouter(defaultProps)
+    const link = screen.getByRole('link', {name: 'My Blog Post'})
+    expect(link).not.toHaveAttribute('data-umami-event')
+    expect(link).not.toHaveAttribute('data-umami-event-slug')
   })
 })

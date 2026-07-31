@@ -29,6 +29,12 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 - `scripts/fixtures/live-audit/` — Redacted real-shape GitHub issue, comment, permission, release, asset, search, and close-event fixtures.
 - `e2e/live-audit-evidence.spec.ts` — Chromium evidence spec for target-visible context/crop screenshots, closed assertion replay, and bounded action replay. It is not part of the default Vitest suite.
 
+## Analytics Coverage
+
+- `utils/analytics.test.ts` — typed catalog validation, DNT suppression, normalized pageviews, readiness, and `/privacy` metadata coupling.
+- `scripts/analytics-config.test.ts` — production-only tracker injection, required privacy attributes, and deploy-step variable scoping.
+- `e2e/analytics.spec.ts` — exact-once router pageviews; configured-like typed/direct and catalog-generated declarative events; DNT, tracker outage/readiness, normalized paths, meta-CSP denial, and real 404 restoration. Source/state tests may stub `window.umami`; configured-like tests fulfill fixture tracker/collector responses through Playwright interception. All `metrics.fro.bot` traffic is intercepted, so no test reaches production.
+
 ## Test Matrices
 
 - **Visual**: 2 themes (light/dark) × 2 breakpoints (375/1440px), ~28 tests
@@ -39,7 +45,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 - **Thresholds**: 80% statements/branches/functions/lines (enforced in Vite config)
 - **Provider**: V8
-- **Gap**: `hooks/` — only 3 of 9 hooks tested. Priority: `UseTheme`, `UseGitHub`
+- **Hooks**: `tests/hooks/` uses matching filenames; currently every hook except `UseSyntaxHighlighting.ts` and `UseThemeContext.ts` has a corresponding test file. Prefer this pattern over a hard-coded coverage count as hooks change.
 
 ## Visual Baselines
 

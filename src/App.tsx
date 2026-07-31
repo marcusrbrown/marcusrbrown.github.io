@@ -1,5 +1,6 @@
 import React from 'react'
 import {Route, BrowserRouter as Router, Routes} from 'react-router-dom'
+import {AnalyticsTracker} from './components/AnalyticsTracker'
 import {Footer} from './components/Footer'
 import Header from './components/Header'
 import {ThemeProvider} from './contexts/ThemeContext'
@@ -8,6 +9,7 @@ import About from './pages/About'
 import Blog from './pages/Blog'
 import BlogPostPage from './pages/BlogPostPage'
 import Home from './pages/Home'
+import {Privacy} from './pages/Privacy'
 import Projects from './pages/Projects'
 import './styles/globals.css'
 
@@ -17,6 +19,7 @@ const AppContent: React.FC = () => {
 
   return (
     <Router>
+      <AnalyticsTracker />
       <Header />
       <main>
         <Routes>
@@ -25,6 +28,7 @@ const AppContent: React.FC = () => {
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/about" element={<About />} />
+          <Route path="/privacy" element={<Privacy />} />
         </Routes>
       </main>
       <Footer />

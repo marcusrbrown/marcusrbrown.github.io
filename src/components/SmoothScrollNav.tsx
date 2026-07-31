@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react'
-import {useNavigationTracking} from '../hooks/UseAnalytics'
+import {isApprovedNavigationDestination, trackUmamiEvent} from '../utils/analytics'
 
 /**
  * Navigation item configuration
@@ -66,9 +66,6 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
   const [isVisible, setIsVisible] = useState<boolean>(!autoHide)
   const [isScrolling, setIsScrolling] = useState<boolean>(false)
 
-  // Analytics tracking hook
-  const {trackNavigation} = useNavigationTracking()
-
   /**
    * Calculate scroll progress as percentage
    */
@@ -87,40 +84,28 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
   /**
    * Handle smooth scroll to section
    */
-  const scrollToSection = useCallback(
-    (sectionId: string) => {
-      // Track navigation event
-      trackNavigation(sectionId, 'smooth_scroll')
+  const scrollToSection = useCallback((sectionId: string) => {
+    // Dynamic HTML IDs may contain characters that require CSS selector escaping.
+    // eslint-disable-next-line unicorn/prefer-query-selector
+    const element = document.getElementById(sectionId)
+    if (!element) return
 
-      const element = document.querySelector(`#${sectionId}`)
-      if (!element) return
-
-      setIsScrolling(true)
-
-      // Use CSS scroll-behavior for smooth scrolling
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+    if (isApprovedNavigationDestination(sectionId)) {
+      trackUmamiEvent('navigation', {
+        destination: sectionId,
+        method: 'smooth_scroll',
       })
+    }
 
-      // Reset scrolling state after animation
-      setTimeout(() => setIsScrolling(false), 1000)
-    },
-    [trackNavigation],
-  )
+    setIsScrolling(true)
 
-  /**
-   * Handle keyboard navigation
-   */
-  const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent, sectionId: string) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault()
-        scrollToSection(sectionId)
-      }
-    },
-    [scrollToSection],
-  )
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+
+    setTimeout(() => setIsScrolling(false), 1000)
+  }, [])
 
   /**
    * Set up intersection observer for active section detection
@@ -129,7 +114,12 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
     // Skip intersection observer during programmatic scrolling
     if (isScrolling) return
 
-    const sections = items.map(item => document.querySelector(`#${item.id}`)).filter(Boolean) as HTMLElement[]
+    const sections = items
+      .map(item => {
+        // eslint-disable-next-line unicorn/prefer-query-selector
+        return document.getElementById(item.id)
+      })
+      .filter(Boolean) as HTMLElement[]
 
     if (sections.length === 0) return
 
@@ -205,7 +195,6 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
                 activeSection === item.id ? 'smooth-scroll-nav__link--active' : ''
               }`}
               onClick={() => scrollToSection(item.id)}
-              onKeyDown={e => handleKeyDown(e, item.id)}
               aria-label={`Navigate to ${item.label} section`}
               aria-current={activeSection === item.id ? 'page' : undefined}
             >

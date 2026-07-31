@@ -3,7 +3,17 @@ import {act, renderHook} from '@testing-library/react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {ThemeProvider} from '../../src/contexts/ThemeContext'
 import {useTheme} from '../../src/hooks/UseTheme'
+import {trackUmamiEvent} from '../../src/utils/analytics'
 import {presetThemes} from '../../src/utils/preset-themes'
+
+vi.mock('../../src/utils/analytics', () => ({
+  analytics: {
+    trackThemeChange: vi.fn(),
+  },
+  trackUmamiEvent: vi.fn(),
+}))
+
+const mockTrackUmamiEvent = vi.mocked(trackUmamiEvent)
 
 // Mock matchMedia for testing system preference detection
 const mockMatchMedia = vi.fn()
@@ -27,6 +37,7 @@ const localStorageMock = (() => {
 })()
 
 beforeEach(() => {
+  mockTrackUmamiEvent.mockReset()
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: mockMatchMedia,
@@ -537,6 +548,139 @@ describe('useTheme', () => {
 
       expect(result.current.activeThemeChoice).toEqual({type: 'legacy-custom', theme: legacyTheme})
       expect(result.current.isCustomTheme).toBe(true)
+    })
+  })
+
+  describe('theme analytics boundary', () => {
+    beforeEach(() => {
+      mockMatchMedia.mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })
+    })
+
+    it.each(['light', 'dark', 'system'] as const)('emits one exact mode event for %s selection', mode => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      const initialMode = mode === 'light' ? 'dark' : 'light'
+
+      act(() => {
+        result.current.setActiveTheme({type: 'mode', mode: initialMode})
+      })
+      mockTrackUmamiEvent.mockClear()
+
+      act(() => {
+        result.current.setActiveTheme({type: 'mode', mode})
+      })
+
+      expect(mockTrackUmamiEvent).toHaveBeenCalledTimes(1)
+      expect(mockTrackUmamiEvent).toHaveBeenCalledWith('theme_change', {kind: 'mode', value: mode})
+    })
+
+    it('suppresses a direct reselect of the active stored mode', () => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+
+      act(() => {
+        result.current.setActiveTheme({type: 'mode', mode: 'system'})
+      })
+
+      expect(mockTrackUmamiEvent).not.toHaveBeenCalled()
+    })
+
+    it('emits when a custom theme is active even if mode selection matches the stored mode', () => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      const preset = getFirstPreset()
+
+      act(() => {
+        result.current.setThemeMode('dark')
+        result.current.setCustomTheme(preset)
+      })
+      mockTrackUmamiEvent.mockClear()
+
+      act(() => {
+        result.current.setActiveTheme({type: 'mode', mode: 'dark'})
+      })
+
+      expect(mockTrackUmamiEvent).toHaveBeenCalledExactlyOnceWith('theme_change', {
+        kind: 'mode',
+        value: 'dark',
+      })
+    })
+
+    it('emits one exact preset event using the canonical preset ID', () => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      const preset = getFirstPreset()
+
+      act(() => {
+        result.current.setActiveTheme({type: 'preset', theme: preset})
+      })
+
+      expect(mockTrackUmamiEvent).toHaveBeenCalledTimes(1)
+      expect(mockTrackUmamiEvent).toHaveBeenCalledWith('theme_change', {kind: 'preset', value: preset.id})
+    })
+
+    it('suppresses a direct reselect of the active preset ID', () => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      const preset = getFirstPreset()
+
+      act(() => {
+        result.current.setActiveTheme({type: 'preset', theme: preset})
+      })
+      mockTrackUmamiEvent.mockClear()
+
+      act(() => {
+        result.current.setActiveTheme({type: 'preset', theme: preset})
+      })
+
+      expect(mockTrackUmamiEvent).not.toHaveBeenCalled()
+      expect(result.current.currentTheme.id).toBe(preset.id)
+    })
+
+    it('suppresses analytics for direct custom theme selection', () => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      const customTheme = {...getFirstPreset(), id: 'custom-theme', name: 'Custom Theme'}
+
+      act(() => {
+        result.current.setCustomTheme(customTheme)
+      })
+
+      expect(mockTrackUmamiEvent).not.toHaveBeenCalled()
+    })
+
+    it('emits only at the active-theme boundary when mode selection clears a custom theme', () => {
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      const preset = getFirstPreset()
+
+      act(() => {
+        result.current.setCustomTheme(preset)
+      })
+      mockTrackUmamiEvent.mockClear()
+
+      act(() => {
+        result.current.setActiveTheme({type: 'mode', mode: 'dark'})
+      })
+
+      expect(mockTrackUmamiEvent).toHaveBeenCalledTimes(1)
+      expect(mockTrackUmamiEvent).toHaveBeenCalledWith('theme_change', {kind: 'mode', value: 'dark'})
+    })
+
+    it('does not emit during initialization or storage hydration', () => {
+      const preset = getFirstPreset()
+      localStorage.setItem('mrbro-dev-theme-mode', JSON.stringify('dark'))
+      localStorage.setItem('mrbro-dev-custom-theme', JSON.stringify(preset))
+
+      const {result} = renderHook(() => useTheme(), {wrapper})
+      expect(result.current.currentTheme.id).toBe(preset.id)
+      expect(mockTrackUmamiEvent).not.toHaveBeenCalled()
+
+      act(() => {
+        localStorage.setItem('mrbro-dev-theme-mode', JSON.stringify('light'))
+        localStorage.setItem('mrbro-dev-custom-theme', '')
+        window.dispatchEvent(new StorageEvent('storage', {key: 'mrbro-dev-custom-theme'}))
+      })
+
+      expect(result.current.themeMode).toBe('light')
+      expect(mockTrackUmamiEvent).not.toHaveBeenCalled()
     })
   })
 

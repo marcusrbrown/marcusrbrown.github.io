@@ -1,7 +1,16 @@
 import type {Project} from '../../src/types'
 import {fireEvent, render, screen} from '@testing-library/react'
-import {describe, expect, it, vi} from 'vitest'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
 import ProjectCard from '../../src/components/ProjectCard'
+import {buildUmamiEventAttributes, trackUmamiEvent} from '../../src/utils/analytics'
+
+vi.mock('../../src/utils/analytics', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../src/utils/analytics')>()
+  return {
+    ...actual,
+    trackUmamiEvent: vi.fn(actual.trackUmamiEvent),
+  }
+})
 
 // Mock the progressive image hook
 vi.mock('../../src/hooks/UseProgressiveImage', () => ({
@@ -24,6 +33,10 @@ const makeProject = (overrides: Partial<Project> = {}): Project => ({
 })
 
 describe('ProjectCard Component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('should render project title', () => {
     render(<ProjectCard {...makeProject()} />)
     expect(screen.getByRole('heading', {name: 'Test Project'})).toBeInTheDocument()
@@ -67,17 +80,24 @@ describe('ProjectCard Component', () => {
     expect(screen.getByLabelText('Preview Test Project')).toBeInTheDocument()
   })
 
-  it('should call onPreview when preview button is clicked', () => {
+  it('should call onPreview and track event when preview button is clicked', () => {
     const onPreview = vi.fn()
     render(<ProjectCard {...makeProject()} onPreview={onPreview} />)
 
     fireEvent.click(screen.getByLabelText('Preview Test Project'))
     expect(onPreview).toHaveBeenCalledOnce()
+    expect(trackUmamiEvent).toHaveBeenCalledTimes(1)
+    expect(trackUmamiEvent).toHaveBeenCalledWith('project_open', {
+      action: 'preview',
+      project_id: '1',
+      source: 'gallery',
+    })
   })
 
-  it('should not throw when preview is clicked without onPreview handler', () => {
+  it('should not throw and emit zero events when preview is clicked without onPreview handler', () => {
     render(<ProjectCard {...makeProject()} />)
     expect(() => fireEvent.click(screen.getByLabelText('Preview Test Project'))).not.toThrow()
+    expect(trackUmamiEvent).not.toHaveBeenCalled()
   })
 
   it('should render up to 3 topics', () => {
@@ -126,5 +146,72 @@ describe('ProjectCard Component', () => {
   it('should not render image tag when no imageUrl', () => {
     render(<ProjectCard {...makeProject({imageUrl: undefined})} />)
     expect(screen.queryByAltText(/project screenshot/)).not.toBeInTheDocument()
+  })
+
+  it('applies analytics attributes to links and buttons when using a valid snapshot project ID', () => {
+    const onPreview = vi.fn()
+    const project = makeProject({
+      id: '1297795539',
+      homepage: 'https://myproject.com',
+    })
+    render(<ProjectCard {...project} onPreview={onPreview} />)
+
+    const codeLink = screen.getByLabelText('View Test Project on GitHub')
+    const demoLink = screen.getByLabelText('View live demo of Test Project')
+    const previewBtn = screen.getByLabelText('Preview Test Project')
+
+    const codeAttrs = buildUmamiEventAttributes('project_open', {
+      action: 'source',
+      project_id: '1297795539',
+      source: 'gallery',
+    })
+    const demoAttrs = buildUmamiEventAttributes('project_open', {
+      action: 'demo',
+      project_id: '1297795539',
+      source: 'gallery',
+    })
+
+    expect(codeLink).toHaveAttribute('data-umami-event', codeAttrs?.['data-umami-event'])
+    expect(codeLink).toHaveAttribute('data-umami-event-action', codeAttrs?.['data-umami-event-action'])
+    expect(codeLink).toHaveAttribute('data-umami-event-project_id', codeAttrs?.['data-umami-event-project_id'])
+    expect(codeLink).toHaveAttribute('data-umami-event-source', codeAttrs?.['data-umami-event-source'])
+
+    expect(demoLink).toHaveAttribute('data-umami-event', demoAttrs?.['data-umami-event'])
+    expect(demoLink).toHaveAttribute('data-umami-event-action', demoAttrs?.['data-umami-event-action'])
+    expect(demoLink).toHaveAttribute('data-umami-event-project_id', demoAttrs?.['data-umami-event-project_id'])
+    expect(demoLink).toHaveAttribute('data-umami-event-source', demoAttrs?.['data-umami-event-source'])
+
+    fireEvent.click(previewBtn)
+    expect(trackUmamiEvent).toHaveBeenCalledWith('project_open', {
+      action: 'preview',
+      project_id: '1297795539',
+      source: 'gallery',
+    })
+  })
+
+  it('does NOT apply analytics attributes and fails closed when using an invalid ID', () => {
+    const onPreview = vi.fn()
+    const project = makeProject({
+      id: 'invalid-id',
+      homepage: 'https://myproject.com',
+    })
+    render(<ProjectCard {...project} onPreview={onPreview} />)
+
+    const codeLink = screen.getByLabelText('View Test Project on GitHub')
+    const demoLink = screen.getByLabelText('View live demo of Test Project')
+    const previewBtn = screen.getByLabelText('Preview Test Project')
+
+    expect(codeLink).not.toHaveAttribute('data-umami-event')
+    expect(demoLink).not.toHaveAttribute('data-umami-event')
+
+    fireEvent.click(previewBtn)
+    // Call is attempted with handler present — adapter returns 'dropped-by-policy' via catalog validation
+    expect(trackUmamiEvent).toHaveBeenCalledWith('project_open', {
+      action: 'preview',
+      project_id: 'invalid-id',
+      source: 'gallery',
+    })
+    // onPreview is still called — the handler is invoked regardless of validity
+    expect(onPreview).toHaveBeenCalledOnce()
   })
 })

@@ -129,7 +129,6 @@ test.describe('Core Navigation Tests', () => {
       const blogPage = new BlogPage(page)
       await blogPage.goto()
 
-      // Wait for API calls to complete or fail
       await page.waitForTimeout(4000)
 
       // Blog might be empty or have posts
@@ -171,6 +170,16 @@ test.describe('Core Navigation Tests', () => {
       expect(page.url()).toMatch(/\/$/)
     })
 
+    test('should navigate to privacy from the footer', async ({page}) => {
+      const homePage = new HomePage(page)
+
+      await homePage.goto()
+      await page.locator('footer').getByRole('link', {name: 'Privacy', exact: true}).click()
+
+      expect(page.url()).toContain('/privacy')
+      await expect(page.getByRole('heading', {name: 'Privacy & analytics disclosure', exact: true})).toBeVisible()
+    })
+
     test('should maintain header and footer across all pages', async ({page}) => {
       const pages = [new HomePage(page), new AboutPage(page), new ProjectsPage(page), new BlogPage(page)]
 
@@ -179,6 +188,12 @@ test.describe('Core Navigation Tests', () => {
         expect(await pageInstance.isNavigationVisible()).toBe(true)
         expect(await pageInstance.checkBasicAccessibility()).toBe(true)
       }
+
+      await page.goto('/privacy')
+      await page.waitForLoadState('networkidle')
+      await expect(page.locator('header.header')).toBeVisible()
+      await expect(page.locator('footer')).toBeVisible()
+      await expect(page.locator('footer').getByRole('link', {name: 'Privacy', exact: true})).toBeVisible()
     })
   })
 })

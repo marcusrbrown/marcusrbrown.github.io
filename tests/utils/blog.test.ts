@@ -1,58 +1,91 @@
-import type {BlogFrontmatter, BlogPostFull} from '../../src/types'
+import type {BlogPostFull} from '../../src/types'
+import {readFileSync} from 'node:fs'
+import {dirname, join, resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {
   detectSlugCollisions,
   isPathSafeSlug,
   isSlugResolutionError,
-  isValidBlogFrontmatter,
   resolveSlug,
   slugify,
   toBlogPostMeta,
-  validateBlogFrontmatter,
 } from '../../src/utils/blog'
 
-describe('blog utilities', () => {
-  const validFrontmatter: BlogFrontmatter = {
-    title: 'Hello World',
-    date: '2026-07-17',
-    summary: 'A short summary of the post.',
+const PROJECT_ROOT = resolve(__dirname, '../..')
+
+/** Extracts static and dynamic import/export/re-export module specifiers from a TS/TSX source file. */
+const extractSpecifiers = (source: string): string[] => {
+  const specifiers: string[] = []
+  const patterns = [
+    /\b(?:import|export)[\s\S]*?from\s+['"]([^'"]+)['"]/g,
+    /\bimport\s+['"]([^'"]+)['"]/g,
+    /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ]
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      if (match[1]) specifiers.push(match[1])
+    }
+  }
+  return specifiers
+}
+
+/** Resolves a relative import specifier to a file on disk (project convention: no barrel/index files). */
+const resolveRelative = (fromFile: string, specifier: string): string | null => {
+  const base = resolve(dirname(fromFile), specifier)
+  for (const candidate of [base, `${base}.ts`, `${base}.tsx`]) {
+    try {
+      readFileSync(candidate, 'utf8')
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+/**
+ * Walks the first-party (relative-import-only) module graph reachable from `entry`,
+ * collecting every bare (non-relative) package specifier encountered anywhere in that
+ * graph. This proves whether a package is statically reachable from a given entry
+ * point without needing to run a full bundler build — the fastest, most precise
+ * executable signal for "does importing this module pull in a package that uses
+ * `new Function` (blocked by a strict `script-src` CSP with no `unsafe-eval`)".
+ */
+const collectBarePackageImports = (entry: string): Set<string> => {
+  const visited = new Set<string>()
+  const bareImports = new Set<string>()
+  const stack = [entry]
+
+  while (stack.length > 0) {
+    const file = stack.pop()
+    if (!file || visited.has(file)) continue
+    visited.add(file)
+
+    const source = readFileSync(file, 'utf8')
+    for (const specifier of extractSpecifiers(source)) {
+      if (specifier.startsWith('.')) {
+        const resolved = resolveRelative(file, specifier)
+        if (resolved) stack.push(resolved)
+      } else {
+        bareImports.add(specifier)
+      }
+    }
   }
 
-  describe('validateBlogFrontmatter / isValidBlogFrontmatter', () => {
-    it('accepts valid frontmatter', () => {
-      const result = validateBlogFrontmatter(validFrontmatter)
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.value).toEqual(validFrontmatter)
-      expect(isValidBlogFrontmatter(validFrontmatter)).toBe(true)
-    })
+  return bareImports
+}
 
-    it('rejects frontmatter missing title, date, and summary', () => {
-      const result = validateBlogFrontmatter({})
-      expect(result.ok).toBe(false)
-      if (!result.ok) {
-        expect(result.errors.some(e => e.includes('title'))).toBe(true)
-        expect(result.errors.some(e => e.includes('date'))).toBe(true)
-        expect(result.errors.some(e => e.includes('summary'))).toBe(true)
-      }
-    })
+describe('src/utils/blog.ts module boundary (browser entry safety)', () => {
+  it('does not statically reach ajv/ajv-formats — those use `new Function`, blocked by strict-CSP script-src with no unsafe-eval', () => {
+    const entry = join(PROJECT_ROOT, 'src/utils/blog.ts')
+    const bareImports = collectBarePackageImports(entry)
 
-    it('rejects a malformed date string without crashing', () => {
-      const result = validateBlogFrontmatter({
-        title: 'Post',
-        date: 'not-a-date',
-        summary: 'Summary',
-      })
-      expect(result.ok).toBe(false)
-      if (!result.ok) expect(result.errors.some(e => e.toLowerCase().includes('date'))).toBe(true)
-    })
-
-    it('rejects non-object input without crashing', () => {
-      expect(validateBlogFrontmatter(null).ok).toBe(false)
-      expect(validateBlogFrontmatter('nope').ok).toBe(false)
-      expect(validateBlogFrontmatter(42).ok).toBe(false)
-    })
+    expect(bareImports.has('ajv')).toBe(false)
+    expect(bareImports.has('ajv-formats')).toBe(false)
   })
+})
 
+describe('blog utilities', () => {
   describe('slugify', () => {
     it('produces a URL-safe slug from unicode/punctuation titles', () => {
       expect(slugify('Café: A Résumé & Étude!')).toBe('cafe-a-resume-etude')

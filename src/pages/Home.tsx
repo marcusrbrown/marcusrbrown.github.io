@@ -6,7 +6,7 @@ import HeroSection from '../components/HeroSection'
 import ProjectGallery from '../components/ProjectGallery'
 import ProjectPreviewModal from '../components/ProjectPreviewModal'
 import SmoothScrollNav from '../components/SmoothScrollNav'
-import {useProjectTracking, useSectionTracking} from '../hooks/UseAnalytics'
+import {useSectionTracking} from '../hooks/UseAnalytics'
 import {useBlogPosts} from '../hooks/UseBlogPosts'
 import {usePageTitle} from '../hooks/UsePageTitle'
 import {useProjects} from '../hooks/UseProjects'
@@ -22,33 +22,22 @@ const Home: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Analytics tracking hooks
-  const {trackProjectClick, trackProjectModal} = useProjectTracking()
   const heroRef = useSectionTracking<HTMLDivElement>('hero')
   const aboutRef = useSectionTracking<HTMLDivElement>('about')
   const projectsRef = useSectionTracking<HTMLElement>('projects')
   const blogRef = useSectionTracking<HTMLElement>('blog')
 
   const handleProjectPreview = (project: Project) => {
-    trackProjectClick(project.id, 'gallery')
-    trackProjectModal('open', project.id)
     setSelectedProject(project)
     setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
-    if (selectedProject) {
-      trackProjectModal('close', selectedProject.id)
-    }
     setIsModalOpen(false)
     setSelectedProject(null)
   }
 
   const handleNavigateProject = (project: Project) => {
-    if (selectedProject) {
-      trackProjectModal('navigate', selectedProject.id)
-    }
-    trackProjectModal('view', project.id)
     setSelectedProject(project)
   }
 

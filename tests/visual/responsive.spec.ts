@@ -18,6 +18,7 @@ const PAGES = [
   {path: '/about', name: 'about'},
   {path: '/projects', name: 'projects'},
   {path: '/blog', name: 'blog'},
+  {path: '/privacy', name: 'privacy'},
 ] as const
 
 test.describe('Responsive Layout', () => {

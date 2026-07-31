@@ -288,6 +288,14 @@ on:
 - `GITHUB_PAGES=true`: Set automatically during GitHub Pages builds
 - `NODE_ENV=production`: Set during production builds
 
+### 📊 Analytics Website ID (`UMAMI_WEBSITE_ID`)
+
+See the [analytics operator runbook](../docs/analytics.md) for the complete activation gate, privacy contract, verification matrix, activation record, and rollback procedure.
+
+Current posture is **disabled**: `UMAMI_WEBSITE_ID` must remain unset while the self-hosted Umami service has indefinite retention. It is mapped to the public Vite variable `VITE_UMAMI_WEBSITE_ID` only on the `Build project` step; configured production builds inject the tracker, while development and unconfigured production builds do not.
+
+Activation requires reviewed, version-controlled `marcusrbrown/infra` evidence for 13-month rolling retention, an identified site deployment, and a passing go/no-go review. Rollback removes the variable, redeploys, and verifies both the tracker tag is absent and `/privacy` reports analytics disabled. A stale Pages artifact or disagreement between the live tag and `/privacy` leaves rollback incomplete.
+
 ## Contributing
 
 When modifying workflows:

@@ -2517,6 +2517,12 @@ a:hover {
     border-radius: 4px;
 }
 
+.footer__link--quiet {
+    color: var(--color-text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 400;
+}
+
 .footer__meta {
     border-top: 1px solid var(--color-border);
     padding-top: 1.5rem;
@@ -2558,5 +2564,219 @@ a:hover {
     
     .footer__group {
         flex: 1 1 140px;
+    }
+}
+
+/* Privacy Page Styling */
+.privacy-page {
+    width: 100%;
+    max-width: 58rem;
+    box-sizing: border-box;
+    margin: 3rem auto 5rem;
+    padding: 0 clamp(1rem, 4vw, 2rem);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+.privacy-page__header {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 1.5rem;
+}
+
+.privacy-page a {
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    color: var(--color-link);
+}
+
+.privacy-page a:hover {
+    color: var(--color-link-hover);
+}
+
+.privacy-page a:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: 5px;
+}
+
+.privacy-page__title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.privacy-page__section {
+    border-top: 1px solid var(--color-border);
+    padding: 2.5rem 0;
+}
+
+.privacy-page__section:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.privacy-page__section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 1.25rem;
+    color: var(--color-text);
+}
+
+.privacy-page__section-body {
+    width: 100%;
+}
+
+.privacy-page__section-body > p,
+.privacy-page__section-body > ul,
+.privacy-page__section-body > .privacy-page__status-prose,
+.privacy-page__section-body > .privacy-page__dl {
+    max-width: 70ch;
+}
+
+.privacy-page__subsection-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+    color: var(--color-text);
+}
+
+.privacy-page__status-prose {
+    border-inline-start: 1px solid var(--color-border);
+    margin: 0 0 1rem;
+    padding-inline-start: 1rem;
+}
+
+.privacy-page__status-prose[data-analytics-state="enabled"] {
+    border-inline-start-color: var(--color-success);
+}
+
+.privacy-page__status-prose[data-analytics-state="disabled"] {
+    border-inline-start-color: var(--color-text-secondary);
+}
+
+.privacy-page__status-prose p {
+    margin: 0;
+}
+
+.privacy-page__status-prose strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.privacy-page__status-prose strong::before {
+    content: "";
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.privacy-page__status-prose[data-analytics-state="enabled"] strong::before {
+    background-color: var(--color-success);
+}
+
+.privacy-page__status-prose[data-analytics-state="disabled"] strong::before {
+    background-color: var(--color-text-secondary);
+}
+
+.privacy-page__collection-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 70ch;
+}
+
+.privacy-page__list {
+    margin: 0.5rem 0 1rem;
+    padding-left: 1.25rem;
+    list-style-type: disc;
+}
+
+.privacy-page__list li {
+    margin-bottom: 0.5rem;
+}
+
+.privacy-page__dl {
+    display: flex;
+    flex-direction: column;
+    margin: 1.5rem 0 0;
+}
+
+.privacy-page__dl-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.75rem 0;
+}
+
+.privacy-page__dl-item:first-of-type {
+    border-top: 1px solid var(--color-border);
+}
+
+.privacy-page__dt {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.privacy-page__dd {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--color-text-secondary);
+}
+
+@media (min-width: 640px) {
+    .privacy-page__dl-item {
+        display: grid;
+        grid-template-columns: 14rem 1fr;
+        gap: 2rem;
+        align-items: baseline;
+    }
+}
+
+@media (min-width: 768px) {
+    .privacy-page__section {
+        display: grid;
+        grid-template-columns: 14rem 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    .privacy-page__section-title {
+        margin: 0;
+    }
+}
+
+@media (min-width: 1100px) {
+    .privacy-page {
+        max-width: 74rem;
+    }
+
+    .privacy-page__section {
+        grid-template-columns: 18rem 1fr;
+        gap: 3rem;
+        padding: 3rem 0;
+    }
+
+    .privacy-page__collection-grid {
+        flex-direction: row;
+        gap: 3rem;
+        max-width: none;
+    }
+
+    .privacy-page__collection-column {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+/* Ensure no horizontal scroll at small viewports or high zoom */
+@media (max-width: 320px) {
+    .privacy-page {
+        padding-inline: 0.75rem;
     }
 }

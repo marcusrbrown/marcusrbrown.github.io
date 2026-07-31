@@ -103,6 +103,7 @@ jobs:
       - name: Run E2E tests
         run: pnpm exec playwright test --project=${{ matrix.browser }}-desktop
         env:
+          BLOG_SNAPSHOT: tests/fixtures/blog-snapshot.json
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4173
 

@@ -1,24 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>Redirecting…</title>
-    <script>
-      // Single Page Apps for GitHub Pages
-      // https://github.com/rafgraph/spa-github-pages
-      //
-      // When GitHub Pages serves a 404 for a direct URL (e.g. /about),
-      // this script redirects to the root with the original path encoded
-      // in the query string so index.html can restore it via history.replaceState.
-      const l = window.location;
-      l.replace(
-        l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-        '/?p=/' +
-        l.pathname.slice(1).replace(/&/g, '~and~') +
-        (l.search ? '&q=' + l.search.slice(1).replace(/&/g, '~and~') : '') +
-        l.hash
-      );
-    </script>
+
+    <!-- Content Security Policy: browser-enforced document guard. See index.html
+         for rationale; this document mirrors the same script/connect/image
+         boundary. frame-ancestors is intentionally omitted (unsupported via
+         meta delivery). -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://metrics.fro.bot; connect-src 'self' https://metrics.fro.bot; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    />
+
+    <!-- Single Page Apps for GitHub Pages: redirect the direct URL to root with
+         the original path encoded in the query string. See spa-redirect.js. -->
+    <script src="/scripts/spa-redirect.js"></script>
   </head>
   <body></body>
 </html>
