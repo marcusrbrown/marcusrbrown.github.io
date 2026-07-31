@@ -103,6 +103,7 @@ jobs:
       - name: Run E2E tests
         run: pnpm exec playwright test --project=${{ matrix.browser }}-desktop
         env:
+          BLOG_SNAPSHOT: tests/fixtures/blog-snapshot.json
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:4173
 
@@ -218,30 +219,30 @@ jobs:
 
       - name: Generate test summary
         run: |
-          echo "# E2E Test Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "# E2E Test Summary"
+            echo ""
+            echo "## Test Results"
+            echo ""
 
-          # Check test results
-          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+            if [[ "${{ needs.e2e-tests.result }}" == "success" ]]; then
+              echo "✅ **E2E Tests**: All browsers passed"
+            else
+              echo "❌ **E2E Tests**: Some tests failed"
+            fi
 
-          if [[ "${{ needs.e2e-tests.result }}" == "success" ]]; then
-            echo "✅ **E2E Tests**: All browsers passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **E2E Tests**: Some tests failed" >> $GITHUB_STEP_SUMMARY
-          fi
+            if [[ "${{ needs.visual-regression.result }}" == "success" ]]; then
+              echo "✅ **Visual Regression Tests**: All screenshots matched"
+            else
+              echo "❌ **Visual Regression Tests**: Some screenshots differed or tests failed"
+            fi
 
-          if [[ "${{ needs.visual-regression.result }}" == "success" ]]; then
-            echo "✅ **Visual Regression Tests**: All screenshots matched" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Visual Regression Tests**: Some screenshots differed or tests failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [[ "${{ needs.accessibility-tests.result }}" == "success" ]]; then
-            echo "✅ **Accessibility Tests**: WCAG 2.1 AA passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Accessibility Tests**: Some accessibility violations found" >> $GITHUB_STEP_SUMMARY
-          fi
+            if [[ "${{ needs.accessibility-tests.result }}" == "success" ]]; then
+              echo "✅ **Accessibility Tests**: WCAG 2.1 AA passed"
+            else
+              echo "❌ **Accessibility Tests**: Some accessibility violations found"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate badges
         run: pnpm run badges

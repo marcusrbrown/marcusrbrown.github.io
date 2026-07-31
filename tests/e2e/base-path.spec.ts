@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs'
+import {resolve} from 'node:path'
 import {expect, test} from '@playwright/test'
 import {BlogPostPage} from './pages/BlogPostPage'
 
@@ -13,14 +14,13 @@ interface BlogSnapshot {
   posts: BlogSnapshotPost[]
 }
 
-const blogSnapshot = JSON.parse(
-  readFileSync(new URL('../../src/data/blog-snapshot.json', import.meta.url), 'utf8'),
-) as BlogSnapshot
+const blogSnapshotPath = resolve(process.cwd(), process.env.BLOG_SNAPSHOT ?? 'src/data/blog-snapshot.json')
+const blogSnapshot = JSON.parse(readFileSync(blogSnapshotPath, 'utf8')) as BlogSnapshot
 
 const getFirstBlogPost = (): BlogSnapshotPost => {
   const firstPost = blogSnapshot.posts[0]
-  expect(firstPost, 'The committed blog snapshot must contain at least one post').toBeDefined()
-  if (!firstPost) throw new Error('The committed blog snapshot must contain at least one post')
+  expect(firstPost, 'The selected E2E blog snapshot must contain at least one post').toBeDefined()
+  if (!firstPost) throw new Error('The selected E2E blog snapshot must contain at least one post')
   return firstPost
 }
 
