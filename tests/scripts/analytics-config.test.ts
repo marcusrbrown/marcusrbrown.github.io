@@ -1,10 +1,20 @@
 import type {Plugin} from 'vite'
 import {readFileSync} from 'node:fs'
+import {mkdtemp, readFile, rm} from 'node:fs/promises'
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import process from 'node:process'
+import {build as viteBuild} from 'vite'
 import {describe, expect, it} from 'vitest'
 import {parse as parseYaml} from 'yaml'
-import viteConfig, {buildUmamiTrackerTag, shouldInjectUmamiTracker, UMAMI_SCRIPT_URL} from '../../vite.config'
+import viteConfig, {
+  buildUmamiTrackerTag,
+  resolveUmamiWebsiteId,
+  shouldInjectUmamiTracker,
+  UMAMI_SCRIPT_URL,
+} from '../../vite.config'
+
+const FIXTURE_WEBSITE_ID = '123e4567-e89b-12d3-a456-426614174000'
 
 interface UmamiBuildState {
   name: string
@@ -38,7 +48,7 @@ const umamiBuildStates: UmamiBuildState[] = [
     name: 'configured production',
     command: 'build',
     mode: 'production',
-    websiteId: 'fixture-website-id',
+    websiteId: FIXTURE_WEBSITE_ID,
     enabled: true,
   },
   {
@@ -52,7 +62,7 @@ const umamiBuildStates: UmamiBuildState[] = [
     name: 'configured development serve',
     command: 'serve',
     mode: 'development',
-    websiteId: 'fixture-website-id',
+    websiteId: FIXTURE_WEBSITE_ID,
     enabled: false,
   },
 ]
@@ -72,15 +82,26 @@ const runTrackerTransform = async (plugin: Plugin) => {
 }
 
 describe('Umami tracker build-time activation', () => {
+  describe('resolveUmamiWebsiteId', () => {
+    it.each([
+      [undefined, undefined],
+      ['', undefined],
+    ])('treats %j as unconfigured', (websiteId, expected) => {
+      expect(resolveUmamiWebsiteId(websiteId)).toBe(expected)
+    })
+
+    it('returns a valid UUID unchanged', () => {
+      expect(resolveUmamiWebsiteId(FIXTURE_WEBSITE_ID)).toBe(FIXTURE_WEBSITE_ID)
+    })
+  })
+
   describe('shouldInjectUmamiTracker', () => {
     it('injects only for a configured production build', () => {
-      expect(shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId: 'fixture-website-id'})).toBe(
-        true,
-      )
+      expect(shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId: FIXTURE_WEBSITE_ID})).toBe(true)
     })
 
     it('does not inject for development builds even when configured', () => {
-      expect(shouldInjectUmamiTracker({command: 'serve', mode: 'development', websiteId: 'fixture-website-id'})).toBe(
+      expect(shouldInjectUmamiTracker({command: 'serve', mode: 'development', websiteId: FIXTURE_WEBSITE_ID})).toBe(
         false,
       )
     })
@@ -93,21 +114,57 @@ describe('Umami tracker build-time activation', () => {
       expect(shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId: ''})).toBe(false)
     })
 
+    it.each([' ', '\t', '\n'])('rejects a whitespace-only website ID (%j)', websiteId => {
+      expect(() => shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId})).toThrow(
+        /Invalid VITE_UMAMI_WEBSITE_ID.*UUID/,
+      )
+    })
+
+    it('rejects a website ID with surrounding whitespace', () => {
+      expect(() =>
+        shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId: ` ${FIXTURE_WEBSITE_ID} `}),
+      ).toThrow(/Invalid VITE_UMAMI_WEBSITE_ID.*UUID/)
+    })
+
+    it.each([`${FIXTURE_WEBSITE_ID}\n`, `\n${FIXTURE_WEBSITE_ID}`, `${FIXTURE_WEBSITE_ID}\r\n`])(
+      'rejects a website ID with surrounding newlines (%j)',
+      websiteId => {
+        expect(() => shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId})).toThrow(
+          /Invalid VITE_UMAMI_WEBSITE_ID.*UUID/,
+        )
+      },
+    )
+
+    it.each(['not-a-uuid', '123e4567-e89b-12d3-a456-42661417400g', '123e4567-e89b-12d3-a456-426614174000-extra'])(
+      'rejects malformed or non-UUID website IDs (%j)',
+      websiteId => {
+        expect(() => shouldInjectUmamiTracker({command: 'build', mode: 'production', websiteId})).toThrow(
+          /Invalid VITE_UMAMI_WEBSITE_ID.*UUID/,
+        )
+      },
+    )
+
     it('does not inject for development builds without a website ID', () => {
       expect(shouldInjectUmamiTracker({command: 'serve', mode: 'development', websiteId: undefined})).toBe(false)
+    })
+
+    it('rejects malformed configuration during development setup', () => {
+      expect(() => withWebsiteId('not-a-uuid', () => viteConfig({command: 'serve', mode: 'development'}))).toThrow(
+        /Invalid VITE_UMAMI_WEBSITE_ID.*UUID/,
+      )
     })
   })
 
   describe('buildUmamiTrackerTag', () => {
     it('emits exactly one script tag with the fixture website ID and required privacy attributes', () => {
-      const tag = buildUmamiTrackerTag('fixture-website-id')
+      const tag = buildUmamiTrackerTag(FIXTURE_WEBSITE_ID)
 
       expect(tag.tag).toBe('script')
       expect(tag.injectTo).toBe('head')
       expect(tag.attrs).toStrictEqual({
         src: UMAMI_SCRIPT_URL,
         async: true,
-        'data-website-id': 'fixture-website-id',
+        'data-website-id': FIXTURE_WEBSITE_ID,
         'data-do-not-track': 'true',
         'data-exclude-search': 'true',
         'data-exclude-hash': 'true',
@@ -147,6 +204,44 @@ describe('Umami tracker build-time activation', () => {
       }
     })
   })
+})
+
+describe('Umami tracker built artifact', () => {
+  const buildIndexHtml = async (websiteId: string | undefined): Promise<string> => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), 'umami-config-test-'))
+
+    try {
+      const config = withWebsiteId(websiteId, () => viteConfig({command: 'build', mode: 'production'}))
+      await viteBuild({
+        ...config,
+        configFile: false,
+        build: {
+          ...config.build,
+          emptyOutDir: true,
+          outDir: outputDirectory,
+        },
+      })
+
+      return await readFile(join(outputDirectory, 'index.html'), 'utf8')
+    } finally {
+      await rm(outputDirectory, {force: true, recursive: true})
+    }
+  }
+
+  it('contains exactly one hardened Umami tag with the configured UUID', async () => {
+    const indexHtml = await buildIndexHtml(FIXTURE_WEBSITE_ID)
+    const umamiTags = indexHtml.match(/<script\b[^>]+metrics\.fro\.bot\/script\.js[^>]*><\/script>/g) ?? []
+
+    expect(umamiTags).toHaveLength(1)
+    expect(umamiTags[0]).toContain(`data-website-id="${FIXTURE_WEBSITE_ID}"`)
+  }, 30_000)
+
+  it('contains no Umami tag when the production build is unconfigured', async () => {
+    const indexHtml = await buildIndexHtml(undefined)
+    const umamiTags = indexHtml.match(/<script\b[^>]+metrics\.fro\.bot\/script\.js[^>]*><\/script>/g) ?? []
+
+    expect(umamiTags).toHaveLength(0)
+  }, 30_000)
 })
 
 interface DeployWorkflow {

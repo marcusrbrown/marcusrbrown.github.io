@@ -10,6 +10,24 @@ import {defineConfig} from 'vitest/config'
  */
 export const UMAMI_SCRIPT_URL = 'https://metrics.fro.bot/script.js'
 
+const UMAMI_WEBSITE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+/**
+ * Resolves the optional Umami website ID without normalizing malformed input.
+ * Empty configuration disables Umami; every other value must be a canonical UUID.
+ */
+export const resolveUmamiWebsiteId = (websiteId: string | undefined): string | undefined => {
+  if (websiteId === undefined || websiteId === '') return undefined
+
+  if (!UMAMI_WEBSITE_ID_PATTERN.test(websiteId)) {
+    throw new Error(
+      'Invalid VITE_UMAMI_WEBSITE_ID: expected a canonical lowercase UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).',
+    )
+  }
+
+  return websiteId
+}
+
 /** Build/mode inputs that decide whether the Umami tracker tag is injected. */
 export interface UmamiInjectionInput {
   command: 'build' | 'serve'
@@ -23,7 +41,7 @@ export interface UmamiInjectionInput {
  * Development or unconfigured production builds never receive the tag.
  */
 export const shouldInjectUmamiTracker = ({command, mode, websiteId}: UmamiInjectionInput): boolean =>
-  command === 'build' && mode === 'production' && typeof websiteId === 'string' && websiteId.length > 0
+  command === 'build' && mode === 'production' && resolveUmamiWebsiteId(websiteId) !== undefined
 
 /**
  * Builds the single hardened `<script>` tag descriptor for the configured production build.
@@ -60,8 +78,8 @@ const projectsSnapshotAlias = process.env.PROJECTS_SNAPSHOT
   : []
 
 export default defineConfig(({command, mode}) => {
-  const websiteId = process.env.VITE_UMAMI_WEBSITE_ID
-  const umamiEnabled = shouldInjectUmamiTracker({command, mode, websiteId})
+  const websiteId = resolveUmamiWebsiteId(process.env.VITE_UMAMI_WEBSITE_ID)
+  const umamiEnabled = command === 'build' && mode === 'production' && websiteId !== undefined
 
   return {
     plugins: [
@@ -69,10 +87,10 @@ export default defineConfig(({command, mode}) => {
       {
         name: 'umami-tracker-injection',
         transformIndexHtml() {
-          if (!umamiEnabled) {
+          if (!umamiEnabled || websiteId === undefined) {
             return undefined
           }
-          return [buildUmamiTrackerTag(websiteId ?? '')]
+          return [buildUmamiTrackerTag(websiteId)]
         },
       },
     ],

@@ -5,7 +5,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import blogSnapshot from '../../src/data/blog-snapshot.json'
 import projectsSnapshot from '../../src/data/projects-snapshot.json'
-import {UMAMI_TRACKER_SCRIPT_URL, type UmamiEventCatalog} from '../../src/utils/analytics'
+import {UMAMI_EVENT_DEFINITIONS, UMAMI_TRACKER_SCRIPT_URL, type UmamiEventCatalog} from '../../src/utils/analytics'
 import {UMAMI_SCRIPT_URL} from '../../vite.config'
 
 describe('typed Umami adapter and catalog', () => {
@@ -134,9 +134,9 @@ describe('typed Umami adapter and catalog', () => {
       const track = vi.fn()
       vi.stubGlobal('umami', {track})
       const {trackUmamiPageview} = await importCore()
-      const outcome = trackUmamiPageview('/blog/example?ref=campaign#section')
+      const outcome = trackUmamiPageview(`/blog/${KNOWN_BLOG_SLUG}?ref=campaign#section`)
       expect(outcome).toBe('sent')
-      expect(track).toHaveBeenCalledWith({url: '/blog/example'})
+      expect(track).toHaveBeenCalledWith({url: `/blog/${KNOWN_BLOG_SLUG}`})
     })
 
     it('reports unavailable and sends nothing before the tracker mounts', async () => {
@@ -220,12 +220,43 @@ describe('typed Umami adapter and catalog', () => {
       expect(track).toHaveBeenCalledWith({url: '/'})
     })
 
+    it.each(['/about', '/projects', '/blog', '/privacy'])('sends approved static path %s', async pathname => {
+      const track = vi.fn()
+      vi.stubGlobal('umami', {track})
+      const {trackUmamiPageview} = await importCore()
+      expect(trackUmamiPageview(pathname)).toBe('sent')
+      expect(track).toHaveBeenCalledWith({url: pathname})
+    })
+
+    it('sends a known committed blog slug', async () => {
+      const track = vi.fn()
+      vi.stubGlobal('umami', {track})
+      const {trackUmamiPageview} = await importCore()
+      const path = `/blog/${KNOWN_BLOG_SLUG}`
+      expect(trackUmamiPageview(path)).toBe('sent')
+      expect(track).toHaveBeenCalledWith({url: path})
+    })
+
     it('strips query and hash from a valid pathname before sending', async () => {
       const track = vi.fn()
       vi.stubGlobal('umami', {track})
       const {trackUmamiPageview} = await importCore()
       expect(trackUmamiPageview('/projects?filter=react#top')).toBe('sent')
       expect(track).toHaveBeenCalledWith({url: '/projects'})
+    })
+
+    it.each([
+      ['/unknown', 'an unknown route'],
+      ['/reset/alice@example.com', 'an email-like route'],
+      ['/auth/reset/token=abc123', 'a token-like route'],
+      ['/reset/alice%40example.com', 'an encoded route'],
+      ['/https://evil.example/path', 'a protocol-looking route'],
+    ])('drops %s (%s) even when the tracker is ready', async pathname => {
+      const track = vi.fn()
+      vi.stubGlobal('umami', {track})
+      const {trackUmamiPageview} = await importCore()
+      expect(trackUmamiPageview(pathname)).toBe('dropped-by-policy')
+      expect(track).not.toHaveBeenCalled()
     })
   })
 
@@ -544,13 +575,18 @@ describe('typed Umami adapter and catalog', () => {
   })
 
   describe('UMAMI_EVENT_PRIVACY_METADATA', () => {
-    it('contains every catalog event name exactly once', async () => {
+    it('derives names and metadata from every catalog definition exactly once', async () => {
       const {UMAMI_EVENT_NAMES, UMAMI_EVENT_PRIVACY_METADATA} = await importCore()
+      const definitionNames = Object.keys(UMAMI_EVENT_DEFINITIONS)
       const metadataNames = UMAMI_EVENT_PRIVACY_METADATA.map(entry => entry.name)
 
-      expect(new Set(metadataNames)).toStrictEqual(new Set(UMAMI_EVENT_NAMES))
+      expect(UMAMI_EVENT_NAMES).toStrictEqual(definitionNames)
+      expect(metadataNames).toStrictEqual(definitionNames)
       expect(metadataNames).toHaveLength(new Set(metadataNames).size)
       expect(metadataNames).toHaveLength(UMAMI_EVENT_NAMES.length)
+      expect(UMAMI_EVENT_PRIVACY_METADATA).toStrictEqual(
+        UMAMI_EVENT_NAMES.map(name => ({name, description: UMAMI_EVENT_DEFINITIONS[name].description})),
+      )
     })
 
     it('describes section_view using once-per-Home-mount semantics, not "current visit"', async () => {

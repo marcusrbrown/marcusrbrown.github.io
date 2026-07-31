@@ -14,6 +14,21 @@ vi.mock('../../src/utils/analytics', () => ({
 const mockTrackUmamiPageview = vi.mocked(trackUmamiPageview)
 const mockOnUmamiTrackerReady = vi.mocked(onUmamiTrackerReady)
 
+const ReplaceNavigationControl: React.FC = () => {
+  const navigate = useNavigate()
+
+  return (
+    <div>
+      <button type="button" onClick={() => navigate('/about', {replace: true})}>
+        replace-about
+      </button>
+      <button type="button" onClick={() => navigate('/about', {replace: true})}>
+        replace-about-again
+      </button>
+    </div>
+  )
+}
+
 const Page: React.FC<{label: string}> = ({label}) => {
   const navigate = useNavigate()
   return (
@@ -32,9 +47,13 @@ const Page: React.FC<{label: string}> = ({label}) => {
   )
 }
 
-const TestApp: React.FC<{initialEntries?: string[]}> = ({initialEntries = ['/']}) => (
+const TestApp: React.FC<{initialEntries?: string[]; includeReplaceControl?: boolean}> = ({
+  initialEntries = ['/'],
+  includeReplaceControl = false,
+}) => (
   <MemoryRouter initialEntries={initialEntries}>
     <AnalyticsTracker />
+    {includeReplaceControl ? <ReplaceNavigationControl /> : null}
     <Routes>
       <Route path="/" element={<Page label="home" />} />
       <Route path="/about" element={<Page label="about" />} />
@@ -75,6 +94,34 @@ describe('AnalyticsTracker', () => {
 
     expect(mockTrackUmamiPageview).toHaveBeenCalledTimes(1)
     expect(mockTrackUmamiPageview).toHaveBeenCalledWith('/about')
+  })
+
+  it('tracks replace navigation once, ignores same-route replace, and keeps the router usable', async () => {
+    const user = userEvent.setup()
+    render(<TestApp includeReplaceControl />)
+
+    expect(screen.getByText('home')).toBeInTheDocument()
+    expect(mockTrackUmamiPageview).toHaveBeenCalledTimes(1)
+    expect(mockTrackUmamiPageview).toHaveBeenNthCalledWith(1, '/')
+
+    mockTrackUmamiPageview.mockClear()
+
+    await user.click(screen.getByRole('button', {name: 'replace-about'}))
+
+    expect(screen.getByText('about')).toBeInTheDocument()
+    expect(mockTrackUmamiPageview).toHaveBeenCalledTimes(1)
+    expect(mockTrackUmamiPageview).toHaveBeenCalledWith('/about')
+
+    await user.click(screen.getByRole('button', {name: 'replace-about-again'}))
+
+    expect(screen.getByText('about')).toBeInTheDocument()
+    expect(mockTrackUmamiPageview).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', {name: 'go-blog'}))
+
+    expect(screen.getByText('blog')).toBeInTheDocument()
+    expect(mockTrackUmamiPageview).toHaveBeenCalledTimes(2)
+    expect(mockTrackUmamiPageview).toHaveBeenLastCalledWith('/blog')
   })
 
   it('passes only the pathname from useLocation, not query/hash', async () => {

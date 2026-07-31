@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react'
-import {trackUmamiEvent, type ApprovedNavigationDestination} from '../utils/analytics'
+import {isApprovedNavigationDestination, trackUmamiEvent} from '../utils/analytics'
 
 /**
  * Navigation item configuration
@@ -85,13 +85,17 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
    * Handle smooth scroll to section
    */
   const scrollToSection = useCallback((sectionId: string) => {
-    const element = document.querySelector(`#${sectionId}`)
+    // Dynamic HTML IDs may contain characters that require CSS selector escaping.
+    // eslint-disable-next-line unicorn/prefer-query-selector
+    const element = document.getElementById(sectionId)
     if (!element) return
 
-    trackUmamiEvent('navigation', {
-      destination: sectionId as ApprovedNavigationDestination,
-      method: 'smooth_scroll',
-    })
+    if (isApprovedNavigationDestination(sectionId)) {
+      trackUmamiEvent('navigation', {
+        destination: sectionId,
+        method: 'smooth_scroll',
+      })
+    }
 
     setIsScrolling(true)
 
@@ -110,7 +114,12 @@ const SmoothScrollNav: React.FC<SmoothScrollNavProps> = ({
     // Skip intersection observer during programmatic scrolling
     if (isScrolling) return
 
-    const sections = items.map(item => document.querySelector(`#${item.id}`)).filter(Boolean) as HTMLElement[]
+    const sections = items
+      .map(item => {
+        // eslint-disable-next-line unicorn/prefer-query-selector
+        return document.getElementById(item.id)
+      })
+      .filter(Boolean) as HTMLElement[]
 
     if (sections.length === 0) return
 

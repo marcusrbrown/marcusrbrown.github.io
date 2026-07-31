@@ -30,6 +30,10 @@ export const APPROVED_NAVIGATION_DESTINATIONS = [
 ] as const
 export type ApprovedNavigationDestination = (typeof APPROVED_NAVIGATION_DESTINATIONS)[number]
 
+/** Runtime guard for navigation destinations accepted by the analytics catalog. */
+export const isApprovedNavigationDestination = (value: string): value is ApprovedNavigationDestination =>
+  (APPROVED_NAVIGATION_DESTINATIONS as readonly string[]).includes(value)
+
 /** Approved navigation mechanisms for `navigation` events — input modality is never recorded. */
 export const APPROVED_NAVIGATION_METHODS = ['route_link', 'smooth_scroll'] as const
 export type ApprovedNavigationMethod = (typeof APPROVED_NAVIGATION_METHODS)[number]
@@ -75,17 +79,6 @@ export interface UmamiEventCatalog {
 
 export type UmamiEventName = keyof UmamiEventCatalog
 
-/** Every catalog event name, in the same order as `UMAMI_EVENT_PRIVACY_METADATA`. */
-export const UMAMI_EVENT_NAMES: readonly UmamiEventName[] = [
-  'navigation',
-  'section_view',
-  'project_open',
-  'blog_open',
-  'contact_open',
-  'external_profile_open',
-  'theme_change',
-] as const
-
 /** Privacy-inventory metadata for the `/privacy` page — one row per catalog event. */
 export interface UmamiEventPrivacyMetadata {
   name: UmamiEventName
@@ -93,68 +86,73 @@ export interface UmamiEventPrivacyMetadata {
 }
 
 /**
- * Source of truth for the `/privacy` event inventory (the privacy page reads this,
- * does not duplicate it). Must contain exactly one entry per `UMAMI_EVENT_NAMES`
- * value — see the `UMAMI_EVENT_PRIVACY_METADATA` coupling test in
- * `tests/utils/analytics.test.ts`.
+ * Source of truth for event descriptions and runtime validation. The mapped type
+ * keeps each validator coupled to its catalog payload shape.
  */
-export const UMAMI_EVENT_PRIVACY_METADATA: readonly UmamiEventPrivacyMetadata[] = [
-  {name: 'navigation', description: 'Route or in-page section navigation, by destination and mechanism.'},
-  {
-    name: 'section_view',
-    description: 'A Home page section entered the viewport once per Home mount.',
-  },
-  {name: 'project_open', description: 'A portfolio project preview, source, or demo link was opened.'},
-  {name: 'blog_open', description: 'A blog post card was opened from a listing.'},
-  {name: 'contact_open', description: 'The contact email link was opened.'},
-  {name: 'external_profile_open', description: 'An external GitHub or Twitter profile link was opened.'},
-  {name: 'theme_change', description: 'The active theme mode or preset changed.'},
-] as const
+type UmamiEventDefinitions = {
+  [Name in UmamiEventName]: {
+    description: string
+    validate: (data: UmamiEventCatalog[Name]) => boolean
+  }
+}
 
-/** Validates a single catalog event's properties against approved values/snapshots. */
-const isValidCatalogEvent = <Name extends UmamiEventName>(name: Name, data: UmamiEventCatalog[Name]): boolean => {
-  switch (name) {
-    case 'navigation': {
-      const {destination, method} = data as UmamiEventCatalog['navigation']
-      return (
-        (APPROVED_NAVIGATION_DESTINATIONS as readonly string[]).includes(destination) &&
-        (APPROVED_NAVIGATION_METHODS as readonly string[]).includes(method)
-      )
-    }
-    case 'section_view': {
-      const {section} = data as UmamiEventCatalog['section_view']
-      return (APPROVED_SECTION_NAMES as readonly string[]).includes(section)
-    }
-    case 'project_open': {
-      const {action, project_id, source} = data as UmamiEventCatalog['project_open']
-      return (
-        (APPROVED_PROJECT_ACTIONS as readonly string[]).includes(action) &&
-        (APPROVED_PROJECT_SOURCES as readonly string[]).includes(source) &&
-        KNOWN_PROJECT_IDS.has(project_id)
-      )
-    }
-    case 'blog_open': {
-      const {slug, source} = data as UmamiEventCatalog['blog_open']
-      return (APPROVED_BLOG_SOURCES as readonly string[]).includes(source) && KNOWN_BLOG_SLUGS.has(slug)
-    }
-    case 'contact_open': {
-      const {method} = data as UmamiEventCatalog['contact_open']
-      return (APPROVED_CONTACT_METHODS as readonly string[]).includes(method)
-    }
-    case 'external_profile_open': {
-      const {destination} = data as UmamiEventCatalog['external_profile_open']
-      return (APPROVED_EXTERNAL_PROFILE_DESTINATIONS as readonly string[]).includes(destination)
-    }
-    case 'theme_change': {
-      const {kind, value} = data as UmamiEventCatalog['theme_change']
+export const UMAMI_EVENT_DEFINITIONS = {
+  navigation: {
+    description: 'Route or in-page section navigation, by destination and mechanism.',
+    validate: ({destination, method}) =>
+      isApprovedNavigationDestination(destination) &&
+      (APPROVED_NAVIGATION_METHODS as readonly string[]).includes(method),
+  },
+  section_view: {
+    description: 'A Home page section entered the viewport once per Home mount.',
+    validate: ({section}) => (APPROVED_SECTION_NAMES as readonly string[]).includes(section),
+  },
+  project_open: {
+    description: 'A portfolio project preview, source, or demo link was opened.',
+    validate: ({action, project_id, source}) =>
+      (APPROVED_PROJECT_ACTIONS as readonly string[]).includes(action) &&
+      (APPROVED_PROJECT_SOURCES as readonly string[]).includes(source) &&
+      KNOWN_PROJECT_IDS.has(project_id),
+  },
+  blog_open: {
+    description: 'A blog post card was opened from a listing.',
+    validate: ({slug, source}) =>
+      (APPROVED_BLOG_SOURCES as readonly string[]).includes(source) && KNOWN_BLOG_SLUGS.has(slug),
+  },
+  contact_open: {
+    description: 'The contact email link was opened.',
+    validate: ({method}) => (APPROVED_CONTACT_METHODS as readonly string[]).includes(method),
+  },
+  external_profile_open: {
+    description: 'An external GitHub or Twitter profile link was opened.',
+    validate: ({destination}) => (APPROVED_EXTERNAL_PROFILE_DESTINATIONS as readonly string[]).includes(destination),
+  },
+  theme_change: {
+    description: 'The active theme mode or preset changed.',
+    validate: ({kind, value}) => {
       if (kind === 'mode') return (APPROVED_THEME_MODES as readonly string[]).includes(value)
       if (kind === 'preset') return KNOWN_PRESET_THEME_IDS.has(value)
       return false
-    }
-    default: {
-      return false
-    }
-  }
+    },
+  },
+} satisfies UmamiEventDefinitions
+
+/** Every catalog event name, derived in definition order. */
+export const UMAMI_EVENT_NAMES: readonly UmamiEventName[] = Object.keys(UMAMI_EVENT_DEFINITIONS) as UmamiEventName[]
+
+/** Privacy-inventory metadata for the `/privacy` page, derived from the event catalog. */
+export const UMAMI_EVENT_PRIVACY_METADATA: readonly UmamiEventPrivacyMetadata[] = UMAMI_EVENT_NAMES.map(name => ({
+  name,
+  description: UMAMI_EVENT_DEFINITIONS[name].description,
+}))
+
+const getUmamiEventDefinition = <Name extends UmamiEventName>(name: Name): UmamiEventDefinitions[Name] | undefined =>
+  UMAMI_EVENT_DEFINITIONS[name]
+
+/** Validates a single catalog event's properties against approved values/snapshots. */
+const isValidCatalogEvent = <Name extends UmamiEventName>(name: Name, data: UmamiEventCatalog[Name]): boolean => {
+  const definition = getUmamiEventDefinition(name)
+  return definition === undefined ? false : definition.validate(data)
 }
 
 /**
@@ -183,13 +181,21 @@ export const isUmamiTrackerAvailable = (): boolean =>
  */
 const stripSearchAndHash = (pathname: string): string => pathname.split('?')[0]?.split('#')[0] ?? pathname
 
-/**
- * A valid same-site pathname begins with exactly one `/` (not two — that is
- * protocol-relative) and is never an absolute URL. Query/hash are stripped
- * separately; this only gates the shape of the input before stripping.
- */
+/** A valid same-site pathname begins with exactly one `/` and is never an absolute URL. */
 const isValidPathname = (pathname: string): boolean =>
   pathname.length > 0 && pathname.startsWith('/') && !pathname.startsWith('//') && !/^\/[a-z][\w+.-]*:/i.test(pathname)
+
+const APPROVED_STATIC_PAGEVIEW_PATHS = ['/', '/about', '/projects', '/blog', '/privacy'] as const
+
+/** Returns the approved route sent to the collector, or `undefined` when policy rejects it. */
+const normalizeApprovedPageviewPath = (pathname: string): string | undefined => {
+  const normalizedPathname = stripSearchAndHash(pathname)
+  if (!isValidPathname(normalizedPathname)) return undefined
+  if ((APPROVED_STATIC_PAGEVIEW_PATHS as readonly string[]).includes(normalizedPathname)) return normalizedPathname
+
+  const blogSlug = normalizedPathname.startsWith('/blog/') ? normalizedPathname.slice('/blog/'.length) : undefined
+  return blogSlug && KNOWN_BLOG_SLUGS.has(blogSlug) ? normalizedPathname : undefined
+}
 
 /**
  * Sends one normalized pageview. Stateless: does not remember or retry the route.
@@ -200,10 +206,11 @@ const isValidPathname = (pathname: string): boolean =>
  */
 export const trackUmamiPageview = (pathname: string): UmamiSendOutcome => {
   if (isDoNotTrackEnabled()) return 'dropped-by-policy'
-  if (!isValidPathname(pathname)) return 'dropped-by-policy'
+  const normalizedPathname = normalizeApprovedPageviewPath(pathname)
+  if (normalizedPathname === undefined) return 'dropped-by-policy'
   if (!isUmamiTrackerAvailable()) return 'unavailable'
   try {
-    window.umami?.track({url: stripSearchAndHash(pathname)})
+    window.umami?.track({url: normalizedPathname})
     return 'sent'
   } catch {
     return 'unavailable'

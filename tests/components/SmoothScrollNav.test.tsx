@@ -194,5 +194,23 @@ describe('SmoothScrollNav', () => {
       expect(trackUmamiEvent).not.toHaveBeenCalled()
       expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
     })
+
+    it('scrolls to an existing unsupported custom section without tracking it', async () => {
+      const user = userEvent.setup()
+      const customSection = document.createElement('section')
+      customSection.id = 'custom:unsupported'
+      document.body.append(customSection)
+      const scrollIntoViewSpy = vi.spyOn(customSection, 'scrollIntoView')
+
+      render(<SmoothScrollNav items={[{id: 'custom:unsupported', label: 'Custom'}]} />)
+
+      await user.click(screen.getByRole('button', {name: /navigate to custom section/i}))
+
+      expect(scrollIntoViewSpy).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      })
+      expect(trackUmamiEvent).not.toHaveBeenCalled()
+    })
   })
 })
