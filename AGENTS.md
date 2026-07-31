@@ -13,7 +13,7 @@ src/
 ├── components/    # 19 React components (see components/AGENTS.md)
 ├── hooks/         # 11 custom hooks — PascalCase files! (see hooks/AGENTS.md)
 ├── contexts/      # ThemeContext — single provider wrapping App
-├── pages/         # 5 route pages: Home, Blog, Projects, About, BlogPostPage (/blog/:slug)
+├── pages/         # 6 route pages: Home, Blog, Projects, About, Privacy, BlogPostPage (/blog/:slug)
 ├── utils/         # 13 utilities — heavily theme-oriented (see utils/AGENTS.md)
 ├── types/         # TypeScript types, barrel export via index.ts
 ├── schemas/       # theme + blog-frontmatter schemas for runtime validation

@@ -1,9 +1,75 @@
+import type {Plugin} from 'vite'
 import {readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import process from 'node:process'
 import {describe, expect, it} from 'vitest'
 import {parse as parseYaml} from 'yaml'
-import {buildUmamiTrackerTag, shouldInjectUmamiTracker, UMAMI_SCRIPT_URL} from '../../vite.config'
+import viteConfig, {buildUmamiTrackerTag, shouldInjectUmamiTracker, UMAMI_SCRIPT_URL} from '../../vite.config'
+
+interface UmamiBuildState {
+  name: string
+  command: 'build' | 'serve'
+  mode: string
+  websiteId: string | undefined
+  enabled: boolean
+}
+
+const withWebsiteId = <Result>(websiteId: string | undefined, callback: () => Result): Result => {
+  const previousWebsiteId = process.env.VITE_UMAMI_WEBSITE_ID
+  if (websiteId === undefined) {
+    delete process.env.VITE_UMAMI_WEBSITE_ID
+  } else {
+    process.env.VITE_UMAMI_WEBSITE_ID = websiteId
+  }
+
+  try {
+    return callback()
+  } finally {
+    if (previousWebsiteId === undefined) {
+      delete process.env.VITE_UMAMI_WEBSITE_ID
+    } else {
+      process.env.VITE_UMAMI_WEBSITE_ID = previousWebsiteId
+    }
+  }
+}
+
+const umamiBuildStates: UmamiBuildState[] = [
+  {
+    name: 'configured production',
+    command: 'build',
+    mode: 'production',
+    websiteId: 'fixture-website-id',
+    enabled: true,
+  },
+  {
+    name: 'unconfigured production',
+    command: 'build',
+    mode: 'production',
+    websiteId: undefined,
+    enabled: false,
+  },
+  {
+    name: 'configured development serve',
+    command: 'serve',
+    mode: 'development',
+    websiteId: 'fixture-website-id',
+    enabled: false,
+  },
+]
+
+const isUmamiTrackerPlugin = (plugin: unknown): plugin is Plugin =>
+  typeof plugin === 'object' &&
+  plugin !== null &&
+  !Array.isArray(plugin) &&
+  'name' in plugin &&
+  plugin.name === 'umami-tracker-injection'
+
+const runTrackerTransform = async (plugin: Plugin) => {
+  const transform = plugin.transformIndexHtml
+  if (typeof transform === 'function') return Reflect.apply(transform, undefined, [''])
+  if (transform) return Reflect.apply(transform.handler, undefined, [''])
+  return undefined
+}
 
 describe('Umami tracker build-time activation', () => {
   describe('shouldInjectUmamiTracker', () => {
@@ -51,6 +117,34 @@ describe('Umami tracker build-time activation', () => {
 
     it('points at the self-hosted metrics host', () => {
       expect(UMAMI_SCRIPT_URL).toBe('https://metrics.fro.bot/script.js')
+    })
+  })
+
+  describe('real Vite config build state', () => {
+    it.each(umamiBuildStates)('$name shares one tracker activation decision', async state => {
+      const config = withWebsiteId(state.websiteId, () => viteConfig({command: state.command, mode: state.mode}))
+      const trackerPlugin = config.plugins?.find(isUmamiTrackerPlugin)
+
+      expect(trackerPlugin).toBeDefined()
+      if (!trackerPlugin) return
+
+      const transformed = await runTrackerTransform(trackerPlugin)
+      const injectedTags = Array.isArray(transformed) ? transformed : []
+
+      expect(config.define?.__UMAMI_ENABLED__).toBe(JSON.stringify(state.enabled))
+      expect(JSON.parse(String(config.define?.__UMAMI_ENABLED__))).toBe(state.enabled)
+      expect(injectedTags).toHaveLength(state.enabled ? 1 : 0)
+      expect(Boolean(injectedTags[0])).toBe(state.enabled)
+
+      if (state.enabled) {
+        expect(injectedTags[0]).toMatchObject({
+          attrs: {'data-website-id': state.websiteId},
+        })
+      }
+
+      if (state.websiteId !== undefined) {
+        expect(Object.values(config.define ?? {})).not.toContain(state.websiteId)
+      }
     })
   })
 })

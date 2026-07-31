@@ -59,92 +59,97 @@ const projectsSnapshotAlias = process.env.PROJECTS_SNAPSHOT
   ? [{find: '../data/projects-snapshot.json', replacement: path.resolve(process.cwd(), process.env.PROJECTS_SNAPSHOT)}]
   : []
 
-export default defineConfig(({command, mode}) => ({
-  plugins: [
-    react(),
-    {
-      name: 'umami-tracker-injection',
-      transformIndexHtml() {
-        const websiteId = process.env.VITE_UMAMI_WEBSITE_ID
-        if (!shouldInjectUmamiTracker({command, mode, websiteId})) {
-          return undefined
-        }
-        return [buildUmamiTrackerTag(websiteId ?? '')]
-      },
-    },
-  ],
+export default defineConfig(({command, mode}) => {
+  const websiteId = process.env.VITE_UMAMI_WEBSITE_ID
+  const umamiEnabled = shouldInjectUmamiTracker({command, mode, websiteId})
 
-  resolve: {
-    alias: [...blogSnapshotAlias, ...projectsSnapshotAlias],
-  },
-
-  build: {
-    outDir: 'dist',
-    // No prod source maps: ~2MB of .map files visitors never fetch. Source is public on GitHub.
-    sourcemap: false,
-    rollupOptions: {
-      external: ['shiki', '@shikijs/core', '@shikijs/transformers'],
-      output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('@shikijs')) return 'shiki'
-            if (id.includes('highlight.js')) return 'highlight'
-            if (id.includes('react') || id.includes('react-dom')) return 'vendor'
-            return 'vendor'
+  return {
+    plugins: [
+      react(),
+      {
+        name: 'umami-tracker-injection',
+        transformIndexHtml() {
+          if (!umamiEnabled) {
+            return undefined
           }
-          return undefined
+          return [buildUmamiTrackerTag(websiteId ?? '')]
         },
       },
-    },
-  },
-
-  // GitHub Pages deployment with custom domain
-  base: '/',
-
-  // Enable GitHub Pages environment variable detection
-  define: {
-    __GITHUB_PAGES__: JSON.stringify(process.env.GITHUB_PAGES === 'true'),
-  },
-
-  test: {
-    environment: 'happy-dom',
-    environmentOptions: {
-      happyDOM: {
-        settings: {
-          disableCSSFileLoading: true,
-          disableJavaScriptFileLoading: true,
-        },
-      },
-    },
-    globals: true,
-    setupFiles: './tests/setup.ts',
-    // Exclude E2E, visual, and performance tests - they should only run through Playwright
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/tests/e2e/**',
-      '**/tests/visual/**',
-      '**/tests/performance/**',
-      '**/tests/accessibility/**',
     ],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json-summary', 'html'],
-      include: ['src/**/*.{ts,tsx}'],
+
+    resolve: {
+      alias: [...blogSnapshotAlias, ...projectsSnapshotAlias],
+    },
+
+    build: {
+      outDir: 'dist',
+      // No prod source maps: ~2MB of .map files visitors never fetch. Source is public on GitHub.
+      sourcemap: false,
+      rollupOptions: {
+        external: ['shiki', '@shikijs/core', '@shikijs/transformers'],
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('@shikijs')) return 'shiki'
+              if (id.includes('highlight.js')) return 'highlight'
+              if (id.includes('react') || id.includes('react-dom')) return 'vendor'
+              return 'vendor'
+            }
+            return undefined
+          },
+        },
+      },
+    },
+
+    // GitHub Pages deployment with custom domain
+    base: '/',
+
+    // Enable GitHub Pages and Umami build-time globals
+    define: {
+      __GITHUB_PAGES__: JSON.stringify(process.env.GITHUB_PAGES === 'true'),
+      __UMAMI_ENABLED__: JSON.stringify(umamiEnabled),
+    },
+
+    test: {
+      environment: 'happy-dom',
+      environmentOptions: {
+        happyDOM: {
+          settings: {
+            disableCSSFileLoading: true,
+            disableJavaScriptFileLoading: true,
+          },
+        },
+      },
+      globals: true,
+      setupFiles: './tests/setup.ts',
+      // Exclude E2E, visual, and performance tests - they should only run through Playwright
       exclude: [
-        '**/*.test.{ts,tsx}',
-        '**/*.spec.{ts,tsx}',
         '**/node_modules/**',
         '**/dist/**',
-        'src/types/**',
-        'src/vite-env.d.ts',
+        '**/tests/e2e/**',
+        '**/tests/visual/**',
+        '**/tests/performance/**',
+        '**/tests/accessibility/**',
       ],
-      thresholds: {
-        statements: 80,
-        branches: 80,
-        functions: 80,
-        lines: 80,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json-summary', 'html'],
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: [
+          '**/*.test.{ts,tsx}',
+          '**/*.spec.{ts,tsx}',
+          '**/node_modules/**',
+          '**/dist/**',
+          'src/types/**',
+          'src/vite-env.d.ts',
+        ],
+        thresholds: {
+          statements: 80,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+        },
       },
     },
-  },
-}))
+  }
+})

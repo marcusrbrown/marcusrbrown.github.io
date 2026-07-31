@@ -98,6 +98,13 @@ export const Footer = () => {
         </div>
         <div className="footer__meta">
           <p className="footer__copyright">&copy; {currentYear} Marcus R. Brown.</p>
+          <Link
+            to="/privacy"
+            className="footer__link footer__link--quiet"
+            {...buildUmamiEventAttributes('navigation', {destination: 'privacy', method: 'route_link'})}
+          >
+            Privacy
+          </Link>
         </div>
       </div>
     </footer>
