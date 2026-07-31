@@ -144,6 +144,7 @@ export default defineConfig(({command, mode}) => {
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
+        '**/.worktrees/**',
         '**/tests/e2e/**',
         '**/tests/visual/**',
         '**/tests/performance/**',
