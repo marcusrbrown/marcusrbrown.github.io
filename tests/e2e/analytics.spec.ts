@@ -100,7 +100,8 @@ const stubReadyUmamiTracker = async (page: Page) => {
     window.__umamiTrackCalls = []
     window.umami = {
       track: (
-        nameOrTransform: string | ((properties: Record<string, unknown>) => Record<string, unknown>),
+        nameOrTransform?:
+          string | Record<string, unknown> | ((properties: Record<string, unknown>) => Record<string, unknown>),
         data?: Record<string, unknown>,
       ) => {
         if (typeof nameOrTransform === 'function') {
@@ -536,7 +537,8 @@ test.describe('Analytics DNT suppression', () => {
       Object.defineProperty(navigator, 'doNotTrack', {value: '1', configurable: true})
       window.umami = {
         track: (
-          nameOrTransform: string | ((properties: Record<string, unknown>) => Record<string, unknown>),
+          nameOrTransform?:
+            string | Record<string, unknown> | ((properties: Record<string, unknown>) => Record<string, unknown>),
           data?: Record<string, unknown>,
         ) => {
           if (typeof nameOrTransform === 'function') {
@@ -636,7 +638,8 @@ test.describe('Analytics tracker unavailability', () => {
     await page.evaluate(() => {
       window.umami = {
         track: (
-          nameOrTransform: string | ((properties: Record<string, unknown>) => Record<string, unknown>),
+          nameOrTransform?:
+            string | Record<string, unknown> | ((properties: Record<string, unknown>) => Record<string, unknown>),
           data?: Record<string, unknown>,
         ) => {
           if (typeof nameOrTransform === 'function') {

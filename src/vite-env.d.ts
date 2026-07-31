@@ -12,6 +12,8 @@ interface Window {
    */
   umami?: {
     track: {
+      (): void
+      (payload: Record<string, unknown>): void
       (transform: (properties: Record<string, unknown>) => Record<string, unknown>): void
       (name: string, data?: Record<string, unknown>): void
     }
