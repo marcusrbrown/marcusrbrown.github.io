@@ -64,10 +64,93 @@ This procedure is future-facing and gated. Do not use it while retention evidenc
 7. Repeat the same controlled sequence with Do Not Track enabled. Confirm that no new pageview or custom-event records are created.
 8. Complete the activation record below. If any check differs from the matrix, stop and roll back rather than interpreting partial success as activation.
 
+### Future activation commands
+
+This block is a future-facing operator runbook. It requires a human approval marker and uses a placeholder environment variable for the public website ID; it does not contain or print a real ID.
+
+```bash
+set -euo pipefail
+
+REPO='marcusrbrown/marcusrbrown.github.io'
+SITE_URL='https://mrbro.dev'
+WORKFLOW='deploy.yaml'
+EXPECTED_SHA="$(gh api "repos/$REPO/commits/main" --jq '.sha')"
+BEFORE_RUN_IDS="$(mktemp)"
+HTML_FILE="$(mktemp)"
+VARIABLE_SET=0
+ACTIVATION_VERIFIED=0
+cleanup() {
+  pnpm exec agent-browser close >/dev/null 2>&1 || true
+  rm -f "$HTML_FILE" "$BEFORE_RUN_IDS"
+  if [ "$VARIABLE_SET" -eq 1 ] && [ "$ACTIVATION_VERIFIED" -ne 1 ]; then
+    gh variable delete UMAMI_WEBSITE_ID --repo "$REPO" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+: "${UMAMI_WEBSITE_ID_VALUE:?Set locally to the approved public site ID; never commit or echo it}"
+: "${HUMAN_APPROVAL:?Set to APPROVED_ANALYTICS_ACTIVATION only after human approval}"
+: "${INFRA_COMMIT:?Set to the exact deployed infra commit}"
+: "${UMAMI_VERSION:?Set to the exact deployed Umami version}"
+: "${RETENTION_EVIDENCE_PATH:?Set to the version-controlled retention evidence path}"
+: "${RETENTION_EVIDENCE_HASH:?Set to the retention evidence hash}"
+
+VARIABLE_COUNT="$(gh variable list --repo "$REPO" --json name --jq '[.[] | select(.name == "UMAMI_WEBSITE_ID")] | length')"
+test "$VARIABLE_COUNT" -eq 0
+test "$HUMAN_APPROVAL" = 'APPROVED_ANALYTICS_ACTIVATION'
+gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 100 --json databaseId --jq '.[].databaseId' > "$BEFORE_RUN_IDS"
+
+gh variable set UMAMI_WEBSITE_ID --repo "$REPO" --body "$UMAMI_WEBSITE_ID_VALUE"
+VARIABLE_SET=1
+
+DISPATCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+gh workflow run "$WORKFLOW" --repo "$REPO" --ref main
+RUN_ID=''
+for _ in $(seq 1 30); do
+  CANDIDATES="$({
+    gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 20 --json databaseId,createdAt,event,headSha \
+      --jq ".[] | select(.event == \"workflow_dispatch\" and .headSha == \"$EXPECTED_SHA\" and .createdAt >= \"$DISPATCHED_AT\") | .databaseId" |
+      while read -r candidate; do
+        if ! grep -Fxq "$candidate" "$BEFORE_RUN_IDS"; then printf '%s\n' "$candidate"; fi
+      done
+  })"
+  CANDIDATE_COUNT="$(printf '%s\n' "$CANDIDATES" | awk 'NF' | wc -l | tr -d '[:space:]')"
+  if [ "$CANDIDATE_COUNT" -eq 1 ]; then RUN_ID="$CANDIDATES"; break; fi
+  if [ "$CANDIDATE_COUNT" -gt 1 ]; then echo 'Ambiguous deploy runs; stop and inspect.' >&2; exit 1; fi
+  sleep 2
+done
+test -n "$RUN_ID"
+gh run watch "$RUN_ID" --repo "$REPO" --exit-status
+
+SITE_COMMIT="$(gh run view "$RUN_ID" --repo "$REPO" --json headSha --jq '.headSha')"
+test "$SITE_COMMIT" = "$EXPECTED_SHA"
+DEPLOY_RUN_URL="$(gh run view "$RUN_ID" --repo "$REPO" --json url --jq '.url')"
+
+curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --max-time 30 "$SITE_URL/" > "$HTML_FILE"
+test "$(grep -Fo 'src="https://metrics.fro.bot/script.js"' "$HTML_FILE" | wc -l | tr -d '[:space:]')" -eq 1
+grep -Fq "data-website-id=\"$UMAMI_WEBSITE_ID_VALUE\"" "$HTML_FILE"
+grep -Fq 'data-do-not-track="true"' "$HTML_FILE"
+grep -Fq 'data-exclude-search="true"' "$HTML_FILE"
+grep -Fq 'data-exclude-hash="true"' "$HTML_FILE"
+grep -Fq 'data-auto-pageview="false"' "$HTML_FILE"
+curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --max-time 30 "$SITE_URL/privacy" > /dev/null
+pnpm exec agent-browser open "$SITE_URL/privacy"
+pnpm exec agent-browser wait --load networkidle
+pnpm exec agent-browser snapshot -s main | grep -Fq 'Analytics are enabled for this build.'
+pnpm exec agent-browser close
+ACTIVATION_VERIFIED=1
+
+printf 'mrbro.dev commit: %s\nDeploy workflow run: %s\nInfra commit: %s\nUmami version: %s\nRetention evidence path/hash: %s / %s\n' \
+  "$SITE_COMMIT" "$DEPLOY_RUN_URL" "$INFRA_COMMIT" "$UMAMI_VERSION" "$RETENTION_EVIDENCE_PATH" "$RETENTION_EVIDENCE_HASH"
+```
+
+In a browser, open `https://mrbro.dev/privacy` and confirm the visible status says: **“Analytics are enabled for this build.”** Complete the controlled smoke and Do Not Track checks before recording results. Create and commit `docs/analytics-activation-records/YYYY-MM-DD.md` from the template below, including the exact site commit/deploy run, infra commit, Umami version, evidence path/hash, live tag result, visible `/privacy` result, smoke results, and rollback evidence. Do not create a record during preparation.
+
 ## Activation record template
 
 ```text
-mrbro.dev commit/deploy:
+Activation record path:
+mrbro.dev commit:
+Deploy workflow run/deploy:
 Infra commit:
 Umami version:
 Retention evidence path/hash:
@@ -90,6 +173,65 @@ Notes:
 2. Redeploy the site through the normal Pages workflow.
 3. Verify that the live artifact has no tracker tag and `/privacy` reports analytics disabled.
 4. Verify that no new pageviews or custom events are sent.
+
+### Future rollback commands
+
+Rollback is also a human-gated public mutation. Do not mark it complete until the live tag is absent and the disabled `/privacy` status is visible.
+
+```bash
+set -euo pipefail
+
+REPO='marcusrbrown/marcusrbrown.github.io'
+SITE_URL='https://mrbro.dev'
+WORKFLOW='deploy.yaml'
+EXPECTED_SHA="$(gh api "repos/$REPO/commits/main" --jq '.sha')"
+BEFORE_RUN_IDS="$(mktemp)"
+HTML_FILE="$(mktemp)"
+cleanup() {
+  pnpm exec agent-browser close >/dev/null 2>&1 || true
+  rm -f "$HTML_FILE" "$BEFORE_RUN_IDS"
+}
+trap cleanup EXIT
+: "${HUMAN_APPROVAL:?Set to APPROVED_ANALYTICS_ROLLBACK only after human approval}"
+test "$HUMAN_APPROVAL" = 'APPROVED_ANALYTICS_ROLLBACK'
+
+VARIABLE_COUNT="$(gh variable list --repo "$REPO" --json name --jq '[.[] | select(.name == "UMAMI_WEBSITE_ID")] | length')"
+test "$VARIABLE_COUNT" -eq 1
+gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 100 --json databaseId --jq '.[].databaseId' > "$BEFORE_RUN_IDS"
+gh variable delete UMAMI_WEBSITE_ID --repo "$REPO"
+
+DISPATCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+gh workflow run "$WORKFLOW" --repo "$REPO" --ref main
+RUN_ID=''
+for _ in $(seq 1 30); do
+  CANDIDATES="$({
+    gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 20 --json databaseId,createdAt,event,headSha \
+      --jq ".[] | select(.event == \"workflow_dispatch\" and .headSha == \"$EXPECTED_SHA\" and .createdAt >= \"$DISPATCHED_AT\") | .databaseId" |
+      while read -r candidate; do
+        if ! grep -Fxq "$candidate" "$BEFORE_RUN_IDS"; then printf '%s\n' "$candidate"; fi
+      done
+  })"
+  CANDIDATE_COUNT="$(printf '%s\n' "$CANDIDATES" | awk 'NF' | wc -l | tr -d '[:space:]')"
+  if [ "$CANDIDATE_COUNT" -eq 1 ]; then RUN_ID="$CANDIDATES"; break; fi
+  if [ "$CANDIDATE_COUNT" -gt 1 ]; then echo 'Ambiguous deploy runs; stop and inspect.' >&2; exit 1; fi
+  sleep 2
+done
+test -n "$RUN_ID"
+gh run watch "$RUN_ID" --repo "$REPO" --exit-status
+test "$(gh run view "$RUN_ID" --repo "$REPO" --json headSha --jq '.headSha')" = "$EXPECTED_SHA"
+
+curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --max-time 30 "$SITE_URL/" > "$HTML_FILE"
+if grep -Fq 'src="https://metrics.fro.bot/script.js"' "$HTML_FILE"; then
+  exit 1
+fi
+curl --fail --silent --show-error --location --retry 5 --retry-delay 2 --max-time 30 "$SITE_URL/privacy" > /dev/null
+pnpm exec agent-browser open "$SITE_URL/privacy"
+pnpm exec agent-browser wait --load networkidle
+pnpm exec agent-browser snapshot -s main | grep -Fq 'Analytics are disabled for this build.'
+pnpm exec agent-browser close
+```
+
+In a browser, open `https://mrbro.dev/privacy` and confirm the visible status says: **“Analytics are disabled for this build.”** Append the exact rollback workflow run/deploy, live tag absence, disabled status, and no-new-record result to the version-controlled activation record. Rollback is incomplete until all of those checks pass.
 
 Stale GitHub Pages output or disagreement between the live tag and `/privacy` is an incident. Rollback is incomplete until the live artifact is corrected and the disabled state is verified.
 
