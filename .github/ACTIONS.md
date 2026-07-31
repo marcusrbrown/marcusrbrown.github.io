@@ -290,9 +290,11 @@ on:
 
 ### 📊 Analytics Website ID (`UMAMI_WEBSITE_ID`)
 
-The self-hosted Umami tracker (see `docs/analytics.md`) is activated by the repository variable `UMAMI_WEBSITE_ID`. It is mapped to the public Vite build variable `VITE_UMAMI_WEBSITE_ID` **only on the `Build project` step** of the `deploy.yaml` build job — not at workflow or job scope — matching the Systematic/dev-like step-scoped pattern. `vite.config.ts` injects exactly one hardened tracker `<script>` tag when the build is production-mode and this variable is a non-empty string; development builds and unconfigured production builds emit no tracker tag.
+See the [analytics operator runbook](../docs/analytics.md) for the complete activation gate, privacy contract, verification matrix, activation record, and rollback procedure.
 
-The repository variable **remains unset** until the separate infra retention-enforcement work lands and its version-controlled evidence is reviewed (see `docs/analytics.md` and the feature plan's Milestone 2). Setting it prematurely would activate collection against an indefinite-retention Umami deployment. The website ID is intentionally public configuration, not a secret — Vite replaces `VITE_`-prefixed values at build time.
+Current posture is **disabled**: `UMAMI_WEBSITE_ID` must remain unset while the self-hosted Umami service has indefinite retention. It is mapped to the public Vite variable `VITE_UMAMI_WEBSITE_ID` only on the `Build project` step; configured production builds inject the tracker, while development and unconfigured production builds do not.
+
+Activation requires reviewed, version-controlled `marcusrbrown/infra` evidence for 13-month rolling retention, an identified site deployment, and a passing go/no-go review. Rollback removes the variable, redeploys, and verifies both the tracker tag is absent and `/privacy` reports analytics disabled. A stale Pages artifact or disagreement between the live tag and `/privacy` leaves rollback incomplete.
 
 ## Contributing
 

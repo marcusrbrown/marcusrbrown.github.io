@@ -12,7 +12,7 @@
 
 | Hook | Description |
 | --- | --- |
-| `UseAnalytics.ts` | Route pageview tracking (`usePageviewTracking`) plus interaction-tracking hooks |
+| `UseAnalytics.ts` | Route pageview state/readiness (`usePageviewTracking`); interaction events call the typed analytics adapter directly |
 | `UseBlogPosts.ts` | Snapshot-backed blog post listing/lookup |
 | `UsePageTitle.ts` | Dynamic document title with SEO meta |
 | `UseParallax.ts` | Scroll-based parallax transforms |
@@ -30,9 +30,10 @@
 - **Explicit interfaces**: Every hook defines a return type interface in-file
 - **Theme access**: Use `useTheme()` — never import `useThemeContext` directly
 - **Projects/blog data**: Both are build-time snapshot reads (`projects-snapshot.json`, `blog-snapshot.json`) — no runtime API calls, no loading state
+- **Analytics**: Keep route pageview state/readiness in `UseAnalytics.ts`; interaction events use the typed adapter in `src/utils/analytics.ts`, not interaction-tracking hooks
 
 ## Testing
 
-- **Location**: `tests/hooks/` (9 of 11 hooks currently tested — coverage gap)
+- **Location**: `tests/hooks/` (9 of 11 hooks currently have matching test files)
 - **Framework**: Vitest + React Testing Library
 - **Untested**: `UseSyntaxHighlighting`, `UseThemeContext`

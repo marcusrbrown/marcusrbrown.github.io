@@ -4,13 +4,13 @@
 
 ## Organization
 
-| Domain             | Components                                                                               |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| **Theme**          | `ThemePicker`, `ThemeCustomizer`, `ThemePreview`, `PresetThemeGallery`                   |
-| **Content**        | `BlogPost`, `ProjectCard`, `AboutSection`                                                |
-| **Layout**         | `Header`, `Footer`, `HeroSection`, `BackgroundPattern`, `LoadingStates`                  |
-| **Interactive**    | `ProjectGallery`, `ProjectFilter`, `ProjectPreviewModal`, `SmoothScrollNav`, `CodeBlock` |
-| **Infrastructure** | `AnalyticsTracker` — invisible, router-scoped pageview tracker (renders `null`)          |
+| Domain | Components |
+| --- | --- |
+| **Theme** | `ThemePicker`, `ThemeCustomizer`, `ThemePreview`, `PresetThemeGallery` |
+| **Content** | `BlogPost`, `ProjectCard`, `AboutSection` |
+| **Layout** | `Header`, `Footer`, `HeroSection`, `BackgroundPattern`, `LoadingStates` |
+| **Interactive** | `ProjectGallery`, `ProjectFilter`, `ProjectPreviewModal`, `SmoothScrollNav`, `CodeBlock` |
+| **Infrastructure** | `AnalyticsTracker` — invisible, router-scoped pageview tracker; renders `null` and observes pathname only |
 
 ## Patterns
 
@@ -28,7 +28,7 @@
 
 ## Testing Expectations
 
-- **Unit**: Vitest tests in `tests/components/` (17 test files)
+- **Unit**: Vitest tests in `tests/components/` (17 test files, including `AnalyticsTracker.test.tsx`)
 - **Visual**: Regression tests across themes in `tests/visual/`
 - **A11y**: axe-core checks in `tests/accessibility/`
 - Run `lsp_diagnostics` clean before commit
