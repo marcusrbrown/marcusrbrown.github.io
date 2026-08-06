@@ -19,6 +19,7 @@ overrides:
   minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
   path-to-regexp: '>=0.1.13'
   picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
+  postcss: '>=8.5.23'
   # GHSA-q8mj-m7cp-5q26 (moderate; via @lhci/cli > express > qs)
   qs: ^6.15.2
   rollup@>=4.0.0 <4.59.0: '>=4.59.0'

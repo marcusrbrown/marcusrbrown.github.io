@@ -19,6 +19,7 @@ overrides:
   minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
   path-to-regexp: '>=0.1.13'
   picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
+  postcss: '>=8.5.23'
   qs: ^6.15.2
   rollup@>=4.0.0 <4.59.0: '>=4.59.0'
   tmp@<=0.2.3: '>=0.2.6'
@@ -3190,8 +3191,8 @@ packages:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
 
-  postcss@8.5.22:
-    resolution: {integrity: sha512-KBDEIpLrvpv16pp3K0Fw+UCoZfopFjjgeB+0tA/aaThfEE74kKDLrgg603YvOWJyg3+WYtyq3xYsQWsIyZlPqQ==}
+  postcss@8.5.25:
+    resolution: {integrity: sha512-DTPx3RWSSnWyzLxQnlH0rJP+EW5ekl16ZU4/psbIhA0e53kJfdgaN5vKM+xP7yJtXVu+nfdVFmlgFDEKAe4Pyw==}
     engines: {node: ^10 || ^12 || >=14}
 
   prelude-ls@1.2.1:
@@ -7400,7 +7401,7 @@ snapshots:
 
   pluralize@8.0.0: {}
 
-  postcss@8.5.22:
+  postcss@8.5.25:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1
@@ -8144,7 +8145,7 @@ snapshots:
       esbuild: 0.28.1
       fdir: 6.5.0(picomatch@4.0.4)
       picomatch: 4.0.4
-      postcss: 8.5.22
+      postcss: 8.5.25
       rollup: 4.60.2
       tinyglobby: 0.2.16
     optionalDependencies:
