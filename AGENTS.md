@@ -18,7 +18,7 @@ src/
 ├── types/         # TypeScript types, barrel export via index.ts
 ├── schemas/       # theme + blog-frontmatter schemas for runtime validation
 └── styles/        # Global CSS
-scripts/           # 22 build/test automation scripts (see scripts/AGENTS.md)
+scripts/           # 21 build/test automation scripts (see scripts/AGENTS.md)
 public/project-previews/ # Committed generated GitHub social-card preview assets
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
@@ -47,7 +47,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
 | Agent skills | `.agents/skills/` | Browser automation skill definitions (`agent-browser`, `playwright-mcp`) |
-| Visual baselines | `tests/visual/screenshots/` | 43 baseline images |
+| Visual baselines | `tests/visual/screenshots/` | 44 baseline images |
 
 ## Code Map (Key Symbols)
 
