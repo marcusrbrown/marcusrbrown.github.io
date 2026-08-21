@@ -18,7 +18,7 @@ src/
 ├── types/         # TypeScript types, barrel export via index.ts
 ├── schemas/       # theme + blog-frontmatter schemas for runtime validation
 └── styles/        # Global CSS
-scripts/           # 20 build/test automation scripts (see scripts/AGENTS.md)
+scripts/           # 36 build/test automation scripts (see scripts/AGENTS.md)
 public/project-previews/ # Committed generated GitHub social-card preview assets
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
