@@ -47,7 +47,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
 | Agent skills | `.agents/skills/` | Browser automation skill definitions (`agent-browser`, `playwright-mcp`) |
-| Visual baselines | `tests/visual/screenshots/` | 32 baseline images |
+| Visual baselines | `tests/visual/screenshots/` | 44 baseline images |
 
 ## Code Map (Key Symbols)
 
