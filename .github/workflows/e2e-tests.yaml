@@ -194,7 +194,7 @@ jobs:
     needs: [e2e-tests, visual-regression, accessibility-tests]
     if: always()
     permissions:
-      contents: write
+      contents: read
       actions: read
     steps:
       - name: Checkout
