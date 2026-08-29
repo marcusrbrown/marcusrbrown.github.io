@@ -511,6 +511,38 @@ jobs:
           token: ${{ secrets.FRO_BOT_PAT }}
           persist-credentials: false
 
+      - name: Resolve same-repo PR-head ref
+        id: prehead
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          IS_PR_COMMENT: ${{ github.event.issue.pull_request != null }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          ref=""
+          pr_number=""
+          if [ "${EVENT_NAME}" = "issue_comment" ] && [ "${IS_PR_COMMENT}" = "true" ]; then
+            pr_number="${ISSUE_NUMBER}"
+          elif [ "${EVENT_NAME}" = "pull_request_review_comment" ]; then
+            pr_number="${PR_NUMBER}"
+          fi
+          if [ -n "${pr_number}" ]; then
+            if pr_json="$(gh api "repos/${REPO}/pulls/${pr_number}" 2>/dev/null)"; then
+              head_repo="$(printf '%s' "${pr_json}" | jq -r '.head.repo.full_name // empty')"
+              if [ "${head_repo}" = "${REPO}" ]; then
+                ref="$(printf '%s' "${pr_json}" | jq -r '.head.sha // empty')"
+              else
+                echo "PR ${pr_number} head repo '${head_repo:-unknown}' is not this repository — using default branch." >&2
+              fi
+            else
+              echo "Could not resolve PR ${pr_number} head (API error) — using default branch." >&2
+            fi
+          fi
+          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
+
       - name: Enable authenticated git push for autoheal fixes
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal')
         env:
@@ -556,7 +588,7 @@ jobs:
           fi
 
       - name: Run Fro Bot
-        uses: fro-bot/agent@a4976f45a51458c349eb232aa1795f6fa25d5500 # v0.93.1
+        uses: fro-bot/agent@e9501a93f428fec4eedcef3f11ee97bbd903d6e8 # v0.105.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
@@ -571,6 +603,7 @@ jobs:
         with:
           auth-json: ${{ secrets.OPENCODE_AUTH_JSON }}
           github-token: ${{ secrets.FRO_BOT_PAT }}
+          trusted-head-sha: ${{ steps.prehead.outputs.ref }}
           model: ${{ vars.FRO_BOT_MODEL }}
           omo-providers: ${{ secrets.OMO_PROVIDERS }}
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
@@ -802,7 +835,7 @@ jobs:
           PY
 
       - name: Run bounded visual discovery
-        uses: fro-bot/agent@a4976f45a51458c349eb232aa1795f6fa25d5500 # v0.93.1
+        uses: fro-bot/agent@e9501a93f428fec4eedcef3f11ee97bbd903d6e8 # v0.105.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
         with:
