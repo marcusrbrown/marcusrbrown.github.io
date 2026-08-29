@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
   pages: read
 
 concurrency:
@@ -36,6 +35,10 @@ jobs:
     name: Performance Audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read
+      pull-requests: write
 
     strategy:
       matrix:
@@ -214,8 +217,13 @@ jobs:
         if: always()
         with:
           name: lighthouse-reports-${{ matrix.device }}-${{ github.run_number }}
+          include-hidden-files: true
           path: |
-            lhci-reports-${{ matrix.device }}/
+            lhci-reports-${{ matrix.device }}/*.json
+            lhci-reports-${{ matrix.device }}/*.html
+            .lighthouseci/lhr-*.json
+            .lighthouseci/manifest.json
+            .lighthouseci/assertion-results.json
             *.html
           retention-days: 30
 
