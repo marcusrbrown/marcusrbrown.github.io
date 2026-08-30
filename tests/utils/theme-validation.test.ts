@@ -331,7 +331,11 @@ describe('Theme Creation with Validation', () => {
   })
 
   it('should fall back when colors and mode are invalid', () => {
-    const {theme, warnings} = createValidatedTheme({colors: {}, mode: 'system' as never}, fallbackTheme)
+    const invalidColors: Partial<ThemeColors> = {}
+    const {theme, warnings} = createValidatedTheme(
+      {colors: invalidColors as ThemeColors, mode: 'system' as unknown as Theme['mode']},
+      fallbackTheme,
+    )
 
     expect(theme.colors).toEqual(fallbackTheme.colors)
     expect(theme.mode).toBe(fallbackTheme.mode)

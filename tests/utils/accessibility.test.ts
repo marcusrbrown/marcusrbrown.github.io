@@ -355,7 +355,9 @@ describe('accessibility utilities', () => {
     })
 
     it('should do nothing when a modal ref is empty', () => {
-      expect(() => focusModal({current: null})).not.toThrow()
+      const emptyModalRef = {current: null} as unknown as React.RefObject<HTMLElement>
+
+      expect(() => focusModal(emptyModalRef)).not.toThrow()
     })
 
     it('should wrap focus backward from the first focusable element', () => {
