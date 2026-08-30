@@ -2,9 +2,19 @@ import type {ChildProcess} from 'node:child_process'
 import {spawn} from 'node:child_process'
 import process from 'node:process'
 
-const checks = [
+interface Check {
+  label: string
+  args: string[]
+}
+
+interface CheckResult {
+  check: Check
+  result: PromiseSettledResult<void>
+}
+
+const isolatedChecks: readonly Check[] = [{label: 'test', args: ['run', 'test']}]
+const parallelChecks: readonly Check[] = [
   {label: 'lint', args: ['run', 'lint']},
-  {label: 'test', args: ['run', 'test', '--', '--maxWorkers=2']},
   {label: 'build', args: ['run', 'build']},
 ]
 
@@ -48,20 +58,23 @@ function runCheck(label: string, args: string[]) {
   })
 }
 
-const testResults = await Promise.allSettled([runCheck(checks[1].label, checks[1].args)])
-const parallelResults = await Promise.allSettled([
-  runCheck(checks[0].label, checks[0].args),
-  runCheck(checks[2].label, checks[2].args),
-])
-const results = [parallelResults[0], testResults[0], parallelResults[1]]
-const failedChecks = checks.filter((_, index) => results[index]?.status === 'rejected')
+async function runChecks(checks: readonly Check[]): Promise<CheckResult[]> {
+  return Promise.all(
+    checks.map(async check => {
+      const [result] = await Promise.allSettled([runCheck(check.label, check.args)])
+      return {check, result}
+    }),
+  )
+}
+
+const results = [...(await runChecks(isolatedChecks)), ...(await runChecks(parallelChecks))]
+const failedChecks = results.filter(({result}) => result.status === 'rejected')
 
 if (failedChecks.length > 0) {
-  for (const failedCheck of failedChecks) {
-    const result = results[checks.indexOf(failedCheck)]
-    if (result?.status === 'rejected') {
+  for (const {check, result} of failedChecks) {
+    if (result.status === 'rejected') {
       console.error(
-        `\n[pre-push] ${failedCheck.label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+        `\n[pre-push] ${check.label}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
       )
     }
   }
