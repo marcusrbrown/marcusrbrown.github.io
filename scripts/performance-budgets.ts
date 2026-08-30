@@ -6,6 +6,7 @@
  */
 
 import {existsSync, readFileSync} from 'node:fs'
+import {readdir} from 'node:fs/promises'
 import {join} from 'node:path'
 import process from 'node:process'
 
@@ -25,7 +26,9 @@ interface BudgetWarning {
 }
 
 interface LighthouseResult {
-  url: string
+  url?: string
+  requestedUrl?: string
+  finalUrl?: string
   configSettings?: {
     emulatedFormFactor?: string
   }
@@ -41,6 +44,72 @@ interface LighthouseResult {
       }
     | undefined
   >
+}
+
+/**
+ * Resolve the Lighthouse report directory for the current performance run.
+ */
+export const resolveLighthouseReportsPath = (environment: NodeJS.ProcessEnv = process.env): string =>
+  environment.LHCI_REPORTS_DIR ??
+  (environment.DEVICE_TYPE ? `./lhci-reports-${environment.DEVICE_TYPE}` : './lhci-reports')
+
+/**
+ * Identify a parsed JSON value as a Lighthouse result rather than an LHCI metadata file.
+ */
+export const isLighthouseResult = (value: unknown): value is LighthouseResult => {
+  if (typeof value !== 'object' || value === null) return false
+
+  const result = value as Record<string, unknown>
+  const categories = result.categories
+  const performance =
+    typeof categories === 'object' && categories !== null
+      ? (categories as Record<string, unknown>).performance
+      : undefined
+  const audits = result.audits
+
+  return (
+    (typeof result.url === 'string' ||
+      typeof result.requestedUrl === 'string' ||
+      typeof result.finalUrl === 'string') &&
+    typeof performance === 'object' &&
+    performance !== null &&
+    typeof (performance as Record<string, unknown>).score === 'number' &&
+    typeof audits === 'object' &&
+    audits !== null
+  )
+}
+
+/**
+ * Read only actual Lighthouse result files from an LHCI output directory.
+ */
+export const readLighthouseReports = async (reportsPath: string): Promise<LighthouseResult[]> => {
+  if (!existsSync(reportsPath)) return []
+
+  let files: string[]
+  try {
+    files = await readdir(reportsPath)
+  } catch (error: unknown) {
+    throw new Error(
+      `Failed to read Lighthouse reports directory ${reportsPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    )
+  }
+
+  const reports: LighthouseResult[] = []
+
+  for (const file of files.filter(fileName => fileName.endsWith('.json') && fileName !== 'manifest.json')) {
+    const reportPath = join(reportsPath, file)
+
+    try {
+      const value: unknown = JSON.parse(readFileSync(reportPath, 'utf8'))
+      if (isLighthouseResult(value)) reports.push(value)
+    } catch (error: unknown) {
+      throw new Error(
+        `Failed to read Lighthouse report ${reportPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    }
+  }
+
+  return reports
 }
 
 /**
@@ -148,40 +217,56 @@ class PerformanceBudgetValidator {
    * Validate Lighthouse performance results
    */
   async validateLighthouseResults() {
-    const lhciReportsPath = './lhci-reports'
-    if (!existsSync(lhciReportsPath)) {
-      this.addWarning('Lighthouse validation', 'No Lighthouse reports found. Run performance tests first.')
-      return
-    }
+    const lhciReportsPath = resolveLighthouseReportsPath()
 
     try {
       console.log('🚀 Performance Metrics Validation:')
 
-      // Find latest Lighthouse results
-      const fs = await import('node:fs/promises')
-      const files = await fs.readdir(lhciReportsPath)
-      const manifestFiles = files.filter(f => f.includes('manifest.json'))
-
-      if (manifestFiles.length === 0) {
-        this.addWarning('Lighthouse validation', 'No Lighthouse manifest files found')
+      let reports: LighthouseResult[]
+      try {
+        reports = await readLighthouseReports(lhciReportsPath)
+      } catch (error: unknown) {
+        this.addViolation(
+          'Lighthouse validation',
+          error instanceof Error ? error.message : `Failed to read Lighthouse reports in ${lhciReportsPath}`,
+          'unreadable',
+          'readable',
+        )
         return
       }
 
-      // Process each manifest (represents test run)
-      for (const manifestFile of manifestFiles) {
-        const manifestPath = join(lhciReportsPath, manifestFile)
-        const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+      if (reports.length === 0) {
+        this.addViolation(
+          'Lighthouse validation',
+          `No Lighthouse reports found in ${lhciReportsPath}. Run performance tests first.`,
+          'none',
+          'at least one report',
+        )
+        return
+      }
 
-        for (const result of manifest) {
-          await this.validateLighthouseResult(result)
+      // Process each Lighthouse result.
+      for (const report of reports) {
+        try {
+          await this.validateLighthouseResult(report)
+        } catch (error: unknown) {
+          const reportUrl = report.url ?? report.finalUrl ?? report.requestedUrl ?? 'unknown URL'
+          this.addViolation(
+            'Lighthouse validation',
+            `Failed to validate Lighthouse report for ${reportUrl}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            reportUrl,
+            'valid report',
+          )
         }
       }
 
       console.log()
     } catch (error: unknown) {
-      this.addWarning(
+      this.addViolation(
         'Lighthouse validation',
-        `Failed to validate Lighthouse results: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to validate Lighthouse results in ${lhciReportsPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'unreadable',
+        'readable',
       )
     }
   }
@@ -190,7 +275,10 @@ class PerformanceBudgetValidator {
    * Validate individual Lighthouse result
    */
   async validateLighthouseResult(result: LighthouseResult): Promise<void> {
-    const url = new URL(result.url).pathname
+    const reportUrl = result.url ?? result.finalUrl ?? result.requestedUrl
+    if (reportUrl === undefined) return
+
+    const url = new URL(reportUrl).pathname
     const isDesktop = result.configSettings?.emulatedFormFactor === 'desktop'
     const thresholds = isDesktop ? this.config.coreWebVitals.desktop : this.config.coreWebVitals.mobile
 

@@ -87,6 +87,24 @@ export default defineConfig({
       },
     },
 
+    // Performance testing
+    {
+      name: 'performance-desktop',
+      testDir: './tests/performance',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: {width: 1440, height: 900},
+      },
+    },
+
+    {
+      name: 'performance-mobile',
+      testDir: './tests/performance',
+      use: {
+        ...devices['Pixel 5'],
+      },
+    },
+
     // Tablet testing
     {
       name: 'tablet-chrome',
