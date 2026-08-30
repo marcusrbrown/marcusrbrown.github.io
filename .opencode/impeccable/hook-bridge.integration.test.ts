@@ -195,7 +195,7 @@ describe('createSpawnRunner', () => {
         `setInterval(() => {}, 1000);`, // stay alive until signaled
       ].join('\n'),
     )
-    const runner = createSpawnRunner({scriptPath, timeoutMs: 1500, killGraceMs: 100})
+    const runner = createSpawnRunner({scriptPath, timeoutMs: 500, killGraceMs: 100})
     const result = await runner(payload, {worktree: worktree()})
 
     expect(result.exitCode).not.toBe(0)
@@ -224,7 +224,7 @@ describe('createSpawnRunner', () => {
         `setInterval(() => {}, 1000);`, // stay alive
       ].join('\n'),
     )
-    const runner = createSpawnRunner({scriptPath, timeoutMs: 1500, killGraceMs: 100})
+    const runner = createSpawnRunner({scriptPath, timeoutMs: 150, killGraceMs: 100})
     const start = Date.now()
     const result = await runner(payload, {worktree: worktree()})
     const elapsedMs = Date.now() - start
