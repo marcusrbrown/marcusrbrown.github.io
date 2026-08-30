@@ -85,15 +85,27 @@ export const isLighthouseResult = (value: unknown): value is LighthouseResult =>
 export const readLighthouseReports = async (reportsPath: string): Promise<LighthouseResult[]> => {
   if (!existsSync(reportsPath)) return []
 
-  const files = await readdir(reportsPath)
+  let files: string[]
+  try {
+    files = await readdir(reportsPath)
+  } catch (error: unknown) {
+    throw new Error(
+      `Failed to read Lighthouse reports directory ${reportsPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    )
+  }
+
   const reports: LighthouseResult[] = []
 
-  for (const file of files.filter(fileName => fileName.endsWith('.json'))) {
+  for (const file of files.filter(fileName => fileName.endsWith('.json') && fileName !== 'manifest.json')) {
+    const reportPath = join(reportsPath, file)
+
     try {
-      const value: unknown = JSON.parse(readFileSync(join(reportsPath, file), 'utf8'))
+      const value: unknown = JSON.parse(readFileSync(reportPath, 'utf8'))
       if (isLighthouseResult(value)) reports.push(value)
-    } catch {
-      // Ignore malformed and non-Lighthouse JSON files in the report directory.
+    } catch (error: unknown) {
+      throw new Error(
+        `Failed to read Lighthouse report ${reportPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
     }
   }
 
@@ -210,7 +222,19 @@ class PerformanceBudgetValidator {
     try {
       console.log('🚀 Performance Metrics Validation:')
 
-      const reports = await readLighthouseReports(lhciReportsPath)
+      let reports: LighthouseResult[]
+      try {
+        reports = await readLighthouseReports(lhciReportsPath)
+      } catch (error: unknown) {
+        this.addViolation(
+          'Lighthouse validation',
+          error instanceof Error ? error.message : `Failed to read Lighthouse reports in ${lhciReportsPath}`,
+          'unreadable',
+          'readable',
+        )
+        return
+      }
+
       if (reports.length === 0) {
         this.addViolation(
           'Lighthouse validation',
@@ -223,14 +247,26 @@ class PerformanceBudgetValidator {
 
       // Process each Lighthouse result.
       for (const report of reports) {
-        await this.validateLighthouseResult(report)
+        try {
+          await this.validateLighthouseResult(report)
+        } catch (error: unknown) {
+          const reportUrl = report.url ?? report.finalUrl ?? report.requestedUrl ?? 'unknown URL'
+          this.addViolation(
+            'Lighthouse validation',
+            `Failed to validate Lighthouse report for ${reportUrl}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            reportUrl,
+            'valid report',
+          )
+        }
       }
 
       console.log()
     } catch (error: unknown) {
-      this.addWarning(
+      this.addViolation(
         'Lighthouse validation',
-        `Failed to validate Lighthouse results: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to validate Lighthouse results in ${lhciReportsPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'unreadable',
+        'readable',
       )
     }
   }

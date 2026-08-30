@@ -1,6 +1,7 @@
+import {spawnSync} from 'node:child_process'
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {join, resolve} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {
   isLighthouseResult,
@@ -9,6 +10,31 @@ import {
 } from '../../scripts/performance-budgets'
 
 const temporaryDirectories: string[] = []
+const budgetValidatorScript = resolve(process.cwd(), 'scripts/performance-budgets.ts')
+
+const runBudgetValidator = (reportsPath: string): ReturnType<typeof spawnSync> =>
+  spawnSync('pnpm', ['exec', 'tsx', budgetValidatorScript], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: {...process.env, LHCI_REPORTS_DIR: reportsPath},
+  })
+
+const createReportsDirectory = (): string => {
+  const directory = mkdtempSync(join(tmpdir(), 'performance-budgets-test-'))
+  temporaryDirectories.push(directory)
+  return directory
+}
+
+const lighthouseReport = {
+  requestedUrl: 'http://localhost:4173/',
+  configSettings: {emulatedFormFactor: 'desktop'},
+  categories: {performance: {score: 0.99}},
+  audits: {
+    'largest-contentful-paint': {numericValue: 1000},
+    'first-input-delay': {numericValue: 10},
+    'cumulative-layout-shift': {numericValue: 0.01},
+  },
+}
 
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
@@ -56,5 +82,60 @@ describe('Lighthouse report discovery', () => {
         audits: {},
       }),
     ).toBe(true)
+  })
+})
+
+describe('Lighthouse budget validation failures', () => {
+  it('exits nonzero when the reports path cannot be read', () => {
+    const directory = createReportsDirectory()
+    const reportsPath = join(directory, 'not-a-directory')
+    writeFileSync(reportsPath, 'not a directory')
+
+    const result = runBudgetValidator(reportsPath)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(1)
+    expect(output).toContain(reportsPath)
+  })
+
+  it('exits nonzero when a report is malformed even if another report is valid', () => {
+    const directory = createReportsDirectory()
+    writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
+    writeFileSync(join(directory, 'malformed-report.json'), '{')
+
+    const result = runBudgetValidator(directory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(1)
+    expect(output).toContain(join(directory, 'malformed-report.json'))
+  })
+
+  it('exits nonzero when a report has an invalid URL', () => {
+    const directory = createReportsDirectory()
+    writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
+    writeFileSync(
+      join(directory, 'invalid-url-report.json'),
+      JSON.stringify({...lighthouseReport, requestedUrl: 'not a URL'}),
+    )
+
+    const result = runBudgetValidator(directory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(1)
+    expect(output).toContain('not a URL')
+  })
+
+  it('exits zero and validates metrics when all reports are valid', () => {
+    const directory = createReportsDirectory()
+    writeFileSync(join(directory, 'manifest.json'), JSON.stringify([{url: 'metadata'}]))
+    writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
+
+    const result = runBudgetValidator(directory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(0)
+    expect(output).toContain('Performance Score: 99.0%')
+    expect(output).toContain('LCP: 1000ms')
+    expect(output).toContain('CLS: 0.010')
   })
 })
