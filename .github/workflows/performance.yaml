@@ -63,7 +63,6 @@ jobs:
 
       - name: Analyze bundle size
         run: pnpm run analyze-build
-        continue-on-error: true
 
       - name: Setup Lighthouse CI
         run: |
@@ -152,32 +151,27 @@ jobs:
 
       - name: Run Lighthouse CI - ${{ matrix.device }}
         run: lhci autorun --config=lhci-${{ matrix.device }}.config.cjs
-        continue-on-error: true
         env:
           LHCI_BUILD_CONTEXT__EXTERNAL_BUILD_URL: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
       - name: Validate performance budgets - ${{ matrix.device }}
         run: tsx scripts/performance-budgets.ts
-        continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 
       - name: Check performance regression - ${{ matrix.device }}
         run: tsx scripts/performance-regression.ts
-        continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
           BASELINE_BRANCH: main
 
       - name: Run theme switching performance tests - ${{ matrix.device }}
         run: pnpm exec playwright test tests/performance/theme-switching.spec.ts --project=performance-${{ matrix.device }}
-        continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 
       - name: Generate performance dashboard
         run: tsx scripts/performance-dashboard.ts
-        continue-on-error: true
 
       - name: Collect performance artifacts
         run: tsx scripts/performance-artifacts.ts
@@ -385,3 +379,9 @@ jobs:
           echo "- Total bundle: ≤ 2MB" >> $GITHUB_STEP_SUMMARY
           echo "- Performance score: ≥ 90% (mobile), ≥ 95% (desktop)" >> $GITHUB_STEP_SUMMARY
           echo "- Core Web Vitals within acceptable thresholds" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail when performance audit fails
+        if: always() && needs.performance-audit.result != 'success'
+        run: |
+          echo "Performance audit result: ${{ needs.performance-audit.result }}"
+          exit 1
