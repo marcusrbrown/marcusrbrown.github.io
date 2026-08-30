@@ -507,11 +507,10 @@ jobs:
     needs: live-audit-preflight
     runs-on: ubuntu-latest
     permissions:
-      # contents: write is required for Actions cache saves — the cache service
-      # rejects writes from a token with no writable scope, which breaks session
-      # continuity between runs. Pushes remain blocked by the fork checks and the
-      # schedule/autoheal-gated credential step.
-      contents: write
+      # Interactive runs stay least-privileged; brokered mention pushes use
+      # FRO_BOT_PAT through the action, not ambient GITHUB_TOKEN. Cache saves on
+      # comment triggers follow GitHub's trigger-trust policy, not permissions.
+      contents: read
       issues: write
       pull-requests: write
       discussions: write
