@@ -15,6 +15,7 @@ import {
   sanitizeColorValue,
   sanitizeTheme,
   validateColorContrast,
+  validateExtendedThemeColors,
   validateTheme,
   validateThemeAccessibility,
   validateThemeColors,
@@ -28,6 +29,7 @@ describe('Color Value Validation', () => {
     expect(isValidColorValue('#FF00FF00')).toBe(true)
     expect(isValidColorValue('#invalid')).toBe(false)
     expect(isValidColorValue('#gg')).toBe(false)
+    expect(isValidColorValue(123)).toBe(false)
   })
 
   it('should validate RGB colors correctly', () => {
@@ -42,6 +44,7 @@ describe('Color Value Validation', () => {
     expect(isValidColorValue('hsl(0, 100%, 50%)')).toBe(true)
     expect(isValidColorValue('hsla(0, 100%, 50%, 0.5)')).toBe(true)
     expect(isValidColorValue('hsl(invalid)')).toBe(false)
+    expect(isValidColorValue('hsla(0, 100%, 50%, 1)')).toBe(true)
   })
 
   it('should validate named colors correctly', () => {
@@ -85,6 +88,10 @@ describe('Color Conversion', () => {
 
     const rgbGray = hslToRgb({h: 0, s: 0, l: 50})
     expect(rgbGray).toEqual({r: 128, g: 128, b: 128})
+    expect(hslToRgb({h: 120, s: 100, l: 50})).toEqual({r: 0, g: 255, b: 0})
+    expect(hslToRgb({h: 240, s: 100, l: 50})).toEqual({r: 0, g: 0, b: 255})
+    expect(hslToRgb({h: 60, s: 100, l: 50})).toEqual({r: 255, g: 255, b: 0})
+    expect(hslToRgb({h: 300, s: 100, l: 50})).toEqual({r: 255, g: 0, b: 255})
   })
 
   it('should convert RGB to HSL correctly', () => {
@@ -92,6 +99,11 @@ describe('Color Conversion', () => {
     expect(hsl.h).toBe(0)
     expect(hsl.s).toBe(100)
     expect(hsl.l).toBe(50)
+    expect(rgbToHsl({r: 255, g: 255, b: 255})).toEqual({h: 0, s: 0, l: 100})
+    expect(rgbToHsl({r: 0, g: 255, b: 0}).h).toBe(120)
+    expect(rgbToHsl({r: 0, g: 0, b: 255}).h).toBe(240)
+    expect(rgbToHsl({r: 255, g: 255, b: 0}).h).toBe(60)
+    expect(rgbToHsl({r: 255, g: 128, b: 128}).l).toBeGreaterThan(50)
   })
 })
 
@@ -142,6 +154,13 @@ describe('Theme Validation', () => {
     expect(validateThemeColors(validColors)).toBe(true)
     expect(validateThemeColors({primary: '#invalid'})).toBe(false)
     expect(validateThemeColors(null)).toBe(false)
+    expect(validateThemeColors({})).toBe(false)
+  })
+
+  it('should validate optional extended theme colors', () => {
+    expect(validateExtendedThemeColors({...validColors, info: '#2563eb', muted: 'transparent'})).toBe(true)
+    expect(validateExtendedThemeColors({...validColors, info: 'not-a-color'})).toBe(false)
+    expect(validateExtendedThemeColors({primary: '#2563eb'})).toBe(false)
   })
 
   it('should validate theme metadata correctly', () => {
@@ -155,6 +174,15 @@ describe('Theme Validation', () => {
     expect(validateThemeMetadata(validMetadata)).toBe(true)
     expect(validateThemeMetadata({id: '', name: 'Test'})).toBe(false) // Empty ID
     expect(validateThemeMetadata({id: 'test'})).toBe(false) // Missing name
+    expect(validateThemeMetadata({...validMetadata, description: 1})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, author: 1})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, version: 1})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, isBuiltIn: 'yes'})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, createdAt: 1})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, updatedAt: 1})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, tags: 'theme'})).toBe(false)
+    expect(validateThemeMetadata({...validMetadata, tags: ['theme', 1]})).toBe(false)
+    expect(validateThemeMetadata(null)).toBe(false)
   })
 
   it('should validate complete theme correctly', () => {
@@ -185,6 +213,7 @@ describe('Theme Validation', () => {
     }
 
     expect(sanitizeTheme(invalidTheme)).toBe(null)
+    expect(sanitizeColorValue('rgb(1, 2, 3)')).toBe(null)
   })
 })
 
@@ -299,5 +328,31 @@ describe('Theme Creation with Validation', () => {
     expect(theme.name).toBe('Valid Name') // Should use valid input
     expect(warnings.length).toBeGreaterThan(0)
     expect(warnings).toContain('Invalid or missing theme ID, using fallback')
+  })
+
+  it('should fall back when colors and mode are invalid', () => {
+    const invalidColors: Partial<ThemeColors> = {}
+    const {theme, warnings} = createValidatedTheme(
+      {colors: invalidColors as ThemeColors, mode: 'system' as unknown as Theme['mode']},
+      fallbackTheme,
+    )
+
+    expect(theme.colors).toEqual(fallbackTheme.colors)
+    expect(theme.mode).toBe(fallbackTheme.mode)
+    expect(warnings).toEqual(
+      expect.arrayContaining(['Invalid colors object, using fallback colors', 'Invalid theme mode, using fallback']),
+    )
+  })
+
+  it('should fall back for a color that sanitization rejects after validation', () => {
+    const input = {
+      ...fallbackTheme,
+      colors: {...fallbackTheme.colors, primary: 'rgb(1, 2, 3)'},
+    }
+
+    const {theme, warnings} = createValidatedTheme(input, fallbackTheme)
+
+    expect(theme.colors.primary).toBe(fallbackTheme.colors.primary)
+    expect(warnings).toContain('Invalid color value for primary, using fallback')
   })
 })

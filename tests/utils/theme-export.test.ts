@@ -4,7 +4,14 @@
 
 import type {Theme} from '../../src/types'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {exportTheme, importTheme, validateThemeFile} from '../../src/utils/theme-export'
+import {
+  createThemeJSON,
+  exportTheme,
+  importTheme,
+  importThemeFromClipboard,
+  validateThemeContent,
+  validateThemeFile,
+} from '../../src/utils/theme-export'
 
 describe('theme-export utilities', () => {
   const mockTheme: Theme = {
@@ -273,7 +280,7 @@ describe('theme-export utilities', () => {
   })
 
   describe('additional export utilities', () => {
-    it('should handle createThemeJSON', () => {
+    it('should create portable theme JSON', () => {
       // Mock URL methods for export functionality that createThemeJSON might use
       vi.stubGlobal('URL', {
         createObjectURL: vi.fn(),
@@ -282,8 +289,19 @@ describe('theme-export utilities', () => {
 
       vi.stubGlobal('Blob', vi.fn())
 
-      // This should work without throwing
-      expect(() => mockTheme).not.toThrow()
+      const result = JSON.parse(createThemeJSON(mockTheme)) as Record<string, unknown>
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          version: '1.0',
+          exportedBy: 'mrbro.dev Theme Customizer',
+        }),
+      )
+      expect(result.theme).toEqual(expect.objectContaining({name: 'Test Theme'}))
+    })
+
+    it('should reject invalid themes when creating JSON', () => {
+      expect(() => createThemeJSON({} as Theme)).toThrow('Invalid theme provided')
     })
 
     it('should handle copyThemeToClipboard success', async () => {
@@ -353,6 +371,65 @@ describe('theme-export utilities', () => {
       const {importThemeFromClipboard} = await import('../../src/utils/theme-export')
 
       await expect(importThemeFromClipboard()).rejects.toThrow('Clipboard error')
+    })
+
+    it('should report schema errors when clipboard data is invalid', async () => {
+      vi.stubGlobal('navigator', {
+        clipboard: {readText: vi.fn().mockResolvedValue('{}')},
+      })
+
+      await expect(importThemeFromClipboard()).rejects.toThrow('Schema validation failed')
+    })
+
+    it('should normalize non-Error clipboard failures', async () => {
+      vi.stubGlobal('navigator', {
+        clipboard: {readText: vi.fn().mockRejectedValue('Clipboard unavailable')},
+      })
+
+      await expect(importThemeFromClipboard()).rejects.toThrow('Failed to import theme from clipboard')
+    })
+  })
+
+  describe('validateThemeContent', () => {
+    it('should return schema validation details for valid content', async () => {
+      const file = new File(
+        [
+          JSON.stringify({
+            version: '1.0',
+            theme: mockTheme,
+            exportedAt: '2025-01-01T00:00:00.000Z',
+            exportedBy: 'mrbro.dev Theme Customizer',
+          }),
+        ],
+        'theme.json',
+        {type: 'application/json'},
+      )
+
+      await expect(validateThemeContent(file)).resolves.toEqual({isValid: true, errors: [], warnings: []})
+    })
+
+    it('should return a parse error for invalid content', async () => {
+      const file = new File(['{ invalid json'], 'theme.json', {type: 'application/json'})
+
+      await expect(validateThemeContent(file)).resolves.toEqual(expect.objectContaining({isValid: false, warnings: []}))
+    })
+
+    it('should use a fallback message for non-Error content failures', async () => {
+      const file = {text: vi.fn().mockRejectedValue('unreadable')} as unknown as File
+
+      await expect(validateThemeContent(file)).resolves.toEqual({
+        isValid: false,
+        errors: ['Failed to parse JSON'],
+        warnings: [],
+      })
+    })
+  })
+
+  describe('importTheme error handling', () => {
+    it('should use a fallback message for non-Error file failures', async () => {
+      const file = {text: vi.fn().mockRejectedValue('unreadable')} as unknown as File
+
+      await expect(importTheme(file)).rejects.toThrow('Failed to parse theme file')
     })
   })
 })

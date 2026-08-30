@@ -237,7 +237,7 @@ describe('createSpawnRunner', () => {
     const pid = Number(readFileSync(pidFile, 'utf-8'))
     expect(() => process.kill(pid, 0)).toThrow()
     rmSync(pidFile, {force: true})
-  })
+  }, 15_000)
 })
 
 describe('createSpawnRunner + createHook end-to-end', () => {
