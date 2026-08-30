@@ -10,6 +10,11 @@ interface LayoutShiftEntry extends PerformanceEntry {
   hadRecentInput: boolean
 }
 
+interface ThemePreloaderObservation {
+  firstDataTheme: string | null
+  firstDataThemeBeforeBody: boolean
+}
+
 test.describe('Theme Switching Performance', () => {
   test.beforeEach(async ({page}) => {
     // Navigate to home page
@@ -23,49 +28,43 @@ test.describe('Theme Switching Performance', () => {
   })
 
   test('Theme toggle performance impact', async ({page}) => {
-    // Measure theme switch performance
+    // The theme toggle opens the picker; selecting a mode applies the theme.
     await page.click('[data-testid="theme-toggle"]')
+    const themePicker = page.getByRole('listbox', {name: 'Theme choices'})
+    await themePicker.getByRole('option', {name: 'Light', exact: true}).click()
 
-    // Wait for theme transition to complete
-    await page.waitForTimeout(500)
-
-    // Measure layout shift during theme change
-    const layoutShifts = await page.evaluate(async () => {
+    // Start measuring before the theme change so the observer cannot miss it.
+    const layoutShiftsPromise = page.evaluate(async () => {
       return new Promise<number>(resolve => {
         let cumulativeScore = 0
-        new PerformanceObserver(list => {
+        const observer = new PerformanceObserver(list => {
           for (const entry of list.getEntries()) {
             const layoutShiftEntry = entry as LayoutShiftEntry
             if (!layoutShiftEntry.hadRecentInput) {
               cumulativeScore += layoutShiftEntry.value
             }
           }
-          resolve(cumulativeScore)
-        }).observe({entryTypes: ['layout-shift']})
+        })
+        observer.observe({entryTypes: ['layout-shift']})
 
-        // Resolve after a short delay to capture shifts
-        setTimeout(() => resolve(cumulativeScore), 1000)
+        // Resolve after a short delay to capture all shifts from the change.
+        setTimeout(() => {
+          observer.disconnect()
+          resolve(cumulativeScore)
+        }, 1000)
       })
     })
 
-    // Verify theme actually changed
-    const isDarkMode = await page.evaluate(() => {
-      return document.documentElement.dataset.theme === 'dark'
-    })
+    await themePicker.getByRole('option', {name: 'Dark', exact: true}).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    const layoutShifts = await layoutShiftsPromise
 
     // Performance assertions
     expect(layoutShifts).toBeLessThan(0.1) // CLS should be minimal during theme switch
-    expect(isDarkMode).toBe(true) // Theme should have switched to dark
 
     // Test switching back
-    await page.click('[data-testid="theme-toggle"]')
-    await page.waitForTimeout(500)
-
-    const isLightMode = await page.evaluate(() => {
-      return document.documentElement.dataset.theme === 'light'
-    })
-
-    expect(isLightMode).toBe(true)
+    await themePicker.getByRole('option', {name: 'Light', exact: true}).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   })
 
   test('Custom theme application performance', async ({page}) => {
@@ -108,130 +107,205 @@ test.describe('Theme Switching Performance', () => {
   })
 
   test('Theme persistence performance', async ({page}) => {
-    // Set a specific theme
+    // The theme toggle opens the picker; select the mode to persist it.
     await page.click('[data-testid="theme-toggle"]')
-    await page.waitForTimeout(300)
+    await page.getByRole('listbox', {name: 'Theme choices'}).getByRole('option', {name: 'Dark', exact: true}).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+    // Observe the preloader's synchronous data-theme write on the next
+    // document before any page scripts run. The preloader is the only public
+    // script that uses setAttribute for data-theme.
+    await page.addInitScript(() => {
+      const observation: ThemePreloaderObservation = {
+        firstDataTheme: null,
+        firstDataThemeBeforeBody: false,
+      }
+      const originalSetAttribute = Element.prototype.setAttribute
+
+      Element.prototype.setAttribute = function (this: Element, name: string, value: string) {
+        if (this === document.documentElement && name === 'data-theme' && observation.firstDataTheme === null) {
+          observation.firstDataTheme = value
+          observation.firstDataThemeBeforeBody = document.body === null
+        }
+        originalSetAttribute.call(this, name, value)
+      }
+
+      Object.defineProperty(window, '__themePreloaderObservation', {
+        configurable: true,
+        value: observation,
+      })
+    })
 
     // Reload page and measure time to apply saved theme
     const reloadStartTime = Date.now()
-    await page.reload()
-    await page.waitForLoadState('domcontentloaded')
+    await page.reload({waitUntil: 'domcontentloaded'})
 
-    // Check if theme was applied before first paint
-    const themeAppliedBeforePaint = await page.evaluate(() => {
-      const theme = document.documentElement.dataset.theme
-      return theme !== null && theme !== 'light' // Assuming we switched to dark
+    // The preloader applies the persisted theme during document loading.
+    const themeAfterReload = await page.locator('html').getAttribute('data-theme')
+    const preloaderObservation = await page.evaluate(() => {
+      const windowWithObservation = window as Window & {
+        __themePreloaderObservation?: ThemePreloaderObservation
+      }
+      return windowWithObservation.__themePreloaderObservation ?? null
     })
 
     const reloadTime = Date.now() - reloadStartTime
 
-    expect(themeAppliedBeforePaint).toBe(true)
+    expect(themeAfterReload).toBe('dark')
+    expect(preloaderObservation).toEqual({
+      firstDataTheme: 'dark',
+      firstDataThemeBeforeBody: true,
+    })
     expect(reloadTime).toBeLessThan(3000) // Page should load within 3 seconds
   })
 })
 
 test.describe('Component Rendering Performance', () => {
   test('Project gallery rendering performance', async ({page}) => {
+    const renderStart = Date.now()
     await page.goto('/projects')
-    await page.waitForLoadState('networkidle')
-
-    // Measure time to render all project cards
-    const renderTime = await page.evaluate(async () => {
-      const startTime = performance.now()
-      return new Promise<number>(resolve => {
-        const observer = new MutationObserver(() => {
-          const projectCards = document.querySelectorAll('[data-testid="project-card"]')
-          if (projectCards.length > 0) {
-            observer.disconnect()
-            resolve(performance.now() - startTime)
-          }
-        })
-        observer.observe(document.body, {childList: true, subtree: true})
-
-        // Fallback timeout
-        setTimeout(() => {
-          observer.disconnect()
-          resolve(performance.now() - startTime)
-        }, 5000)
-      })
-    })
+    // Wait for the rendered result instead of observing after networkidle; the
+    // synchronous snapshot can render before a post-load observer is attached.
+    await expect(page.locator('[data-testid="project-card"]').first()).toBeVisible()
+    const renderTime = Date.now() - renderStart
 
     expect(renderTime).toBeLessThan(2000) // Should render within 2 seconds
   })
 
   test('Modal open/close performance', async ({page}) => {
     await page.goto('/projects')
-    await page.waitForLoadState('networkidle')
 
-    // Find and click the first project card to open modal
+    // Project cards expose a Preview button; the card container itself is not
+    // interactive.
     const projectCard = page.locator('[data-testid="project-card"]').first()
-    if (await projectCard.isVisible()) {
-      const modalOpenStart = Date.now()
-      await projectCard.click()
+    await expect(projectCard).toBeVisible()
+    const previewButton = projectCard.getByRole('button', {name: /^Preview /})
+    const modal = page.getByRole('dialog')
 
-      // Wait for modal to appear
-      await page.waitForSelector('[data-testid="project-modal"]', {state: 'visible'})
-      const modalOpenTime = Date.now() - modalOpenStart
+    // Measure from the browser click event, not from Playwright's actionability
+    // checks, which include waiting for the hover overlay to settle.
+    const modalOpenTimePromise = page.evaluate(() => {
+      return new Promise<number>(resolve => {
+        const previewButton = document.querySelector('.project-card__preview-btn')
+        if (!(previewButton instanceof HTMLElement)) {
+          throw new TypeError('Project preview button is not rendered')
+        }
 
-      expect(modalOpenTime).toBeLessThan(300) // Modal should open quickly
+        previewButton.addEventListener(
+          'click',
+          () => {
+            const clickTime = performance.now()
+            const waitForModal = () => {
+              if (document.querySelector('.project-preview-modal--open')) {
+                resolve(performance.now() - clickTime)
+                return
+              }
+              requestAnimationFrame(waitForModal)
+            }
+            waitForModal()
+          },
+          {once: true},
+        )
+      })
+    })
 
-      // Test modal close performance
-      const modalCloseStart = Date.now()
-      await page.keyboard.press('Escape')
-      await page.waitForSelector('[data-testid="project-modal"]', {state: 'hidden'})
-      const modalCloseTime = Date.now() - modalCloseStart
+    await previewButton.click()
 
-      expect(modalCloseTime).toBeLessThan(300) // Modal should close quickly
-    }
+    // Wait for the semantic dialog exposed by the application.
+    await expect(modal).toBeVisible()
+    const modalOpenTime = await modalOpenTimePromise
+
+    expect(modalOpenTime).toBeLessThan(300) // Modal should open quickly
+
+    // Test modal close performance
+    const modalCloseStart = Date.now()
+    await page.keyboard.press('Escape')
+    await expect(modal).toBeHidden()
+    const modalCloseTime = Date.now() - modalCloseStart
+
+    expect(modalCloseTime).toBeLessThan(300) // Modal should close quickly
   })
 
   test('Scroll performance with many elements', async ({page}) => {
-    await page.goto('/blog')
+    // The blog fixture currently contains one short post, which is not a
+    // reliable long-scroll workload on desktop. Use the full landing page.
+    await page.goto('/')
     await page.waitForLoadState('networkidle')
 
     // Measure scroll performance
     const scrollPerformance = await page.evaluate(async () => {
-      return new Promise<{totalScrollEvents: number; frameDrops: number; frameDropPercentage: number}>(resolve => {
+      return new Promise<{
+        scrollableExtent: number
+        totalScrollEvents: number
+        frameDrops: number
+        frameDropPercentage: number
+      }>(resolve => {
         let scrollEvents = 0
         let frameDrops = 0
-        let lastFrameTime = performance.now()
+        let lastFrameTime: number | null = null
+        const maxScrollPosition = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+        const targetScrollPosition = Math.min(2000, maxScrollPosition)
+        let safetyTimer: number | undefined
 
         const handleScroll = () => {
           scrollEvents++
           const currentTime = performance.now()
-          const frameDelta = currentTime - lastFrameTime
 
-          // Consider frame dropped if it takes longer than ~17ms (60 FPS)
-          if (frameDelta > 20) {
-            frameDrops++
+          // The first event establishes the baseline and is not a frame.
+          if (lastFrameTime !== null) {
+            const frameDelta = currentTime - lastFrameTime
+
+            // Consider frame dropped if it takes longer than ~17ms (60 FPS)
+            if (frameDelta > 20) {
+              frameDrops++
+            }
           }
 
           lastFrameTime = currentTime
         }
 
-        window.addEventListener('scroll', handleScroll, {passive: true})
-
-        // Simulate smooth scrolling
-        let scrollPosition = 0
-        const scrollStep = () => {
-          scrollPosition += 50
-          window.scrollTo(0, scrollPosition)
-
-          if (scrollPosition < 2000) {
-            requestAnimationFrame(scrollStep)
-          } else {
-            window.removeEventListener('scroll', handleScroll)
-            resolve({
-              totalScrollEvents: scrollEvents,
-              frameDrops,
-              frameDropPercentage: (frameDrops / scrollEvents) * 100,
-            })
+        const finish = () => {
+          window.removeEventListener('scroll', handleScroll)
+          if (safetyTimer !== undefined) {
+            window.clearTimeout(safetyTimer)
           }
+          resolve({
+            scrollableExtent: maxScrollPosition,
+            totalScrollEvents: scrollEvents,
+            frameDrops,
+            frameDropPercentage: scrollEvents === 0 ? 0 : (frameDrops / scrollEvents) * 100,
+          })
         }
 
-        requestAnimationFrame(scrollStep)
+        window.addEventListener('scroll', handleScroll, {passive: true})
+
+        if (targetScrollPosition === 0) {
+          finish()
+          return
+        }
+
+        safetyTimer = window.setTimeout(finish, 2000)
+        const waitForScrollToFinish = () => {
+          if (window.scrollY >= targetScrollPosition) {
+            requestAnimationFrame(finish)
+            return
+          }
+          requestAnimationFrame(waitForScrollToFinish)
+        }
+
+        window.scrollTo({top: targetScrollPosition, left: 0, behavior: 'smooth'})
+        requestAnimationFrame(waitForScrollToFinish)
       })
     })
+
+    expect(
+      scrollPerformance.scrollableExtent,
+      'Scroll workload was absent or insufficient: the landing page had no positive scrollable extent.',
+    ).toBeGreaterThan(0)
+    expect(
+      scrollPerformance.totalScrollEvents,
+      'Scroll workload was absent or insufficient: no scroll events were recorded.',
+    ).toBeGreaterThan(0)
 
     // Should have minimal frame drops during scrolling
     expect(scrollPerformance.frameDropPercentage).toBeLessThan(10) // Less than 10% frame drops
