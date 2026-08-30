@@ -76,8 +76,8 @@ jobs:
       - name: Create Lighthouse config for ${{ matrix.device }}
         run: |
           # Create device-specific configuration
-          cat > lhci-${{ matrix.device }}.config.js << 'EOF'
-          export default {
+          cat > lhci-${{ matrix.device }}.config.cjs << 'EOF'
+          module.exports = {
             ci: {
               collect: {
                 url: [
@@ -92,9 +92,9 @@ jobs:
                 numberOfRuns: 3,
                 settings: {
                   chromeFlags: '--no-sandbox --headless --disable-gpu --disable-dev-shm-usage',
-                  preset: '${{ matrix.device }}',
+                  ...('${{ matrix.device }}' === 'desktop' ? {preset: 'desktop'} : {}),
                   skipAudits: ['uses-http2', 'redirects-http', 'uses-long-cache-ttl'],
-                  emulatedFormFactor: '${{ matrix.device }}',
+                  formFactor: '${{ matrix.device }}',
                   throttling: ${{ matrix.device == 'mobile' && '{
                     rttMs: 150,
                     throughputKbps: 1638.4,
@@ -121,7 +121,6 @@ jobs:
                 assertions: {
                   // Device-specific Core Web Vitals thresholds
                   'largest-contentful-paint': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '2500' || '2000' }}}],
-                  'first-input-delay': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '100' || '50' }}}],
                   'cumulative-layout-shift': ['error', {maxNumericValue: ${{ matrix.device == 'mobile' && '0.1' || '0.05' }}}],
 
                   // Additional performance metrics
@@ -147,20 +146,24 @@ jobs:
           }
           EOF
 
+      - name: Verify Lighthouse config for ${{ matrix.device }}
+        run: |
+          node -e "const c=require('./lhci-${{ matrix.device }}.config.cjs'); if (!c.ci) { console.error('LHCI config failed to load: no ci key'); process.exit(1) }"
+
       - name: Run Lighthouse CI - ${{ matrix.device }}
-        run: lhci autorun --config=lhci-${{ matrix.device }}.config.js
+        run: lhci autorun --config=lhci-${{ matrix.device }}.config.cjs
         continue-on-error: true
         env:
           LHCI_BUILD_CONTEXT__EXTERNAL_BUILD_URL: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
       - name: Validate performance budgets - ${{ matrix.device }}
-        run: node scripts/performance-budgets.mjs
+        run: tsx scripts/performance-budgets.ts
         continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 
       - name: Check performance regression - ${{ matrix.device }}
-        run: node scripts/performance-regression.mjs
+        run: tsx scripts/performance-regression.ts
         continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
@@ -202,7 +205,6 @@ jobs:
               "|--------|-------|",
               "| Performance Score | " + (.categories.performance.score * 100 | round | tostring) + "% |",
               "| LCP | " + (.audits["largest-contentful-paint"].numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |",
-              "| FID | " + ((.audits["first-input-delay"].numericValue // 0) | tostring) + "ms |",
               "| CLS | " + (.audits["cumulative-layout-shift"].numericValue | . * 1000 | round / 1000 | tostring) + " |",
               "| FCP | " + (.audits["first-contentful-paint"].numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |",
               "| TTI | " + (.audits.interactive.numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |"
@@ -258,7 +260,6 @@ jobs:
 
             const performanceScore = Math.round(report.categories.performance.score * 100);
             const lcp = Math.round(report.audits['largest-contentful-paint'].numericValue / 10) / 100;
-            const fid = report.audits['first-input-delay']?.numericValue || 0;
             const cls = Math.round(report.audits['cumulative-layout-shift'].numericValue * 1000) / 1000;
 
             const emoji = performanceScore >= 90 ? '🟢' : performanceScore >= 70 ? '🟡' : '🔴';
@@ -269,7 +270,6 @@ jobs:
             |--------|-------|--------|
             | Performance Score | ${performanceScore}% | ${performanceScore >= 90 ? '✅' : performanceScore >= 70 ? '⚠️' : '❌'} |
             | LCP | ${lcp}s | ${lcp <= (device === 'mobile' ? 2.5 : 2.0) ? '✅' : '❌'} |
-            | FID | ${fid}ms | ${fid <= (device === 'mobile' ? 100 : 50) ? '✅' : '❌'} |
             | CLS | ${cls} | ${cls <= (device === 'mobile' ? 0.1 : 0.05) ? '✅' : '❌'} |
 
             **Commit:** ${{ github.sha }}

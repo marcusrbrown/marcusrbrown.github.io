@@ -1,7 +1,7 @@
 // Lighthouse CI Configuration
 // Performance testing with Core Web Vitals monitoring for mrbro.dev
 
-export default {
+module.exports = {
   ci: {
     collect: {
       // URLs to audit - using localhost for CI builds
@@ -26,7 +26,7 @@ export default {
         // Skip certain audits that aren't relevant for our static site
         skipAudits: ['uses-http2', 'redirects-http', 'uses-long-cache-ttl'],
         // Emulate mobile and desktop
-        emulatedFormFactor: 'desktop',
+        formFactor: 'desktop',
         throttling: {
           rttMs: 40,
           throughputKbps: 10240,
@@ -49,7 +49,6 @@ export default {
       assertions: {
         // Core Web Vitals - Desktop targets
         'largest-contentful-paint': ['error', {maxNumericValue: 2000}],
-        'first-input-delay': ['error', {maxNumericValue: 50}],
         'cumulative-layout-shift': ['error', {maxNumericValue: 0.05}],
 
         // Additional performance metrics
