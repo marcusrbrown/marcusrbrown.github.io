@@ -4,7 +4,7 @@ import process from 'node:process'
 
 const checks = [
   {label: 'lint', args: ['run', 'lint']},
-  {label: 'test', args: ['run', 'test']},
+  {label: 'test', args: ['run', 'test', '--', '--maxWorkers=2']},
   {label: 'build', args: ['run', 'build']},
 ]
 
@@ -48,7 +48,12 @@ function runCheck(label: string, args: string[]) {
   })
 }
 
-const results = await Promise.allSettled(checks.map(check => runCheck(check.label, check.args)))
+const testResults = await Promise.allSettled([runCheck(checks[1].label, checks[1].args)])
+const parallelResults = await Promise.allSettled([
+  runCheck(checks[0].label, checks[0].args),
+  runCheck(checks[2].label, checks[2].args),
+])
+const results = [parallelResults[0], testResults[0], parallelResults[1]]
 const failedChecks = checks.filter((_, index) => results[index]?.status === 'rejected')
 
 if (failedChecks.length > 0) {
