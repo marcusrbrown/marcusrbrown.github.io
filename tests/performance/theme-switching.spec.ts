@@ -10,6 +10,11 @@ interface LayoutShiftEntry extends PerformanceEntry {
   hadRecentInput: boolean
 }
 
+interface ThemePreloaderObservation {
+  firstDataTheme: string | null
+  firstDataThemeBeforeBody: boolean
+}
+
 test.describe('Theme Switching Performance', () => {
   test.beforeEach(async ({page}) => {
     // Navigate to home page
@@ -107,16 +112,50 @@ test.describe('Theme Switching Performance', () => {
     await page.getByRole('listbox', {name: 'Theme choices'}).getByRole('option', {name: 'Dark', exact: true}).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 
+    // Observe the preloader's synchronous data-theme write on the next
+    // document before any page scripts run. The preloader is the only public
+    // script that uses setAttribute for data-theme.
+    await page.addInitScript(() => {
+      const observation: ThemePreloaderObservation = {
+        firstDataTheme: null,
+        firstDataThemeBeforeBody: false,
+      }
+      const originalSetAttribute = Element.prototype.setAttribute
+
+      Element.prototype.setAttribute = function (this: Element, name: string, value: string) {
+        if (this === document.documentElement && name === 'data-theme' && observation.firstDataTheme === null) {
+          observation.firstDataTheme = value
+          observation.firstDataThemeBeforeBody = document.body === null
+        }
+        originalSetAttribute.call(this, name, value)
+      }
+
+      Object.defineProperty(window, '__themePreloaderObservation', {
+        configurable: true,
+        value: observation,
+      })
+    })
+
     // Reload page and measure time to apply saved theme
     const reloadStartTime = Date.now()
     await page.reload({waitUntil: 'domcontentloaded'})
 
     // The preloader applies the persisted theme during document loading.
     const themeAfterReload = await page.locator('html').getAttribute('data-theme')
+    const preloaderObservation = await page.evaluate(() => {
+      const windowWithObservation = window as Window & {
+        __themePreloaderObservation?: ThemePreloaderObservation
+      }
+      return windowWithObservation.__themePreloaderObservation ?? null
+    })
 
     const reloadTime = Date.now() - reloadStartTime
 
     expect(themeAfterReload).toBe('dark')
+    expect(preloaderObservation).toEqual({
+      firstDataTheme: 'dark',
+      firstDataThemeBeforeBody: true,
+    })
     expect(reloadTime).toBeLessThan(3000) // Page should load within 3 seconds
   })
 })
