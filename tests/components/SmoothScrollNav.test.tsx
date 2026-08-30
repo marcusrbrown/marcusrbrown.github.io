@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react'
+import {act, render, screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import SmoothScrollNav from '../../src/components/SmoothScrollNav'
@@ -13,8 +13,11 @@ vi.mock('../../src/utils/analytics', async importOriginal => {
 })
 
 // Mock IntersectionObserver
+let intersectionCallback: IntersectionObserverCallback | undefined
+
 // eslint-disable-next-line prefer-arrow-callback
-globalThis.IntersectionObserver = vi.fn(function (_callback, _options) {
+globalThis.IntersectionObserver = vi.fn(function (callback: IntersectionObserverCallback, _options) {
+  intersectionCallback = callback
   return {
     observe: vi.fn(),
     disconnect: vi.fn(),
@@ -28,6 +31,7 @@ Element.prototype.scrollIntoView = vi.fn()
 describe('SmoothScrollNav', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    intersectionCallback = undefined
     // Create mock sections in DOM
     const sections = ['hero', 'about', 'projects', 'blog']
     sections.forEach(id => {
@@ -113,6 +117,49 @@ describe('SmoothScrollNav', () => {
       threshold: [0.1, 0.5, 1],
       rootMargin: '-20% 0px -60% 0px',
     })
+  })
+
+  it('marks the section with the strongest intersection as active', () => {
+    render(<SmoothScrollNav />)
+
+    act(() => {
+      intersectionCallback?.(
+        [
+          {target: document.querySelector('#hero'), intersectionRatio: 0.2} as unknown as IntersectionObserverEntry,
+          {target: document.querySelector('#about'), intersectionRatio: 0.6} as unknown as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      )
+    })
+
+    expect(screen.getByRole('button', {name: /navigate to about section/i})).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', {name: /navigate to home section/i})).not.toHaveAttribute('aria-current')
+
+    act(() => {
+      intersectionCallback?.(
+        [{target: document.querySelector('#hero'), intersectionRatio: 0.05} as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      )
+    })
+
+    expect(screen.getByRole('button', {name: /navigate to about section/i})).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('keeps the navigation visible when auto-hide is disabled', () => {
+    render(<SmoothScrollNav autoHide={false} />)
+
+    expect(screen.getByRole('navigation')).toHaveClass('smooth-scroll-nav--visible')
+  })
+
+  it('reports positive scroll progress when the document can scroll', () => {
+    Object.defineProperty(document.documentElement, 'scrollHeight', {configurable: true, value: 1000})
+    Object.defineProperty(window, 'innerHeight', {configurable: true, value: 500})
+    Object.defineProperty(window, 'scrollY', {configurable: true, value: 250})
+
+    render(<SmoothScrollNav />)
+    window.dispatchEvent(new Event('scroll'))
+
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
   })
 
   describe('scroll navigation', () => {

@@ -9,6 +9,7 @@ import {
   applyReducedMotion,
   createAccessibleTransition,
   createThemeActionLabel,
+  focusModal,
   getSafeAnimationDuration,
   handleButtonKeyDown,
   handleEscapeKey,
@@ -16,6 +17,7 @@ import {
   handleTabNavigation,
   onReducedMotionChange,
   prefersReducedMotion,
+  trapFocus,
 } from '../../src/utils/accessibility'
 
 // Mock matchMedia for reduced motion tests
@@ -149,6 +151,70 @@ describe('accessibility utilities', () => {
       expect(mockPreventDefault).toHaveBeenCalled()
       expect(mockOnTabChange).toHaveBeenCalledWith('tab1')
     })
+
+    it('should ignore keys other than the horizontal arrows', () => {
+      const mockOnTabChange = vi.fn()
+      const mockPreventDefault = vi.fn()
+
+      handleTabNavigation(
+        {key: 'Enter', preventDefault: mockPreventDefault} as unknown as React.KeyboardEvent,
+        'tab1',
+        ['tab1', 'tab2'],
+        mockOnTabChange,
+      )
+
+      expect(mockPreventDefault).not.toHaveBeenCalled()
+      expect(mockOnTabChange).not.toHaveBeenCalled()
+    })
+
+    it('should focus the selected tab button when a tab container is provided', () => {
+      const container = document.createElement('div')
+      const firstTab = document.createElement('button')
+      const secondTab = document.createElement('button')
+      firstTab.setAttribute('role', 'tab')
+      secondTab.setAttribute('role', 'tab')
+      container.append(firstTab, secondTab)
+      document.body.append(container)
+      const focusSpy = vi.spyOn(secondTab, 'focus')
+
+      handleTabNavigation(
+        {key: 'ArrowRight', preventDefault: vi.fn()} as unknown as React.KeyboardEvent,
+        'tab1',
+        ['tab1', 'tab2'],
+        vi.fn(),
+        {current: container},
+      )
+
+      expect(focusSpy).toHaveBeenCalledOnce()
+    })
+
+    it('should do nothing when navigation has no destination tab', () => {
+      const mockOnTabChange = vi.fn()
+
+      handleTabNavigation(
+        {key: 'ArrowRight', preventDefault: vi.fn()} as unknown as React.KeyboardEvent,
+        'tab1',
+        [],
+        mockOnTabChange,
+      )
+
+      expect(mockOnTabChange).not.toHaveBeenCalled()
+    })
+
+    it('should skip focusing when the container has no tab buttons', () => {
+      const container = document.createElement('div')
+      document.body.append(container)
+
+      expect(() =>
+        handleTabNavigation(
+          {key: 'ArrowRight', preventDefault: vi.fn()} as unknown as React.KeyboardEvent,
+          'tab1',
+          ['tab1', 'tab2'],
+          vi.fn(),
+          {current: container},
+        ),
+      ).not.toThrow()
+    })
   })
 
   describe('handleEscapeKey', () => {
@@ -259,6 +325,115 @@ describe('accessibility utilities', () => {
 
       expect(mockPreventDefault).not.toHaveBeenCalled()
       expect(mockSave).not.toHaveBeenCalled()
+    })
+
+    it('should ignore modified keys without a registered shortcut', () => {
+      const mockPreventDefault = vi.fn()
+      const mockEvent = {
+        key: 'x',
+        ctrlKey: true,
+        metaKey: false,
+        preventDefault: mockPreventDefault,
+      } as unknown as React.KeyboardEvent
+
+      handleKeyboardShortcuts(mockEvent, {s: vi.fn()})
+
+      expect(mockPreventDefault).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('focus management', () => {
+    it('should focus a modal when it has a current element', () => {
+      const modal = document.createElement('div')
+      modal.tabIndex = -1
+      document.body.append(modal)
+      const focusSpy = vi.spyOn(modal, 'focus')
+
+      focusModal({current: modal})
+
+      expect(focusSpy).toHaveBeenCalledOnce()
+    })
+
+    it('should do nothing when a modal ref is empty', () => {
+      expect(() => focusModal({current: null})).not.toThrow()
+    })
+
+    it('should wrap focus backward from the first focusable element', () => {
+      const container = document.createElement('div')
+      const first = document.createElement('button')
+      const last = document.createElement('button')
+      container.append(first, last)
+      document.body.append(container)
+      first.focus()
+      const focusSpy = vi.spyOn(last, 'focus')
+      const preventDefault = vi.fn()
+
+      trapFocus({key: 'Tab', shiftKey: true, preventDefault} as unknown as React.KeyboardEvent, {current: container})
+
+      expect(preventDefault).toHaveBeenCalledOnce()
+      expect(focusSpy).toHaveBeenCalledOnce()
+    })
+
+    it('should wrap focus forward from the last focusable element', () => {
+      const container = document.createElement('div')
+      const first = document.createElement('button')
+      const last = document.createElement('button')
+      container.append(first, last)
+      document.body.append(container)
+      last.focus()
+      const focusSpy = vi.spyOn(first, 'focus')
+      const preventDefault = vi.fn()
+
+      trapFocus({key: 'Tab', shiftKey: false, preventDefault} as unknown as React.KeyboardEvent, {current: container})
+
+      expect(preventDefault).toHaveBeenCalledOnce()
+      expect(focusSpy).toHaveBeenCalledOnce()
+    })
+
+    it('should ignore focus trapping when there are no focusable elements', () => {
+      const container = document.createElement('div')
+      const preventDefault = vi.fn()
+
+      trapFocus({key: 'Tab', shiftKey: false, preventDefault} as unknown as React.KeyboardEvent, {current: container})
+
+      expect(preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('should ignore keys other than Tab for focus trapping', () => {
+      const container = document.createElement('div')
+      const preventDefault = vi.fn()
+
+      trapFocus({key: 'Enter', shiftKey: true, preventDefault} as unknown as React.KeyboardEvent, {current: container})
+
+      expect(preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('should not wrap backward when focus is not on the first element', () => {
+      const container = document.createElement('div')
+      const first = document.createElement('button')
+      const last = document.createElement('button')
+      container.append(first, last)
+      document.body.append(container)
+      last.focus()
+      const preventDefault = vi.fn()
+
+      trapFocus({key: 'Tab', shiftKey: true, preventDefault} as unknown as React.KeyboardEvent, {current: container})
+
+      expect(preventDefault).not.toHaveBeenCalled()
+    })
+
+    it('should not wrap forward when focus is not on the last element', () => {
+      const container = document.createElement('div')
+      const first = document.createElement('button')
+      const last = document.createElement('button')
+      container.append(first, last)
+      document.body.append(container)
+      first.focus()
+      const preventDefault = vi.fn()
+
+      trapFocus({key: 'Tab', shiftKey: false, preventDefault} as unknown as React.KeyboardEvent, {current: container})
+
+      expect(preventDefault).not.toHaveBeenCalled()
     })
   })
 

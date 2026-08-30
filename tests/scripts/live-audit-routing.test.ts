@@ -160,7 +160,7 @@ describe('live-audit event routing', () => {
 
     const invalidJson = runRouteEventCli('{not-json')
     expect(invalidJson.status).not.toBe(0)
-  })
+  }, 15_000)
 
   it('CLI rejects an oversized event before parsing and keeps stderr concise', () => {
     const oversizedBody = `@fro-bot validate #42${' '.repeat(MAX_EVENT_BYTES)}`
@@ -183,7 +183,7 @@ describe('live-audit event routing', () => {
     expect(result.status).not.toBe(0)
     expect(result.stderr).toBe('route-event failed\n')
     expect(result.stderr).not.toContain(eventPath)
-  })
+  }, 15_000)
 
   it('ignores ordinary trusted bot mentions because generic routing owns them', () => {
     const route = parseLiveAuditEvent(

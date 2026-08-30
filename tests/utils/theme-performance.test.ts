@@ -1,10 +1,12 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
   cleanupThemeOptimizations,
+  configureReducedMotionSupport,
   getOptimalPerformanceLevel,
   optimizeForThemeSwitch,
   preloadThemeAssets,
   resetPerformanceState,
+  setupReducedMotionListener,
   supportsHardwareAcceleration,
   type PerformanceOptimizationLevel,
 } from '../../src/utils/theme-performance'
@@ -62,6 +64,8 @@ describe('theme-performance utilities', () => {
 
     // Clear any pending timers
     vi.clearAllTimers()
+
+    Reflect.deleteProperty(navigator, 'deviceMemory')
   })
 
   describe('optimizeForThemeSwitch', () => {
@@ -93,6 +97,37 @@ describe('theme-performance utilities', () => {
         optimizeForThemeSwitch(level)
         expect(document.documentElement.classList.contains('theme-switching')).toBe(true)
       })
+    })
+
+    it('should disable transitions for reduced motion at the minimal level', () => {
+      vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion: reduce'),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+
+      optimizeForThemeSwitch('minimal')
+
+      expect(document.documentElement.style.getPropertyValue('--transition-theme')).toBe('none')
+      expect(document.documentElement).toHaveClass('reduce-motion')
+    })
+
+    it('should apply GPU hints to targeted elements at the aggressive level', () => {
+      document.documentElement.innerHTML = '<a></a><button></button><div class="project-card"></div>'
+
+      optimizeForThemeSwitch('aggressive')
+
+      for (const element of document.querySelectorAll('a, button, .project-card')) {
+        expect(element).toHaveStyle({
+          transform: 'translate3d(0, 0, 0)',
+          willChange: 'color, background-color, border-color, transform',
+        })
+      }
     })
 
     it('should schedule automatic cleanup', async () => {
@@ -144,6 +179,37 @@ describe('theme-performance utilities', () => {
       vi.advanceTimersByTime(100)
 
       expect(document.documentElement.classList.contains('theme-switch-complete')).toBe(false)
+
+      vi.useRealTimers()
+    })
+
+    it('should retain the reduced-motion class while reduced motion is preferred', () => {
+      vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion: reduce'),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+
+      optimizeForThemeSwitch('minimal')
+      cleanupThemeOptimizations()
+
+      expect(document.documentElement).toHaveClass('reduce-motion')
+    })
+
+    it('should ignore a delayed cleanup after optimization has already finished', () => {
+      vi.useFakeTimers()
+
+      optimizeForThemeSwitch('standard')
+      cleanupThemeOptimizations()
+      vi.advanceTimersByTime(350)
+
+      expect(document.documentElement).not.toHaveClass('theme-switching')
+      expect(document.documentElement).not.toHaveClass('theme-switch-complete')
 
       vi.useRealTimers()
     })
@@ -230,6 +296,24 @@ describe('theme-performance utilities', () => {
 
       const level = getOptimalPerformanceLevel()
       expect(level).toBe('standard')
+    })
+
+    it('should return standard for a low-memory device with hardware acceleration', () => {
+      const mockCanvas = {getContext: vi.fn(() => ({}))}
+      vi.spyOn(document, 'createElement').mockReturnValue(mockCanvas as unknown as HTMLCanvasElement)
+      Object.defineProperty(navigator, 'deviceMemory', {configurable: true, value: 2})
+      vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+        matches: query.includes('min-resolution: 120dpi'),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }))
+
+      expect(getOptimalPerformanceLevel()).toBe('standard')
     })
 
     it('should return aggressive for high-DPI displays', () => {
@@ -356,6 +440,37 @@ describe('theme-performance utilities', () => {
       createElementSpy.mockRestore()
       appendSpy.mockRestore()
       vi.useRealTimers()
+    })
+  })
+
+  describe('reduced motion configuration', () => {
+    it('should restore normal transition classes when reduced motion is disabled', () => {
+      document.documentElement.classList.add('reduce-motion', 'disable-gpu-acceleration')
+      vi.mocked(window.matchMedia).mockReturnValue({
+        matches: false,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })
+
+      configureReducedMotionSupport()
+
+      expect(document.documentElement).not.toHaveClass('reduce-motion')
+      expect(document.documentElement).not.toHaveClass('disable-gpu-acceleration')
+    })
+
+    it('should return a no-op cleanup when matchMedia is unavailable', () => {
+      const originalMatchMedia = window.matchMedia
+      ;(window as {matchMedia?: unknown}).matchMedia = undefined
+
+      const cleanup = setupReducedMotionListener()
+
+      expect(() => cleanup()).not.toThrow()
+      window.matchMedia = originalMatchMedia
     })
   })
 })
