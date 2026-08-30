@@ -155,12 +155,12 @@ jobs:
           LHCI_BUILD_CONTEXT__EXTERNAL_BUILD_URL: ${{ github.event.pull_request.html_url || github.event.head_commit.url }}
 
       - name: Validate performance budgets - ${{ matrix.device }}
-        run: tsx scripts/performance-budgets.ts
+        run: pnpm run test:performance:budgets
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 
       - name: Check performance regression - ${{ matrix.device }}
-        run: tsx scripts/performance-regression.ts
+        run: pnpm run test:performance:regression
         env:
           DEVICE_TYPE: ${{ matrix.device }}
           BASELINE_BRANCH: main
@@ -171,10 +171,10 @@ jobs:
           DEVICE_TYPE: ${{ matrix.device }}
 
       - name: Generate performance dashboard
-        run: tsx scripts/performance-dashboard.ts
+        run: pnpm run test:performance:dashboard
 
       - name: Collect performance artifacts
-        run: tsx scripts/performance-artifacts.ts
+        run: pnpm run test:performance:artifacts
         continue-on-error: true
 
       - name: Generate performance report
