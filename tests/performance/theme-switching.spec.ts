@@ -234,50 +234,78 @@ test.describe('Component Rendering Performance', () => {
 
     // Measure scroll performance
     const scrollPerformance = await page.evaluate(async () => {
-      return new Promise<{totalScrollEvents: number; frameDrops: number; frameDropPercentage: number}>(resolve => {
+      return new Promise<{
+        scrollableExtent: number
+        totalScrollEvents: number
+        frameDrops: number
+        frameDropPercentage: number
+      }>(resolve => {
         let scrollEvents = 0
         let frameDrops = 0
-        let lastFrameTime = performance.now()
+        let lastFrameTime: number | null = null
+        const maxScrollPosition = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+        const targetScrollPosition = Math.min(2000, maxScrollPosition)
+        let safetyTimer: number | undefined
 
         const handleScroll = () => {
           scrollEvents++
           const currentTime = performance.now()
-          const frameDelta = currentTime - lastFrameTime
 
-          // Consider frame dropped if it takes longer than ~17ms (60 FPS)
-          if (frameDelta > 20) {
-            frameDrops++
+          // The first event establishes the baseline and is not a frame.
+          if (lastFrameTime !== null) {
+            const frameDelta = currentTime - lastFrameTime
+
+            // Consider frame dropped if it takes longer than ~17ms (60 FPS)
+            if (frameDelta > 20) {
+              frameDrops++
+            }
           }
 
           lastFrameTime = currentTime
         }
 
-        window.addEventListener('scroll', handleScroll, {passive: true})
-
-        const maxScrollPosition = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
-        const targetScrollPosition = Math.min(2000, maxScrollPosition)
-
-        // Simulate smooth scrolling over the available page height.
-        let scrollPosition = 0
-        const scrollStep = () => {
-          scrollPosition = Math.min(scrollPosition + 50, targetScrollPosition)
-          window.scrollTo(0, scrollPosition)
-
-          if (scrollPosition < targetScrollPosition) {
-            requestAnimationFrame(scrollStep)
-          } else {
-            window.removeEventListener('scroll', handleScroll)
-            resolve({
-              totalScrollEvents: scrollEvents,
-              frameDrops,
-              frameDropPercentage: scrollEvents === 0 ? 0 : (frameDrops / scrollEvents) * 100,
-            })
+        const finish = () => {
+          window.removeEventListener('scroll', handleScroll)
+          if (safetyTimer !== undefined) {
+            window.clearTimeout(safetyTimer)
           }
+          resolve({
+            scrollableExtent: maxScrollPosition,
+            totalScrollEvents: scrollEvents,
+            frameDrops,
+            frameDropPercentage: scrollEvents === 0 ? 0 : (frameDrops / scrollEvents) * 100,
+          })
         }
 
-        requestAnimationFrame(scrollStep)
+        window.addEventListener('scroll', handleScroll, {passive: true})
+
+        if (targetScrollPosition === 0) {
+          finish()
+          return
+        }
+
+        safetyTimer = window.setTimeout(finish, 2000)
+        const waitForScrollToFinish = () => {
+          if (window.scrollY >= targetScrollPosition) {
+            requestAnimationFrame(finish)
+            return
+          }
+          requestAnimationFrame(waitForScrollToFinish)
+        }
+
+        window.scrollTo({top: targetScrollPosition, left: 0, behavior: 'smooth'})
+        requestAnimationFrame(waitForScrollToFinish)
       })
     })
+
+    expect(
+      scrollPerformance.scrollableExtent,
+      'Scroll workload was absent or insufficient: the landing page had no positive scrollable extent.',
+    ).toBeGreaterThan(0)
+    expect(
+      scrollPerformance.totalScrollEvents,
+      'Scroll workload was absent or insufficient: no scroll events were recorded.',
+    ).toBeGreaterThan(0)
 
     // Should have minimal frame drops during scrolling
     expect(scrollPerformance.frameDropPercentage).toBeLessThan(10) // Less than 10% frame drops
