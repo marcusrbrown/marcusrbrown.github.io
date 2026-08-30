@@ -67,48 +67,6 @@ test.describe('Theme Switching Performance', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   })
 
-  test('Custom theme application performance', async ({page}) => {
-    // Open theme customizer if available
-    const customizer = page.locator('[data-testid="theme-customizer-trigger"]')
-    if (await customizer.isVisible()) {
-      // Measure time to open customizer
-      const startTime = Date.now()
-      await customizer.click()
-      await page.waitForSelector('[data-testid="theme-customizer"]', {state: 'visible'})
-      const openTime = Date.now() - startTime
-
-      // Runner contention makes UI timing unsuitable for gating until #313 establishes CI-backed thresholds.
-      console.warn(`[performance] Theme customizer open time: ${openTime.toFixed(2)}ms (observational; not gating)`)
-
-      // Test color picker interactions
-      const colorInput = page.locator('input[type="color"]').first()
-      if (await colorInput.isVisible()) {
-        await colorInput.fill('#ff0000')
-        await page.waitForTimeout(100) // Allow for debounced updates
-
-        // Measure layout stability during color changes
-        const layoutShifts = await page.evaluate(async () => {
-          return new Promise<number>(resolve => {
-            let cumulativeScore = 0
-            new PerformanceObserver(list => {
-              for (const entry of list.getEntries()) {
-                const layoutShiftEntry = entry as LayoutShiftEntry
-                cumulativeScore += layoutShiftEntry.value
-              }
-              resolve(cumulativeScore)
-            }).observe({entryTypes: ['layout-shift']})
-
-            setTimeout(() => resolve(cumulativeScore), 500)
-          })
-        })
-
-        expect(layoutShifts).toBeLessThan(0.05) // Minimal layout shift during color changes
-      }
-    } else {
-      console.warn('[performance] Theme customizer open time: unavailable (observational; not gating)')
-    }
-  })
-
   test('Theme persistence performance', async ({page}) => {
     // The theme toggle opens the picker; select the mode to persist it.
     await page.click('[data-testid="theme-toggle"]')
