@@ -36,8 +36,6 @@ export interface PerformanceBudgets {
   images: number // bytes
   fonts: number // bytes
   total: number // bytes
-  // Performance score budgets
-  performanceScore: number // 0-1
   accessibilityScore: number // 0-1
   bestPracticesScore: number // 0-1
   seoScore: number // 0-1
@@ -87,7 +85,6 @@ export const defaultPerformanceConfig: PerformanceTestConfig = {
     images: 1048576, // 1MB
     fonts: 204800, // 200KB
     total: 2097152, // 2MB
-    performanceScore: 0.95, // 95%
     accessibilityScore: 0.95, // 95%
     bestPracticesScore: 0.9, // 90%
     seoScore: 0.95, // 95%

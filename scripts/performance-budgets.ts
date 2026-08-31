@@ -2,7 +2,8 @@
 
 /**
  * Performance budget validation script
- * Validates performance metrics against defined budgets and thresholds
+ * Validates bundle/resource budgets and Lighthouse report inputs.
+ * Lighthouse owns Lighthouse-metric thresholds through its own assertions.
  */
 
 import {existsSync, readFileSync} from 'node:fs'
@@ -29,9 +30,6 @@ interface LighthouseResult {
   url?: string
   requestedUrl?: string
   finalUrl?: string
-  configSettings?: {
-    emulatedFormFactor?: string
-  }
   categories: {
     performance: {
       score: number
@@ -220,7 +218,7 @@ class PerformanceBudgetValidator {
     const lhciReportsPath = resolveLighthouseReportsPath()
 
     try {
-      console.log('🚀 Performance Metrics Validation:')
+      console.log('🚀 Lighthouse Report Validation (metrics informational; LHCI owns metric thresholds):')
 
       let reports: LighthouseResult[]
       try {
@@ -245,10 +243,10 @@ class PerformanceBudgetValidator {
         return
       }
 
-      // Process each Lighthouse result.
+      // Report each Lighthouse result. Metric gates belong to LHCI assertions.
       for (const report of reports) {
         try {
-          await this.validateLighthouseResult(report)
+          this.reportLighthouseResult(report)
         } catch (error: unknown) {
           const reportUrl = report.url ?? report.finalUrl ?? report.requestedUrl ?? 'unknown URL'
           this.addViolation(
@@ -272,62 +270,24 @@ class PerformanceBudgetValidator {
   }
 
   /**
-   * Validate individual Lighthouse result
+   * Report an individual Lighthouse result without duplicating LHCI metric gates.
    */
-  async validateLighthouseResult(result: LighthouseResult): Promise<void> {
+  reportLighthouseResult(result: LighthouseResult): void {
     const reportUrl = result.url ?? result.finalUrl ?? result.requestedUrl
     if (reportUrl === undefined) return
 
     const url = new URL(reportUrl).pathname
-    const isDesktop = result.configSettings?.emulatedFormFactor === 'desktop'
-    const thresholds = isDesktop ? this.config.coreWebVitals.desktop : this.config.coreWebVitals.mobile
 
-    console.log(`  📊 ${url} (${isDesktop ? 'Desktop' : 'Mobile'}):`)
+    console.log(`  📊 ${url}:`)
 
-    // Performance Score
     const perfScore = result.categories.performance.score
-    if (perfScore < this.config.budgets.performanceScore) {
-      this.addViolation(
-        `Performance Score (${url})`,
-        `Score ${(perfScore * 100).toFixed(1)}% below budget ${this.config.budgets.performanceScore * 100}%`,
-        perfScore * 100,
-        this.config.budgets.performanceScore * 100,
-      )
-    } else {
-      console.log(`    ✅ Performance Score: ${(perfScore * 100).toFixed(1)}%`)
-    }
+    console.log(`    ℹ️  Performance Score: ${(perfScore * 100).toFixed(1)}%`)
 
-    // Core Web Vitals
     const lcp = result.audits['largest-contentful-paint']?.numericValue
-    if (lcp && lcp > thresholds.lcp) {
-      this.addViolation(
-        `LCP (${url})`,
-        `${lcp.toFixed(0)}ms exceeds ${thresholds.lcp}ms threshold`,
-        lcp,
-        thresholds.lcp,
-      )
-    } else if (lcp) {
-      console.log(`    ✅ LCP: ${lcp.toFixed(0)}ms`)
-    }
-
-    const fid = result.audits['first-input-delay']?.numericValue
-    if (fid && fid > thresholds.fid) {
-      this.addViolation(
-        `FID (${url})`,
-        `${fid.toFixed(0)}ms exceeds ${thresholds.fid}ms threshold`,
-        fid,
-        thresholds.fid,
-      )
-    } else if (fid) {
-      console.log(`    ✅ FID: ${fid.toFixed(0)}ms`)
-    }
+    if (lcp !== undefined) console.log(`    ℹ️  LCP: ${lcp.toFixed(0)}ms`)
 
     const cls = result.audits['cumulative-layout-shift']?.numericValue
-    if (cls && cls > thresholds.cls) {
-      this.addViolation(`CLS (${url})`, `${cls.toFixed(3)} exceeds ${thresholds.cls} threshold`, cls, thresholds.cls)
-    } else if (cls !== undefined) {
-      console.log(`    ✅ CLS: ${cls.toFixed(3)}`)
-    }
+    if (cls !== undefined) console.log(`    ℹ️  CLS: ${cls.toFixed(3)}`)
   }
 
   /**
@@ -377,24 +337,10 @@ class PerformanceBudgetValidator {
     if (this.violations.length > 0) {
       console.log('💡 Performance Recommendations:')
       const jsViolations = this.violations.filter(v => v.metric.includes('JavaScript'))
-      const lcpViolations = this.violations.filter(v => v.metric.includes('LCP'))
-      const clsViolations = this.violations.filter(v => v.metric.includes('CLS'))
 
       if (jsViolations.length > 0) {
         console.log('   • Consider code splitting and tree shaking to reduce JavaScript bundle size')
         console.log('   • Use dynamic imports for non-critical functionality')
-      }
-
-      if (lcpViolations.length > 0) {
-        console.log('   • Optimize images and consider WebP format')
-        console.log('   • Implement resource hints (preload, prefetch)')
-        console.log('   • Optimize critical rendering path')
-      }
-
-      if (clsViolations.length > 0) {
-        console.log('   • Set explicit dimensions for images and embeds')
-        console.log('   • Reserve space for dynamic content')
-        console.log('   • Avoid inserting content above existing content')
       }
     }
 
