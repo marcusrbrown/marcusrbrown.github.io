@@ -16,7 +16,7 @@ tests/visual/
 ├── components.spec.ts            # Component-level visual tests (header, footer, cards, hero, skills)
 ├── responsive.spec.ts            # Responsive layout tests (mobile + desktop breakpoints)
 ├── syntax-highlighting.spec.ts   # Code block visual tests
-├── theme-customizer.spec.ts      # Theme toggle and switching tests
+├── theme-system.spec.ts          # Theme toggle and switching tests
 └── screenshots/                  # Generated screenshots (regenerated per run)
 ```
 
@@ -27,7 +27,7 @@ tests/visual/
 | `components.spec.ts`          | 13     | 6 components × light/dark + header nav states |
 | `responsive.spec.ts`          | 9      | 4 pages × mobile/desktop + nav comparison     |
 | `syntax-highlighting.spec.ts` | 3      | Code block light/dark + theme transition      |
-| `theme-customizer.spec.ts`    | 3      | Toggle light/dark + theme switching           |
+| `theme-system.spec.ts`        | 3      | Toggle light/dark + theme switching           |
 | **Total**                     | **28** |                                               |
 
 ## Usage

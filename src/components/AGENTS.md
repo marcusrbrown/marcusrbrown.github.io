@@ -6,7 +6,7 @@
 
 | Domain | Components |
 | --- | --- |
-| **Theme** | `ThemePicker`, `ThemeCustomizer`, `ThemePreview`, `PresetThemeGallery` |
+| **Theme** | `ThemePicker`, `ThemePreview`, `PresetThemeGallery` |
 | **Content** | `BlogPost`, `ProjectCard`, `AboutSection` |
 | **Layout** | `Header`, `Footer`, `HeroSection`, `BackgroundPattern`, `LoadingStates` |
 | **Interactive** | `ProjectGallery`, `ProjectFilter`, `ProjectPreviewModal`, `SmoothScrollNav`, `CodeBlock` |
