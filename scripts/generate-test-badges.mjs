@@ -150,7 +150,7 @@ function parsePlaywrightReport(report, suite) {
 /**
  * Find and parse the Playwright JSON report used by the E2E and visual jobs.
  */
-async function getPlaywrightReportStatus(root, suite) {
+async function getPlaywrightSuiteSummary(root, suite) {
   const reportPaths = [join(root, 'test-results/results.json'), join(root, 'playwright-report/results.json')]
   const artifactRoot = join(root, 'test-artifacts')
   if (existsSync(artifactRoot)) {
@@ -168,7 +168,7 @@ async function getPlaywrightReportStatus(root, suite) {
     const result = await readJsonFile(reportPath)
     if (result.status === 'missing') continue
 
-    if (result.status === 'error') return 'error'
+    if (result.status === 'error') return {status: 'error'}
     const parsed = parsePlaywrightReport(result.value, suite)
     if (!parsed) continue
 
@@ -176,12 +176,23 @@ async function getPlaywrightReportStatus(root, suite) {
     for (const key of Object.keys(combined)) combined[key] += parsed[key]
   }
 
-  if (!foundReport) return 'not run'
+  if (!foundReport) return null
 
   const failures = combined.failed + combined.flaky
-  if (combined.passed === 0 && combined.skipped === combined.total) return 'not run'
-  const status = failures > 0 ? 'failing' : 'passing'
-  return `${status} (${combined.passed}/${combined.total})`
+  const status =
+    combined.passed === 0 && combined.skipped === combined.total ? 'not run' : failures > 0 ? 'failing' : 'passing'
+  return {...combined, status}
+}
+
+/**
+ * Return parsed Playwright evidence for one suite.
+ */
+async function getPlaywrightReportStatus(root, suite) {
+  const summary = await getPlaywrightSuiteSummary(root, suite)
+  if (!summary) return 'not run'
+  if (summary.status === 'error') return 'error'
+  if (summary.status === 'not run') return 'not run'
+  return `${summary.status} (${summary.passed}/${summary.total})`
 }
 
 /**
@@ -559,4 +570,5 @@ export {
   generateCoverageBadges,
   generateE2EBadges,
   generatePerformanceBadges,
+  getPlaywrightSuiteSummary,
 }

@@ -16,6 +16,7 @@ import {existsSync, promises as fs} from 'node:fs'
 import {dirname, join} from 'node:path'
 import process from 'node:process'
 import {fileURLToPath} from 'node:url'
+import {getPlaywrightSuiteSummary} from './generate-test-badges.mjs'
 
 // Get current directory
 const __filename = fileURLToPath(import.meta.url)
@@ -180,27 +181,32 @@ async function parseE2ETestData() {
 /**
  * Parse visual regression test data
  */
-async function parseVisualTestData() {
+async function parseVisualTestData(root = projectRoot) {
   try {
-    const visualDir = CONFIG.input.visualArtifacts
+    const visualDir = join(root, 'tests/visual')
     if (!existsSync(visualDir)) {
       return {status: 'not-run', totalTests: 0, passed: 0, failed: 0, baselines: 0}
     }
 
     const files = await fs.readdir(visualDir, {recursive: true})
-    const diffFiles = files.filter(file => file.includes('-diff.png'))
-    const actualFiles = files.filter(file => file.includes('-actual.png'))
+    const baselineFiles = files.filter(
+      file => file.endsWith('.png') && !file.includes('-actual.png') && !file.includes('-diff.png'),
+    )
+    const report = await getPlaywrightSuiteSummary(root, 'visual')
 
-    if (actualFiles.length === 0 && diffFiles.length === 0) {
+    if (!report || report.status === 'not run') {
       return {status: 'not-run', totalTests: 0, passed: 0, failed: 0, baselines: 0}
+    }
+    if (report.status === 'error') {
+      return {status: 'error', totalTests: 0, passed: 0, failed: 0, baselines: 0}
     }
 
     return {
-      status: diffFiles.length > 0 ? 'failed' : 'passed',
-      totalTests: actualFiles.length,
-      passed: actualFiles.length - diffFiles.length,
-      failed: diffFiles.length,
-      baselines: actualFiles.length,
+      status: report.status === 'failing' ? 'failed' : 'passed',
+      totalTests: report.total,
+      passed: report.passed,
+      failed: report.failed + report.flaky,
+      baselines: baselineFiles.length,
     }
   } catch (error) {
     console.warn('⚠️  Failed to parse visual test data:', error.message)
