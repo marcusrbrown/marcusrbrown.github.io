@@ -27,11 +27,9 @@ const createReportsDirectory = (): string => {
 
 const lighthouseReport = {
   requestedUrl: 'http://localhost:4173/',
-  configSettings: {emulatedFormFactor: 'desktop'},
   categories: {performance: {score: 0.99}},
   audits: {
     'largest-contentful-paint': {numericValue: 1000},
-    'first-input-delay': {numericValue: 10},
     'cumulative-layout-shift': {numericValue: 0.01},
   },
 }
@@ -125,7 +123,7 @@ describe('Lighthouse budget validation failures', () => {
     expect(output).toContain('not a URL')
   })
 
-  it('exits zero and validates metrics when all reports are valid', () => {
+  it('exits zero and reports Lighthouse metrics as informational when all reports are valid', () => {
     const directory = createReportsDirectory()
     writeFileSync(join(directory, 'manifest.json'), JSON.stringify([{url: 'metadata'}]))
     writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
@@ -134,8 +132,34 @@ describe('Lighthouse budget validation failures', () => {
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
 
     expect(result.status).toBe(0)
+    expect(output).toContain('metrics informational; LHCI owns metric thresholds')
     expect(output).toContain('Performance Score: 99.0%')
     expect(output).toContain('LCP: 1000ms')
     expect(output).toContain('CLS: 0.010')
+  })
+
+  it('does not fail on Lighthouse metric values that LHCI owns', () => {
+    const directory = createReportsDirectory()
+    writeFileSync(
+      join(directory, 'slow-report.json'),
+      JSON.stringify({
+        ...lighthouseReport,
+        categories: {performance: {score: 0.5}},
+        audits: {
+          'largest-contentful-paint': {numericValue: 5000},
+          'cumulative-layout-shift': {numericValue: 0.5},
+        },
+      }),
+    )
+
+    const result = runBudgetValidator(directory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(0)
+    expect(output).toContain('Performance Score: 50.0%')
+    expect(output).toContain('LCP: 5000ms')
+    expect(output).toContain('CLS: 0.500')
+    expect(output).not.toContain('below budget')
+    expect(output).not.toContain('exceeds')
   })
 })

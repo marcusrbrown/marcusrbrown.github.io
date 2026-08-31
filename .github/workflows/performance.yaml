@@ -324,10 +324,10 @@ jobs:
             [ -d "lighthouse-reports-mobile-${{ github.run_number }}/lhci-reports-mobile" ] && cp -r lighthouse-reports-mobile-${{ github.run_number }}/lhci-reports-mobile ./
 
             # Generate dashboard
-            tsx scripts/performance-dashboard.ts || echo "Failed to generate dashboard"
+            pnpm run test:performance:dashboard || echo "Failed to generate dashboard"
 
             # Collect artifacts
-            tsx scripts/performance-artifacts.ts || echo "Failed to collect artifacts"
+            pnpm run test:performance:artifacts || echo "Failed to collect artifacts"
           else
             echo "No Lighthouse reports found, skipping dashboard generation"
           fi
