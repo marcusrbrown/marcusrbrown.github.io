@@ -181,7 +181,7 @@ test.describe('Keyboard Navigation Tests', () => {
       await page.waitForLoadState('networkidle')
 
       // Look for elements that might open modals (theme customizer, project previews)
-      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger, .theme-customizer-trigger')
+      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger')
       const triggerCount = await modalTriggers.count()
 
       if (triggerCount > 0) {
@@ -192,7 +192,7 @@ test.describe('Keyboard Navigation Tests', () => {
         await page.waitForTimeout(300)
 
         // Look for modal
-        const modal = page.locator('[role="dialog"], .modal, .theme-customizer')
+        const modal = page.locator('[role="dialog"], .modal')
         if ((await modal.count()) > 0 && (await modal.isVisible())) {
           // Press Escape to close
           await page.keyboard.press('Escape')
@@ -240,7 +240,7 @@ test.describe('Keyboard Navigation Tests', () => {
       await page.waitForLoadState('networkidle')
 
       // Try to find and open a modal
-      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger, .theme-customizer-trigger')
+      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger')
       const triggerCount = await modalTriggers.count()
 
       if (triggerCount > 0) {
@@ -248,7 +248,7 @@ test.describe('Keyboard Navigation Tests', () => {
         await firstTrigger.click()
         await page.waitForTimeout(300)
 
-        const modal = page.locator('[role="dialog"], .modal, .theme-customizer')
+        const modal = page.locator('[role="dialog"], .modal')
         if ((await modal.count()) > 0 && (await modal.isVisible())) {
           // Tab through modal elements - focus should stay within modal
           await page.keyboard.press('Tab')
@@ -274,7 +274,7 @@ test.describe('Keyboard Navigation Tests', () => {
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger, .theme-customizer-trigger')
+      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger')
       const triggerCount = await modalTriggers.count()
 
       if (triggerCount > 0) {
@@ -288,7 +288,7 @@ test.describe('Keyboard Navigation Tests', () => {
         await firstTrigger.click()
         await page.waitForTimeout(300)
 
-        const modal = page.locator('[role="dialog"], .modal, .theme-customizer')
+        const modal = page.locator('[role="dialog"], .modal')
         if ((await modal.count()) > 0 && (await modal.isVisible())) {
           // Close modal with Escape
           await page.keyboard.press('Escape')

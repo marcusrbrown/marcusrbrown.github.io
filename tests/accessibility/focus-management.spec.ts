@@ -12,7 +12,7 @@ test.describe('Focus Management Tests', () => {
       await page.waitForLoadState('networkidle')
 
       // Try to find and open a modal (theme customizer, project preview, etc.)
-      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger, .theme-customizer-trigger')
+      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger')
       const triggerCount = await modalTriggers.count()
 
       if (triggerCount > 0) {
@@ -20,7 +20,7 @@ test.describe('Focus Management Tests', () => {
         await firstTrigger.click()
         await page.waitForTimeout(500)
 
-        const modal = page.locator('[role="dialog"], .modal, .theme-customizer')
+        const modal = page.locator('[role="dialog"], .modal')
         if ((await modal.count()) > 0 && (await modal.isVisible())) {
           // Find all focusable elements within the modal
           const focusableInModal = modal.locator(
@@ -68,7 +68,7 @@ test.describe('Focus Management Tests', () => {
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger, .theme-customizer-trigger')
+      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger')
       const triggerCount = await modalTriggers.count()
 
       if (triggerCount > 0) {
@@ -82,7 +82,7 @@ test.describe('Focus Management Tests', () => {
         await firstTrigger.click()
         await page.waitForTimeout(500)
 
-        const modal = page.locator('[role="dialog"], .modal, .theme-customizer')
+        const modal = page.locator('[role="dialog"], .modal')
         if ((await modal.count()) > 0 && (await modal.isVisible())) {
           // Focus should have moved into the modal
           const currentFocus = page.locator(':focus')
@@ -107,7 +107,7 @@ test.describe('Focus Management Tests', () => {
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger, .theme-customizer-trigger')
+      const modalTriggers = page.locator('[aria-haspopup="dialog"], .modal-trigger')
       const triggerCount = await modalTriggers.count()
 
       if (triggerCount > 0) {
@@ -116,7 +116,7 @@ test.describe('Focus Management Tests', () => {
         await firstTrigger.click()
         await page.waitForTimeout(500)
 
-        const modal = page.locator('[role="dialog"], .modal, .theme-customizer')
+        const modal = page.locator('[role="dialog"], .modal')
         if ((await modal.count()) > 0 && (await modal.isVisible())) {
           // Try to close modal by clicking outside (if supported)
           await page.click('body', {position: {x: 10, y: 10}})

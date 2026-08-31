@@ -239,7 +239,6 @@
   /* Specifically target theme-related animations */
   .theme-switching,
   .theme-switch-complete,
-  .theme-customizer,
   .theme-toggle,
   .preset-theme-gallery,
   button,
@@ -386,7 +385,6 @@ button,
 .blog-post,
 article,
 .card,
-.theme-customizer,
 .theme-preview,
 .preset-theme-gallery {
   /* Layout and paint containment for independent sections */
@@ -427,8 +425,7 @@ nav {
 /* Modal and overlay performance */
 .modal,
 .overlay,
-.dropdown,
-.theme-customizer-modal {
+.dropdown {
   /* Full containment for modal content */
   contain: layout paint style;
   /* Composite layer for smooth animations */
