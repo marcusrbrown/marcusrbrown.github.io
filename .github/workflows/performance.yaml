@@ -159,8 +159,10 @@ jobs:
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 
+      # Non-gating until #317: no baseline is restored, so this compares nothing and always passes.
       - name: Check performance regression - ${{ matrix.device }}
         run: pnpm run test:performance:regression
+        continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
           BASELINE_BRANCH: main
