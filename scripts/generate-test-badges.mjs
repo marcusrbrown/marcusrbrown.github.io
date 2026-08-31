@@ -14,7 +14,7 @@
  */
 
 import {existsSync, promises as fs} from 'node:fs'
-import {dirname, join} from 'node:path'
+import {dirname, join, resolve} from 'node:path'
 import process from 'node:process'
 import {fileURLToPath} from 'node:url'
 
@@ -94,48 +94,56 @@ async function readJsonFile(filePath) {
 }
 
 /**
- * Parse the aggregate counts emitted by Playwright's JSON reporter.
+ * Decide whether a Playwright project belongs to the requested suite.
+ */
+function isProjectInSuite(projectName, suite) {
+  if (typeof projectName !== 'string') return false
+  return suite === 'visual'
+    ? projectName.toLowerCase().includes('visual')
+    : !/visual|accessibility|performance/i.test(projectName)
+}
+
+/**
+ * Derive one test's outcome from its actual attempts.
+ * A test that passes only after a failed retry is treated as flaky and non-green.
+ */
+function getTestOutcome(test) {
+  const results = Array.isArray(test?.results) ? test.results : []
+  const statuses = results.map(result => result?.status)
+
+  if (statuses.length === 0 || statuses.every(status => status === 'skipped')) return 'skipped'
+  if (statuses.includes('passed') && statuses.some(status => status !== 'passed')) return 'flaky'
+  if (statuses.every(status => status === 'passed')) return 'passed'
+  return 'failed'
+}
+
+/**
+ * Parse only tests belonging to one Playwright suite.
  */
 function parsePlaywrightReport(report, suite) {
-  const stats = report?.stats
-  if (!stats || typeof stats !== 'object') return null
+  if (!report || !Array.isArray(report.suites)) return null
 
-  const hasExpected = typeof stats.expected === 'number' || typeof stats.passed === 'number'
-  const hasUnexpected = typeof stats.unexpected === 'number' || typeof stats.failed === 'number'
-  if (!hasExpected || !hasUnexpected) return null
-
-  const expected = stats.expected ?? stats.passed
-  const unexpected = stats.unexpected ?? stats.failed
-  const skipped = stats.skipped ?? 0
-  const flaky = stats.flaky ?? 0
-  const counts = [expected, unexpected, skipped, flaky]
-
-  if (counts.some(count => typeof count !== 'number' || !Number.isFinite(count) || count < 0)) return null
-
-  const total = expected + unexpected + skipped + flaky
-  const projects = new Set()
-  const collectProjects = currentSuite => {
+  const counts = {total: 0, passed: 0, failed: 0, skipped: 0, flaky: 0}
+  const collectTests = currentSuite => {
     for (const spec of currentSuite?.specs || []) {
       for (const test of spec.tests || []) {
-        if (typeof test.projectName === 'string') projects.add(test.projectName)
+        if (!isProjectInSuite(test.projectName, suite)) continue
+
+        const outcome = getTestOutcome(test)
+        counts.total += 1
+        counts[outcome] += 1
       }
     }
-    for (const childSuite of currentSuite?.suites || []) collectProjects(childSuite)
+    for (const childSuite of currentSuite?.suites || []) collectTests(childSuite)
   }
-  for (const currentSuite of report.suites || []) collectProjects(currentSuite)
 
-  const hasSuiteEvidence =
-    suite === 'visual'
-      ? [...projects].some(project => project.toLowerCase().includes('visual'))
-      : [...projects].some(project => !/visual|accessibility|performance/i.test(project))
-  if (!hasSuiteEvidence) return {status: 'not run', total: 0, failures: 0}
+  for (const currentSuite of report.suites) collectTests(currentSuite)
+  if (counts.total === 0) return null
 
-  if (total === 0) return {status: 'not run', total, failures: 0}
-
+  const failures = counts.failed + counts.flaky
   return {
-    status: unexpected + flaky > 0 ? 'failing' : 'passing',
-    total,
-    failures: unexpected + flaky,
+    ...counts,
+    status: counts.passed === 0 && counts.skipped === counts.total ? 'not run' : failures > 0 ? 'failing' : 'passing',
   }
 }
 
@@ -144,16 +152,36 @@ function parsePlaywrightReport(report, suite) {
  */
 async function getPlaywrightReportStatus(root, suite) {
   const reportPaths = [join(root, 'test-results/results.json'), join(root, 'playwright-report/results.json')]
+  const artifactRoot = join(root, 'test-artifacts')
+  if (existsSync(artifactRoot)) {
+    const artifactFiles = await fs.readdir(artifactRoot, {recursive: true})
+    reportPaths.push(
+      ...artifactFiles.filter(file => file.endsWith('results.json')).map(file => join(artifactRoot, file)),
+    )
+  }
 
-  for (const reportPath of reportPaths) {
+  const uniqueReportPaths = [...new Set(reportPaths)]
+  const combined = {total: 0, passed: 0, failed: 0, skipped: 0, flaky: 0}
+  let foundReport = false
+
+  for (const reportPath of uniqueReportPaths) {
     const result = await readJsonFile(reportPath)
     if (result.status === 'missing') continue
 
     if (result.status === 'error') return 'error'
-    return parsePlaywrightReport(result.value, suite)?.status ?? 'error'
+    const parsed = parsePlaywrightReport(result.value, suite)
+    if (!parsed) continue
+
+    foundReport = true
+    for (const key of Object.keys(combined)) combined[key] += parsed[key]
   }
 
-  return 'not run'
+  if (!foundReport) return 'not run'
+
+  const failures = combined.failed + combined.flaky
+  if (combined.passed === 0 && combined.skipped === combined.total) return 'not run'
+  const status = failures > 0 ? 'failing' : 'passing'
+  return `${status} (${combined.passed}/${combined.total})`
 }
 
 /**
@@ -290,14 +318,16 @@ async function generateE2EBadges(root = projectRoot) {
       getPlaywrightReportStatus(root, 'e2e'),
       getPlaywrightReportStatus(root, 'visual'),
     ])
-    const e2eColor =
-      e2eStatus === 'passing' ? CONFIG.colors.excellent : e2eStatus === 'failing' ? CONFIG.colors.error : 'lightgrey'
-    const visualColor =
-      visualStatus === 'passing'
-        ? CONFIG.colors.excellent
-        : visualStatus === 'failing'
-          ? CONFIG.colors.error
-          : 'lightgrey'
+    const e2eColor = e2eStatus.startsWith('passing')
+      ? CONFIG.colors.excellent
+      : e2eStatus.startsWith('failing')
+        ? CONFIG.colors.error
+        : 'lightgrey'
+    const visualColor = visualStatus.startsWith('passing')
+      ? CONFIG.colors.excellent
+      : visualStatus.startsWith('failing')
+        ? CONFIG.colors.error
+        : 'lightgrey'
 
     return {
       e2eTests: generateBadgeUrl('e2e tests', e2eStatus, e2eColor),
@@ -518,7 +548,7 @@ async function main() {
 }
 
 // CLI handling
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
   main()
 }
 

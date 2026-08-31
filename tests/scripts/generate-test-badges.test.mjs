@@ -35,21 +35,58 @@ describe('generate-test-badges', () => {
     expect(performance.bundleSize).toContain('unknown')
   })
 
-  it('derives E2E and visual status from Playwright report counts', async () => {
+  it('finds reports in the CI artifact layout after merged downloads', async () => {
     const directory = await createTemporaryDirectory()
-    await mkdir(join(directory, 'test-results'))
+    await mkdir(join(directory, 'test-artifacts/e2e/test-results'), {recursive: true})
+    await mkdir(join(directory, 'test-artifacts/test-results'), {recursive: true})
     await writeFile(
-      join(directory, 'test-results/results.json'),
+      join(directory, 'test-artifacts/e2e/test-results/results.json'),
       JSON.stringify({
-        stats: {expected: 3, unexpected: 1, skipped: 0, flaky: 0},
-        suites: [{specs: [{tests: [{projectName: 'chromium-desktop'}, {projectName: 'visual-tests'}]}]}],
+        suites: [{specs: [{tests: [{projectName: 'chromium-desktop', results: [{status: 'passed'}]}]}]}],
+      }),
+    )
+    await writeFile(
+      join(directory, 'test-artifacts/test-results/results.json'),
+      JSON.stringify({
+        suites: [{specs: [{tests: [{projectName: 'visual-tests', results: [{status: 'passed'}]}]}]}],
       }),
     )
 
     const badges = await generateE2EBadges(directory)
 
-    expect(badges.e2eTests).toContain('failing')
+    expect(badges.e2eTests).toContain('passing')
+    expect(badges.visualTests).toContain('passing')
+  })
+
+  it('attributes mixed-project outcomes and counts to each suite independently', async () => {
+    const directory = await createTemporaryDirectory()
+    await mkdir(join(directory, 'test-results'))
+    await writeFile(
+      join(directory, 'test-results/results.json'),
+      JSON.stringify({
+        suites: [
+          {
+            specs: [
+              {
+                tests: [
+                  {projectName: 'chromium-desktop', results: [{status: 'passed'}]},
+                  {projectName: 'chromium-desktop', results: [{status: 'passed'}]},
+                  {projectName: 'visual-tests', results: [{status: 'failed'}]},
+                  {projectName: 'visual-tests', results: [{status: 'passed'}]},
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const badges = await generateE2EBadges(directory)
+
+    expect(badges.e2eTests).toContain('passing')
+    expect(badges.e2eTests).toContain('2%2F2')
     expect(badges.visualTests).toContain('failing')
+    expect(badges.visualTests).toContain('1%2F2')
   })
 
   it('derives performance and bundle badges from report files', async () => {

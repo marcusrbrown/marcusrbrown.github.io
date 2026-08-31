@@ -64,6 +64,22 @@ interface BundleData {
   }[]
 }
 
+interface BuildAnalysisResult {
+  timestamp: string
+  totalSize: number
+  jsSize: number
+  cssSize: number
+  htmlSize: number
+  fileCount: number
+  budgetStatus?: {
+    passed: boolean
+    violations?: unknown[]
+  }
+  assets: {file: string; sizeBytes: number}[]
+}
+
+type BuildAnalyzer = (returnDataOnly: boolean) => BuildAnalysisResult
+
 interface TrendChange {
   change: number
   direction: 'increased' | 'decreased' | 'stable'
@@ -253,7 +269,7 @@ class PerformanceDashboard {
   /**
    * Collect bundle analysis data
    */
-  async collectBundleData(): Promise<void> {
+  async collectBundleData(buildAnalyzer?: BuildAnalyzer): Promise<void> {
     console.log('📦 Collecting bundle analysis data...')
 
     if (!existsSync('./dist')) {
@@ -264,8 +280,8 @@ class PerformanceDashboard {
     }
 
     try {
-      const {analyzeBuildOutput} = await import('./analyze-build.js')
-      const analysis = analyzeBuildOutput(true)
+      const analyzer = buildAnalyzer ?? (await import('./analyze-build.js')).analyzeBuildOutput
+      const analysis = analyzer(true)
 
       this.data.bundle = {
         timestamp: analysis.timestamp,
@@ -287,6 +303,7 @@ class PerformanceDashboard {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.log('  ❌ Failed to collect bundle data:', errorMessage)
+      this.collectionFailures.push(`bundle: ${errorMessage}`)
     }
   }
 
