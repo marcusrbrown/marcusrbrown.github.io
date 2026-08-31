@@ -14,7 +14,7 @@ interface BlogSnapshot {
   posts: BlogSnapshotPost[]
 }
 
-const blogSnapshotPath = resolve(process.cwd(), process.env.BLOG_SNAPSHOT ?? 'src/data/blog-snapshot.json')
+const blogSnapshotPath = resolve(process.cwd(), process.env.BLOG_SNAPSHOT ?? 'tests/fixtures/blog-snapshot.json')
 const blogSnapshot = JSON.parse(readFileSync(blogSnapshotPath, 'utf8')) as BlogSnapshot
 
 const getFirstBlogPost = (): BlogSnapshotPost => {

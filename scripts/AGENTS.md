@@ -1,6 +1,6 @@
 # scripts/
 
-20 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
+21 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
 
 ## Execution
 
@@ -15,6 +15,12 @@
 | ------------------------ | ---------------------------------------------------------------------------------- |
 | `analyze-build.ts`       | Bundle size auditing — JS <500KB warning, <2MB max. Generates GitHub job summaries |
 | `performance-budgets.ts` | Enforces Core Web Vitals: LCP <2.5s, FID <100ms, CLS <0.1                          |
+
+### Test Builds
+
+| Script                  | Role                                                                 |
+| ----------------------- | -------------------------------------------------------------------- |
+| `build-e2e-fixture.mjs` | Builds the browser-test artifact with the deterministic blog fixture |
 
 ### Performance Monitoring
 

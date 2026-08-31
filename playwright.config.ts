@@ -2,6 +2,12 @@ import process from 'node:process'
 
 import {defineConfig, devices} from '@playwright/test'
 
+export const getPlaywrightWebServerConfig = (isCI = !!process.env.CI) => ({
+  command: isCI ? 'pnpm preview' : 'pnpm run build:e2e && pnpm preview',
+  port: 4173,
+  reuseExistingServer: false,
+})
+
 /**
  * Playwright configuration for comprehensive E2E testing
  * Supports multi-browser testing across responsive breakpoints
@@ -172,8 +178,6 @@ export default defineConfig({
 
   // Run local dev server before starting the tests
   webServer: {
-    command: 'pnpm preview',
-    port: 4173,
-    reuseExistingServer: !process.env.CI,
+    ...getPlaywrightWebServerConfig(),
   },
 })
