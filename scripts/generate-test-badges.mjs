@@ -154,10 +154,15 @@ async function getPlaywrightSuiteSummary(root, suite) {
   const reportPaths = [join(root, 'test-results/results.json'), join(root, 'playwright-report/results.json')]
   const artifactRoot = join(root, 'test-artifacts')
   if (existsSync(artifactRoot)) {
-    const artifactFiles = await fs.readdir(artifactRoot, {recursive: true})
-    reportPaths.push(
-      ...artifactFiles.filter(file => file.endsWith('results.json')).map(file => join(artifactRoot, file)),
-    )
+    for (const artifactSuite of ['visual', 'accessibility', 'e2e']) {
+      const artifactSuiteRoot = join(artifactRoot, artifactSuite)
+      if (!existsSync(artifactSuiteRoot)) continue
+
+      const artifactFiles = await fs.readdir(artifactSuiteRoot, {recursive: true})
+      reportPaths.push(
+        ...artifactFiles.filter(file => file.endsWith('results.json')).map(file => join(artifactSuiteRoot, file)),
+      )
+    }
   }
 
   const uniqueReportPaths = [...new Set(reportPaths)]

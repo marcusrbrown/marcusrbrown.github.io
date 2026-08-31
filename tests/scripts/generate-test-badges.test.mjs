@@ -1,4 +1,4 @@
-import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
@@ -38,7 +38,7 @@ describe('generate-test-badges', () => {
   it('finds reports in the CI artifact layout after merged downloads', async () => {
     const directory = await createTemporaryDirectory()
     await mkdir(join(directory, 'test-artifacts/e2e/test-results'), {recursive: true})
-    await mkdir(join(directory, 'test-artifacts/test-results'), {recursive: true})
+    await mkdir(join(directory, 'test-artifacts/visual/test-results'), {recursive: true})
     await writeFile(
       join(directory, 'test-artifacts/e2e/test-results/results.json'),
       JSON.stringify({
@@ -46,7 +46,7 @@ describe('generate-test-badges', () => {
       }),
     )
     await writeFile(
-      join(directory, 'test-artifacts/test-results/results.json'),
+      join(directory, 'test-artifacts/visual/test-results/results.json'),
       JSON.stringify({
         suites: [{specs: [{tests: [{projectName: 'visual-tests', results: [{status: 'passed'}]}]}]}],
       }),
@@ -56,6 +56,41 @@ describe('generate-test-badges', () => {
 
     expect(badges.e2eTests).toContain('passing')
     expect(badges.visualTests).toContain('passing')
+  })
+
+  it('keeps visual and accessibility reports separate in the workflow layout', async () => {
+    const directory = await createTemporaryDirectory()
+    const workflow = await readFile(join(process.cwd(), '.github/workflows/e2e-tests.yaml'), 'utf8')
+    await mkdir(join(directory, 'test-artifacts/e2e/test-results'), {recursive: true})
+    await mkdir(join(directory, 'test-artifacts/visual/test-results'), {recursive: true})
+    await mkdir(join(directory, 'test-artifacts/accessibility/test-results'), {recursive: true})
+
+    await writeFile(
+      join(directory, 'test-artifacts/e2e/test-results/results.json'),
+      JSON.stringify({
+        suites: [{specs: [{tests: [{projectName: 'chromium-desktop', results: [{status: 'passed'}]}]}]}],
+      }),
+    )
+    await writeFile(
+      join(directory, 'test-artifacts/visual/test-results/results.json'),
+      JSON.stringify({suites: [{specs: [{tests: [{projectName: 'visual-tests', results: [{status: 'failed'}]}]}]}]}),
+    )
+    await writeFile(
+      join(directory, 'test-artifacts/accessibility/test-results/results.json'),
+      JSON.stringify({
+        suites: [{specs: [{tests: [{projectName: 'accessibility-tests', results: [{status: 'passed'}]}]}]}],
+      }),
+    )
+
+    expect(workflow).toContain('name: visual-test-results')
+    expect(workflow).toContain('path: test-artifacts/visual/')
+    expect(workflow).toContain('name: accessibility-test-results')
+    expect(workflow).toContain('path: test-artifacts/accessibility/')
+
+    const badges = await generateE2EBadges(directory)
+
+    expect(badges.e2eTests).toContain('passing')
+    expect(badges.visualTests).toContain('failing')
   })
 
   it('attributes mixed-project outcomes and counts to each suite independently', async () => {
