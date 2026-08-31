@@ -37,6 +37,14 @@ interface ImprovementItem {
   unit: string
 }
 
+interface ComparisonItem {
+  metric: string
+  current: string | number
+  baseline: string | number
+  delta: number
+  unit: string
+}
+
 interface Thresholds {
   performanceScore: number
   lcp: number
@@ -83,6 +91,9 @@ interface PerformanceMetrics {
 
 type LighthouseMetricKey = 'performanceScore' | 'lcp' | 'fid' | 'cls' | 'accessibilityScore'
 
+// Change this to 1 when missing baselines should become a gating failure.
+const MISSING_BASELINE_EXIT_CODE = 0
+
 /**
  * Performance regression detector
  */
@@ -92,6 +103,7 @@ class PerformanceRegressionDetector {
   private readonly regressions: RegressionItem[] = []
   private readonly warnings: WarningItem[] = []
   private readonly improvements: ImprovementItem[] = []
+  private readonly comparisons: ComparisonItem[] = []
 
   constructor(_config: PerformanceTestConfig = defaultPerformanceConfig) {
     this.baselinePath = './performance-baseline.json'
@@ -114,6 +126,7 @@ class PerformanceRegressionDetector {
     this.regressions = []
     this.warnings = []
     this.improvements = []
+    this.comparisons = []
   }
 
   /**
@@ -131,28 +144,38 @@ class PerformanceRegressionDetector {
 
     // Load baseline metrics
     const baselineMetrics = this.loadBaselineMetrics()
-    if (!baselineMetrics) {
-      console.log('📊 No baseline found. Setting current metrics as baseline.')
+    let exitCode: number
+
+    if (baselineMetrics) {
+      // Compare metrics
+      this.compareMetrics(currentMetrics, baselineMetrics)
+
+      // Generate comprehensive report
+      this.generateReport(currentMetrics, baselineMetrics)
+
+      // Update baseline if no regressions (or forced update)
+      if (this.regressions.length === 0 || process.env.UPDATE_BASELINE === 'true') {
+        this.saveBaseline(currentMetrics)
+        console.log('✅ Baseline updated with current metrics')
+      }
+
+      // Genuine regressions remain nonzero; workflow policy controls whether that blocks CI.
+      exitCode = this.regressions.length > 0 ? 1 : 0
+    } else {
+      const message = 'No performance baseline available; no comparison was performed.'
+      console.warn(`::warning::${message} A baseline will be created from current metrics.`)
+      console.warn(`⚠️ ${message}`)
       this.saveBaseline(currentMetrics)
       this.generateReport(currentMetrics, null)
-      return
-    }
-
-    // Compare metrics
-    this.compareMetrics(currentMetrics, baselineMetrics)
-
-    // Generate comprehensive report
-    this.generateReport(currentMetrics, baselineMetrics)
-
-    // Update baseline if no regressions (or forced update)
-    if (this.regressions.length === 0 || process.env.UPDATE_BASELINE === 'true') {
-      this.saveBaseline(currentMetrics)
-      console.log('✅ Baseline updated with current metrics')
+      exitCode = MISSING_BASELINE_EXIT_CODE
     }
 
     // Exit with appropriate code
-    const exitCode = this.regressions.length > 0 ? 1 : 0
-    console.log(`\n${this.regressions.length === 0 ? '✅' : '❌'} Performance regression detection complete`)
+    if (baselineMetrics) {
+      console.log(`\n${this.regressions.length === 0 ? '✅' : '❌'} Performance regression detection complete`)
+    } else {
+      console.log('\n⚠️ Performance regression detection skipped: baseline unavailable')
+    }
     process.exit(exitCode)
   }
 
@@ -339,6 +362,14 @@ class PerformanceRegressionDetector {
           Number.POSITIVE_INFINITY)
       const isImprovement = metric.reverse ? change < -2 : change < -2 // 2% improvement threshold
 
+      this.comparisons.push({
+        metric: `${metric.name} (${device})`,
+        current: currentValue,
+        baseline: baselineValue,
+        delta: Math.round((metric.reverse ? -change : change) * 10) / 10,
+        unit: metric.unit,
+      })
+
       if (isRegression && (metric.reverse ? change > 0 : change > 0)) {
         this.regressions.push({
           metric: `${metric.name} (${device})`,
@@ -386,6 +417,14 @@ class PerformanceRegressionDetector {
 
       const change = ((currentValue - baselineValue) / baselineValue) * 100
 
+      this.comparisons.push({
+        metric: metric.name,
+        current: this.formatBytes(currentValue),
+        baseline: this.formatBytes(baselineValue),
+        delta: Math.round(change * 10) / 10,
+        unit: '%',
+      })
+
       if (change > this.thresholds.bundleSize) {
         this.regressions.push({
           metric: metric.name,
@@ -428,6 +467,19 @@ class PerformanceRegressionDetector {
     }
     console.log('')
 
+    if (baseline && this.comparisons.length > 0) {
+      console.log('📋 Metric deltas (observational; not gating):')
+      this.comparisons.forEach(comparison => {
+        console.log(
+          `  [performance] ${comparison.metric}: current ${this.formatMetricValue(comparison.current, comparison.unit)} (baseline ${this.formatMetricValue(comparison.baseline, comparison.unit)}; delta ${this.formatDelta(comparison.delta)}; observational; not gating)`,
+        )
+      })
+      console.log('')
+    } else if (!baseline) {
+      console.log('⚠️ No performance baseline available; no metric comparison was performed.')
+      console.log('')
+    }
+
     // Regressions
     if (this.regressions.length > 0) {
       console.log('🚨 PERFORMANCE REGRESSIONS DETECTED:')
@@ -459,7 +511,7 @@ class PerformanceRegressionDetector {
       console.log('')
     }
 
-    if (this.regressions.length === 0 && this.warnings.length === 0 && this.improvements.length === 0) {
+    if (baseline && this.regressions.length === 0 && this.warnings.length === 0 && this.improvements.length === 0) {
       console.log('✅ No significant performance changes detected')
       console.log('')
     }
@@ -481,6 +533,18 @@ class PerformanceRegressionDetector {
       summary += `**Baseline:** ${baseline.timestamp}\n`
     }
     summary += '\n'
+
+    if (baseline && this.comparisons.length > 0) {
+      summary += '### 📋 Metric Deltas (observational; not gating)\n\n'
+      summary += '| Metric | Current | Baseline | Delta |\n'
+      summary += '|--------|---------|----------|-------|\n'
+      this.comparisons.forEach(comparison => {
+        summary += `| ${comparison.metric} | ${this.formatMetricValue(comparison.current, comparison.unit)} | ${this.formatMetricValue(comparison.baseline, comparison.unit)} | ${this.formatDelta(comparison.delta)} |\n`
+      })
+      summary += '\n'
+    } else if (!baseline) {
+      summary += '⚠️ **No performance baseline available; no comparison was performed.**\n\n'
+    }
 
     if (this.regressions.length > 0) {
       summary += '### 🚨 Regressions Detected\n\n'
@@ -512,7 +576,7 @@ class PerformanceRegressionDetector {
       summary += '\n'
     }
 
-    if (this.regressions.length === 0 && this.warnings.length === 0 && this.improvements.length === 0) {
+    if (baseline && this.regressions.length === 0 && this.warnings.length === 0 && this.improvements.length === 0) {
       summary += '✅ **No significant performance changes detected**\n\n'
     }
 
@@ -549,6 +613,14 @@ class PerformanceRegressionDetector {
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
+  }
+
+  formatMetricValue(value: string | number, unit: string): string {
+    return typeof value === 'number' ? `${value}${unit}` : value
+  }
+
+  formatDelta(delta: number): string {
+    return `${delta > 0 ? '+' : ''}${delta}%`
   }
 }
 

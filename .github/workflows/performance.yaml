@@ -159,13 +159,30 @@ jobs:
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 
-      # Non-gating until #317: no baseline is restored, so this compares nothing and always passes.
+      - name: Restore performance baseline - ${{ matrix.device }}
+        id: performance-baseline
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: performance-baseline.json
+          key: performance-baseline-${{ runner.os }}-${{ github.repository }}-${{ matrix.device }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            performance-baseline-${{ runner.os }}-${{ github.repository }}-${{ matrix.device }}-main-
+
+      # Non-gating for now: compare against the cached main baseline and report deltas; thresholds await CI variance evidence in #313.
       - name: Check performance regression - ${{ matrix.device }}
         run: pnpm run test:performance:regression
         continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
-          BASELINE_BRANCH: main
+
+      - name: Save performance baseline - ${{ matrix.device }}
+        if: >-
+          always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' &&
+          steps.performance-baseline.outputs.cache-hit != 'true' && hashFiles('performance-baseline.json') != ''
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: performance-baseline.json
+          key: performance-baseline-${{ runner.os }}-${{ github.repository }}-${{ matrix.device }}-main-${{ github.run_id }}
 
       - name: Run theme switching performance tests - ${{ matrix.device }}
         run: pnpm exec playwright test tests/performance/theme-switching.spec.ts --project=performance-${{ matrix.device }}
