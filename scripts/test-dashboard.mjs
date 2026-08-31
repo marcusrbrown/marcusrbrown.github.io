@@ -16,6 +16,7 @@ import {existsSync, promises as fs} from 'node:fs'
 import {dirname, join} from 'node:path'
 import process from 'node:process'
 import {fileURLToPath} from 'node:url'
+import {getPlaywrightSuiteSummary} from './generate-test-badges.mjs'
 
 // Get current directory
 const __filename = fileURLToPath(import.meta.url)
@@ -117,27 +118,12 @@ async function parseUnitTestData() {
  */
 async function parseE2ETestData() {
   try {
-    // Look for Playwright report JSON
-    const reportPath = join(CONFIG.input.playwrightReport, 'results.json')
-    const reportData = await loadJsonFile(reportPath)
+    // Look for Playwright report JSON in either supported output location.
+    const reportData =
+      (await loadJsonFile(join(CONFIG.input.e2eResults, 'results.json'))) ||
+      (await loadJsonFile(join(CONFIG.input.playwrightReport, 'results.json')))
 
     if (!reportData) {
-      // Try to analyze test-results directory structure
-      if (existsSync(CONFIG.input.e2eResults)) {
-        const files = await fs.readdir(CONFIG.input.e2eResults)
-        const hasResults = files.some(file => file.endsWith('.json') || file.includes('test-results'))
-
-        return {
-          status: hasResults ? 'completed' : 'not-run',
-          passed: 0,
-          failed: 0,
-          skipped: 0,
-          total: 0,
-          browsers: [],
-          duration: 0,
-        }
-      }
-
       return {
         status: 'not-run',
         passed: 0,
@@ -149,14 +135,32 @@ async function parseE2ETestData() {
       }
     }
 
-    // Parse Playwright report data (structure varies by version)
+    // Parse Playwright report data (structure varies by version).
     const stats = reportData.stats || {}
+    const passed = stats.expected ?? stats.passed ?? 0
+    const failed = stats.unexpected ?? stats.failed ?? 0
+    const skipped = stats.skipped ?? 0
+    const flaky = stats.flaky ?? 0
+    const total = passed + failed + skipped + flaky
+
+    if (![passed, failed, skipped, flaky].every(value => Number.isFinite(value) && value >= 0)) {
+      return {
+        status: 'error',
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        total: 0,
+        browsers: [],
+        duration: 0,
+      }
+    }
+
     return {
-      status: stats.failed > 0 ? 'failed' : 'passed',
-      passed: stats.passed || 0,
-      failed: stats.failed || 0,
-      skipped: stats.skipped || 0,
-      total: (stats.passed || 0) + (stats.failed || 0) + (stats.skipped || 0),
+      status: total === 0 ? 'not-run' : failed + flaky > 0 ? 'failed' : 'passed',
+      passed,
+      failed: failed + flaky,
+      skipped,
+      total,
       browsers: ['chromium', 'firefox', 'webkit'], // Default browsers
       duration: stats.duration || 0,
     }
@@ -177,24 +181,31 @@ async function parseE2ETestData() {
 /**
  * Parse visual regression test data
  */
-async function parseVisualTestData() {
+async function parseVisualTestData(root = projectRoot) {
   try {
-    const visualDir = CONFIG.input.visualArtifacts
+    const visualDir = join(root, 'tests/visual')
     if (!existsSync(visualDir)) {
       return {status: 'not-run', totalTests: 0, passed: 0, failed: 0, baselines: 0}
     }
 
     const files = await fs.readdir(visualDir, {recursive: true})
-    const diffFiles = files.filter(file => file.includes('-diff.png'))
     const baselineFiles = files.filter(
-      file => file.endsWith('.png') && !file.includes('-actual') && !file.includes('-diff'),
+      file => file.endsWith('.png') && !file.includes('-actual.png') && !file.includes('-diff.png'),
     )
+    const report = await getPlaywrightSuiteSummary(root, 'visual')
+
+    if (!report || report.status === 'not run') {
+      return {status: 'not-run', totalTests: 0, passed: 0, failed: 0, baselines: 0}
+    }
+    if (report.status === 'error') {
+      return {status: 'error', totalTests: 0, passed: 0, failed: 0, baselines: 0}
+    }
 
     return {
-      status: diffFiles.length > 0 ? 'failed' : 'passed',
-      totalTests: baselineFiles.length,
-      passed: baselineFiles.length - diffFiles.length,
-      failed: diffFiles.length,
+      status: report.status === 'failing' ? 'failed' : 'passed',
+      totalTests: report.total,
+      passed: report.passed,
+      failed: report.failed + report.flaky,
       baselines: baselineFiles.length,
     }
   } catch (error) {
@@ -385,6 +396,32 @@ function calculateHealthScore(testData) {
 }
 
 /**
+ * Determine the aggregate status without treating missing suites as success.
+ */
+function determineOverallStatus(testData) {
+  const suites = testData.testSuites || testData
+  const suiteStatuses = [
+    suites.unitTests.status,
+    suites.e2eTests.status,
+    suites.visualTests.status,
+    suites.accessibility.status,
+    suites.performance.status,
+    suites.build.status,
+  ]
+  const hasFailures =
+    testData.summary.failedTests > 0 ||
+    suites.accessibility.violations > 0 ||
+    suites.performance.status === 'error' ||
+    suiteStatuses.includes('failed') ||
+    suiteStatuses.includes('error')
+  const hasMissingData = suiteStatuses.some(status => status === 'not-run' || status === 'not-available')
+
+  if (hasFailures) return 'failed'
+  if (hasMissingData) return 'incomplete'
+  return 'passed'
+}
+
+/**
  * Generate comprehensive test dashboard data
  */
 async function generateDashboardData() {
@@ -429,10 +466,7 @@ async function generateDashboardData() {
   dashboardData.summary.healthScore = calculateHealthScore(dashboardData.testSuites)
 
   // Determine overall status
-  const hasFailures =
-    dashboardData.summary.failedTests > 0 || accessibility.violations > 0 || performance.status === 'error'
-
-  dashboardData.summary.status = hasFailures ? 'failed' : 'passed'
+  dashboardData.summary.status = determineOverallStatus(dashboardData)
 
   return dashboardData
 }
@@ -538,4 +572,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   main()
 }
 
-export {generateDashboardData, parseE2ETestData, parseUnitTestData, parseVisualTestData}
+export {determineOverallStatus, generateDashboardData, parseE2ETestData, parseUnitTestData, parseVisualTestData}

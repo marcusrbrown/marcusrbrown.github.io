@@ -155,7 +155,12 @@ class PerformanceRegressionDetector {
 
       // Update baseline if no regressions (or forced update)
       if (this.regressions.length === 0 || process.env.UPDATE_BASELINE === 'true') {
-        this.saveBaseline(currentMetrics)
+        try {
+          this.saveBaseline(currentMetrics)
+        } catch (error: unknown) {
+          console.error('❌ Baseline persistence failed:', error instanceof Error ? error.message : 'Unknown error')
+          process.exit(1)
+        }
         console.log('✅ Baseline updated with current metrics')
       }
 
@@ -165,7 +170,12 @@ class PerformanceRegressionDetector {
       const message = 'No performance baseline available; no comparison was performed.'
       console.warn(`::warning::${message} A baseline will be created from current metrics.`)
       console.warn(`⚠️ ${message}`)
-      this.saveBaseline(currentMetrics)
+      try {
+        this.saveBaseline(currentMetrics)
+      } catch (error: unknown) {
+        console.error('❌ Baseline persistence failed:', error instanceof Error ? error.message : 'Unknown error')
+        process.exit(1)
+      }
       this.generateReport(currentMetrics, null)
       exitCode = MISSING_BASELINE_EXIT_CODE
     }
@@ -305,12 +315,8 @@ class PerformanceRegressionDetector {
    * Save baseline metrics
    */
   saveBaseline(metrics: PerformanceMetrics): void {
-    try {
-      writeFileSync(this.baselinePath, JSON.stringify(metrics, null, 2))
-      console.log(`💾 Baseline saved to ${this.baselinePath}`)
-    } catch (error: unknown) {
-      console.error('❌ Failed to save baseline:', error instanceof Error ? error.message : 'Unknown error')
-    }
+    writeFileSync(this.baselinePath, JSON.stringify(metrics, null, 2))
+    console.log(`💾 Baseline saved to ${this.baselinePath}`)
   }
 
   /**
