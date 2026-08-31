@@ -58,7 +58,7 @@
     "test:performance:full": "pnpm run test:performance && pnpm run test:performance:budgets && pnpm run test:performance:dashboard && pnpm run test:performance:artifacts",
     "test:all": "vitest run && playwright test",
     "badges": "node scripts/generate-test-badges.mjs",
-    "badges:update": "pnpm run test -- --coverage && pnpm run badges",
+    "badges:update": "pnpm run test --coverage && pnpm run badges",
     "dashboard": "node scripts/test-dashboard.mjs",
     "dashboard:update": "pnpm run test:all && pnpm run dashboard",
     "configure:branch-protection": "tsx scripts/configure-branch-protection.ts",

@@ -39,6 +39,9 @@ const captureOutput = (): string[] => {
   vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
     output.push(args.map(String).join(' '))
   })
+  vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    output.push(args.map(String).join(' '))
+  })
   return output
 }
 
@@ -98,5 +101,21 @@ describe('PerformanceRegressionDetector', () => {
 
     expect(exit).toHaveBeenCalledWith(1)
     expect(output.join('\n')).toContain('PERFORMANCE REGRESSIONS DETECTED')
+  })
+
+  it('exits nonzero when saving the baseline fails', async () => {
+    const output = captureOutput()
+    const detector = new PerformanceRegressionDetector()
+    vi.spyOn(detector, 'loadCurrentMetrics').mockResolvedValue(metrics(98))
+    vi.spyOn(detector, 'loadBaselineMetrics').mockReturnValue(null)
+    vi.spyOn(detector, 'saveBaseline').mockImplementation(() => {
+      throw new Error('permission denied')
+    })
+    const exit = mockProcessExit()
+
+    await expect(detector.detectRegressions()).rejects.toMatchObject({code: 1})
+
+    expect(exit).toHaveBeenCalledWith(1)
+    expect(output.join('\n')).toContain('Baseline persistence failed: permission denied')
   })
 })

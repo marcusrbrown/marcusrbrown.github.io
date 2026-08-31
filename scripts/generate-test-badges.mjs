@@ -14,7 +14,7 @@
  */
 
 import {existsSync, promises as fs} from 'node:fs'
-import {dirname, join} from 'node:path'
+import {dirname, join, resolve} from 'node:path'
 import process from 'node:process'
 import {fileURLToPath} from 'node:url'
 
@@ -81,6 +81,194 @@ async function loadJsonFile(filePath, defaultValue = null) {
 }
 
 /**
+ * Read a JSON file while preserving the distinction between missing and invalid data.
+ */
+async function readJsonFile(filePath) {
+  if (!existsSync(filePath)) return {status: 'missing'}
+
+  try {
+    return {status: 'valid', value: JSON.parse(await fs.readFile(filePath, 'utf8'))}
+  } catch {
+    return {status: 'error'}
+  }
+}
+
+/**
+ * Decide whether a Playwright project belongs to the requested suite.
+ */
+function isProjectInSuite(projectName, suite) {
+  if (typeof projectName !== 'string') return false
+  return suite === 'visual'
+    ? projectName.toLowerCase().includes('visual')
+    : !/visual|accessibility|performance/i.test(projectName)
+}
+
+/**
+ * Derive one test's outcome from its actual attempts.
+ * A test that passes only after a failed retry is treated as flaky and non-green.
+ */
+function getTestOutcome(test) {
+  const results = Array.isArray(test?.results) ? test.results : []
+  const statuses = results.map(result => result?.status)
+
+  if (statuses.length === 0 || statuses.every(status => status === 'skipped')) return 'skipped'
+  if (statuses.includes('passed') && statuses.some(status => status !== 'passed')) return 'flaky'
+  if (statuses.every(status => status === 'passed')) return 'passed'
+  return 'failed'
+}
+
+/**
+ * Parse only tests belonging to one Playwright suite.
+ */
+function parsePlaywrightReport(report, suite) {
+  if (!report || !Array.isArray(report.suites)) return null
+
+  const counts = {total: 0, passed: 0, failed: 0, skipped: 0, flaky: 0}
+  const collectTests = currentSuite => {
+    for (const spec of currentSuite?.specs || []) {
+      for (const test of spec.tests || []) {
+        if (!isProjectInSuite(test.projectName, suite)) continue
+
+        const outcome = getTestOutcome(test)
+        counts.total += 1
+        counts[outcome] += 1
+      }
+    }
+    for (const childSuite of currentSuite?.suites || []) collectTests(childSuite)
+  }
+
+  for (const currentSuite of report.suites) collectTests(currentSuite)
+  if (counts.total === 0) return null
+
+  const failures = counts.failed + counts.flaky
+  return {
+    ...counts,
+    status: counts.passed === 0 && counts.skipped === counts.total ? 'not run' : failures > 0 ? 'failing' : 'passing',
+  }
+}
+
+/**
+ * Find and parse the Playwright JSON report used by the E2E and visual jobs.
+ */
+async function getPlaywrightSuiteSummary(root, suite) {
+  const reportPaths = [join(root, 'test-results/results.json'), join(root, 'playwright-report/results.json')]
+  const artifactRoot = join(root, 'test-artifacts')
+  if (existsSync(artifactRoot)) {
+    for (const artifactSuite of ['visual', 'accessibility', 'e2e']) {
+      const artifactSuiteRoot = join(artifactRoot, artifactSuite)
+      if (!existsSync(artifactSuiteRoot)) continue
+
+      const artifactFiles = await fs.readdir(artifactSuiteRoot, {recursive: true})
+      reportPaths.push(
+        ...artifactFiles.filter(file => file.endsWith('results.json')).map(file => join(artifactSuiteRoot, file)),
+      )
+    }
+  }
+
+  const uniqueReportPaths = [...new Set(reportPaths)]
+  const combined = {total: 0, passed: 0, failed: 0, skipped: 0, flaky: 0}
+  let foundReport = false
+
+  for (const reportPath of uniqueReportPaths) {
+    const result = await readJsonFile(reportPath)
+    if (result.status === 'missing') continue
+
+    if (result.status === 'error') return {status: 'error'}
+    const parsed = parsePlaywrightReport(result.value, suite)
+    if (!parsed) continue
+
+    foundReport = true
+    for (const key of Object.keys(combined)) combined[key] += parsed[key]
+  }
+
+  if (!foundReport) return null
+
+  const failures = combined.failed + combined.flaky
+  const status =
+    combined.passed === 0 && combined.skipped === combined.total ? 'not run' : failures > 0 ? 'failing' : 'passing'
+  return {...combined, status}
+}
+
+/**
+ * Return parsed Playwright evidence for one suite.
+ */
+async function getPlaywrightReportStatus(root, suite) {
+  const summary = await getPlaywrightSuiteSummary(root, suite)
+  if (!summary) return 'not run'
+  if (summary.status === 'error') return 'error'
+  if (summary.status === 'not run') return 'not run'
+  return `${summary.status} (${summary.passed}/${summary.total})`
+}
+
+/**
+ * Parse a Lighthouse report and return its performance score.
+ */
+async function getLighthouseScore(root) {
+  const lighthouseDir = join(root, '.lighthouseci')
+  if (!existsSync(lighthouseDir)) return {status: 'missing'}
+
+  const files = await fs.readdir(lighthouseDir)
+  const reportFiles = files
+    .filter(file => file.endsWith('.json') && file !== 'manifest.json' && file !== 'assertion-results.json')
+    .sort()
+  const latestReport = reportFiles.at(-1)
+  if (!latestReport) return {status: 'missing'}
+
+  const result = await readJsonFile(join(lighthouseDir, latestReport))
+  if (result.status !== 'valid') return {status: 'error'}
+
+  const score = result.value?.categories?.performance?.score
+  if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > 1) return {status: 'error'}
+
+  return {status: 'valid', score: Math.round(score * 100)}
+}
+
+/**
+ * Parse the build-analysis history written by scripts/analyze-build.ts.
+ */
+async function getBundleSize(root) {
+  const result = await readJsonFile(join(root, 'build-history.json'))
+  if (result.status === 'missing') return {status: 'missing'}
+  if (result.status === 'error') return {status: 'error'}
+
+  const builds = Array.isArray(result.value) ? result.value : result.value?.builds
+  const latestBuild = builds?.at(-1)
+  const totalSize = latestBuild?.totalSize
+  if (!Array.isArray(builds) || typeof totalSize !== 'number' || !Number.isFinite(totalSize) || totalSize <= 0) {
+    return {status: 'error'}
+  }
+
+  return {status: 'valid', totalSize}
+}
+
+/**
+ * Parse axe-core report files and derive an accessibility status.
+ */
+async function getAccessibilityStatus(root) {
+  const accessibilityDir = join(root, 'accessibility-reports')
+  if (!existsSync(accessibilityDir)) return 'not tested'
+
+  const files = (await fs.readdir(accessibilityDir)).filter(file => file.includes('axe') && file.endsWith('.json'))
+  if (files.length === 0) return 'not tested'
+
+  let violations = 0
+  let incomplete = 0
+  for (const file of files) {
+    const result = await readJsonFile(join(accessibilityDir, file))
+    if (result.status !== 'valid') return 'error'
+
+    const report = result.value
+    if (!Array.isArray(report?.violations) || !Array.isArray(report?.incomplete)) return 'error'
+    violations += report.violations.length
+    incomplete += report.incomplete.length
+  }
+
+  if (violations > 0) return `${violations} violations`
+  if (incomplete > 0) return 'incomplete'
+  return 'AA compliant'
+}
+
+/**
  * Generate shield.io compatible badge URL
  */
 function generateBadgeUrl(label, message, color, style = 'flat') {
@@ -99,11 +287,11 @@ async function generateCoverageBadges() {
     if (!existsSync(CONFIG.coverage.summaryFile)) {
       console.warn('⚠️  Coverage summary file not found. Run tests with coverage first.')
       return {
-        unitTests: generateBadgeUrl('unit tests', 'no data', 'lightgrey'),
-        statements: generateBadgeUrl('statements', 'no data', 'lightgrey'),
-        branches: generateBadgeUrl('branches', 'no data', 'lightgrey'),
-        functions: generateBadgeUrl('functions', 'no data', 'lightgrey'),
-        lines: generateBadgeUrl('lines', 'no data', 'lightgrey'),
+        unitTests: generateBadgeUrl('unit tests', 'not run', 'lightgrey'),
+        statements: generateBadgeUrl('statements', 'not run', 'lightgrey'),
+        branches: generateBadgeUrl('branches', 'not run', 'lightgrey'),
+        functions: generateBadgeUrl('functions', 'not run', 'lightgrey'),
+        lines: generateBadgeUrl('lines', 'not run', 'lightgrey'),
       }
     }
 
@@ -140,64 +328,26 @@ async function generateCoverageBadges() {
 /**
  * Generate E2E test status badge from Playwright results
  */
-async function generateE2EBadges() {
+async function generateE2EBadges(root = projectRoot) {
   try {
-    // Try to read dashboard data first for more accurate results
-    const dashboardDataFile = join(projectRoot, 'test-dashboard/dashboard-data.json')
-    const dashboardData = await loadJsonFile(dashboardDataFile)
-
-    if (dashboardData?.testSuites?.e2eTests) {
-      const e2eData = dashboardData.testSuites.e2eTests
-
-      let status, color
-      if (e2eData.status === 'passed') {
-        status = 'passing'
-        color = CONFIG.colors.excellent
-      } else if (e2eData.status === 'completed') {
-        const passRate = e2eData.total > 0 ? Math.round((e2eData.passed / e2eData.total) * 100) : 0
-        status = `${passRate}% passing`
-        color = getBadgeColor(passRate)
-      } else if (e2eData.status === 'failed') {
-        status = 'failing'
-        color = CONFIG.colors.error
-      } else {
-        status = 'not run'
-        color = 'lightgrey'
-      }
-
-      const visualData = dashboardData.testSuites.visualTests
-      let visualStatus, visualColor
-      if (visualData.status === 'passed') {
-        visualStatus = 'passing'
-        visualColor = CONFIG.colors.excellent
-      } else if (visualData.failed > 0) {
-        visualStatus = `${visualData.failed} diffs`
-        visualColor = CONFIG.colors.error
-      } else {
-        visualStatus = 'not run'
-        visualColor = 'lightgrey'
-      }
-
-      return {
-        e2eTests: generateBadgeUrl('e2e tests', status, color),
-        visualTests: generateBadgeUrl('visual tests', visualStatus, visualColor),
-      }
-    }
-
-    // Fallback to file-based detection
-    const testResultsDir = join(projectRoot, 'test-results')
-    const playwrightReportFile = join(projectRoot, 'playwright-report/results.json')
-
-    if (!existsSync(testResultsDir) && !existsSync(playwrightReportFile)) {
-      return {
-        e2eTests: generateBadgeUrl('e2e tests', 'not run', 'lightgrey'),
-        visualTests: generateBadgeUrl('visual tests', 'not run', 'lightgrey'),
-      }
-    }
+    const [e2eStatus, visualStatus] = await Promise.all([
+      getPlaywrightReportStatus(root, 'e2e'),
+      getPlaywrightReportStatus(root, 'visual'),
+    ])
+    const e2eColor = e2eStatus.startsWith('passing')
+      ? CONFIG.colors.excellent
+      : e2eStatus.startsWith('failing')
+        ? CONFIG.colors.error
+        : 'lightgrey'
+    const visualColor = visualStatus.startsWith('passing')
+      ? CONFIG.colors.excellent
+      : visualStatus.startsWith('failing')
+        ? CONFIG.colors.error
+        : 'lightgrey'
 
     return {
-      e2eTests: generateBadgeUrl('e2e tests', 'passing', 'brightgreen'),
-      visualTests: generateBadgeUrl('visual tests', 'passing', 'brightgreen'),
+      e2eTests: generateBadgeUrl('e2e tests', e2eStatus, e2eColor),
+      visualTests: generateBadgeUrl('visual tests', visualStatus, visualColor),
     }
   } catch (error) {
     console.error('❌ Error generating E2E badges:', error)
@@ -211,38 +361,17 @@ async function generateE2EBadges() {
 /**
  * Generate accessibility badge from axe-core results
  */
-async function generateAccessibilityBadges() {
+async function generateAccessibilityBadges(root = projectRoot) {
   try {
-    // Try to read dashboard data first for more accurate results
-    const dashboardDataFile = join(projectRoot, 'test-dashboard/dashboard-data.json')
-    const dashboardData = await loadJsonFile(dashboardDataFile)
-
-    if (dashboardData?.testSuites?.accessibility) {
-      const a11yData = dashboardData.testSuites.accessibility
-
-      let status, color
-      if (a11yData.status === 'passed') {
-        status = 'AA compliant'
-        color = CONFIG.colors.excellent
-      } else if (a11yData.violations > 0) {
-        status = `${a11yData.violations} violations`
-        color = CONFIG.colors.error
-      } else if (a11yData.status === 'not-run') {
-        status = 'not tested'
-        color = 'lightgrey'
-      } else {
-        status = 'error'
-        color = CONFIG.colors.error
-      }
-
-      return {
-        accessibility: generateBadgeUrl('accessibility', status, color),
-      }
-    }
-
-    // Fallback
+    const status = await getAccessibilityStatus(root)
+    const color =
+      status === 'AA compliant'
+        ? CONFIG.colors.excellent
+        : status.includes('violations') || status === 'error'
+          ? CONFIG.colors.error
+          : 'lightgrey'
     return {
-      accessibility: generateBadgeUrl('accessibility', 'AA compliant', 'brightgreen'),
+      accessibility: generateBadgeUrl('accessibility', status, color),
     }
   } catch (error) {
     console.error('❌ Error generating accessibility badges:', error)
@@ -255,63 +384,33 @@ async function generateAccessibilityBadges() {
 /**
  * Generate performance badges from Lighthouse CI results
  */
-async function generatePerformanceBadges() {
+async function generatePerformanceBadges(root = projectRoot) {
   try {
-    // Try to read dashboard data first for more accurate results
-    const dashboardDataFile = join(projectRoot, 'test-dashboard/dashboard-data.json')
-    const dashboardData = await loadJsonFile(dashboardDataFile)
-
-    if (dashboardData?.testSuites?.performance) {
-      const perfData = dashboardData.testSuites.performance
-
-      let perfStatus, perfColor
-      if (perfData.status === 'completed' && perfData.scores?.performance) {
-        const score = perfData.scores.performance
-        perfStatus = `${score}/100`
-        perfColor = getBadgeColor(score)
-      } else if (perfData.status === 'not-run') {
-        perfStatus = 'not run'
-        perfColor = 'lightgrey'
-      } else {
-        perfStatus = 'error'
-        perfColor = CONFIG.colors.error
-      }
-
-      // Bundle size from build data
-      let bundleStatus, bundleColor
-      const buildData = dashboardData.testSuites.build
-      if (buildData?.status === 'completed' && buildData.jsSize) {
-        const sizeKB = Math.round(buildData.jsSize / 1024)
-        bundleStatus = `${sizeKB}KB`
-
-        // Color based on bundle size thresholds
-        if (sizeKB < 100) bundleColor = CONFIG.colors.excellent
-        else if (sizeKB < 250) bundleColor = CONFIG.colors.good
-        else if (sizeKB < 500) bundleColor = CONFIG.colors.warning
-        else bundleColor = CONFIG.colors.error
-      } else {
-        bundleStatus = 'unknown'
-        bundleColor = 'lightgrey'
-      }
-
-      return {
-        performance: generateBadgeUrl('lighthouse', perfStatus, perfColor),
-        bundleSize: generateBadgeUrl('bundle size', bundleStatus, bundleColor),
-      }
-    }
-
-    // Fallback to file-based detection
-    const lighthouseDir = join(projectRoot, '.lighthouseci')
-    if (!existsSync(lighthouseDir)) {
-      return {
-        performance: generateBadgeUrl('lighthouse', 'not run', 'lightgrey'),
-        bundleSize: generateBadgeUrl('bundle size', 'unknown', 'lightgrey'),
-      }
-    }
+    const [lighthouse, bundle] = await Promise.all([getLighthouseScore(root), getBundleSize(root)])
+    const performanceStatus =
+      lighthouse.status === 'valid' ? `${lighthouse.score}/100` : lighthouse.status === 'error' ? 'error' : 'not run'
+    const bundleStatus =
+      bundle.status === 'valid'
+        ? `${Math.round(bundle.totalSize / 1024)}KB`
+        : bundle.status === 'error'
+          ? 'error'
+          : 'unknown'
 
     return {
-      performance: generateBadgeUrl('lighthouse', '95/100', 'brightgreen'),
-      bundleSize: generateBadgeUrl('bundle size', '387kb', 'green'),
+      performance: generateBadgeUrl(
+        'lighthouse',
+        performanceStatus,
+        lighthouse.status === 'valid'
+          ? getBadgeColor(lighthouse.score)
+          : lighthouse.status === 'error'
+            ? CONFIG.colors.error
+            : 'lightgrey',
+      ),
+      bundleSize: generateBadgeUrl(
+        'bundle size',
+        bundleStatus,
+        bundle.status === 'valid' ? CONFIG.colors.good : bundle.status === 'error' ? CONFIG.colors.error : 'lightgrey',
+      ),
     }
   } catch (error) {
     console.error('❌ Error generating performance badges:', error)
@@ -334,16 +433,27 @@ async function generateCIBadges() {
     if (dashboardData?.summary?.healthScore !== undefined) {
       const healthScore = dashboardData.summary.healthScore
       const color = getBadgeColor(healthScore)
+      const dashboardStatus = dashboardData.summary.status
+      const cicdStatus = dashboardStatus === 'passed' ? 'passing' : dashboardStatus === 'failed' ? 'failing' : 'not run'
+      const cicdColor =
+        dashboardStatus === 'passed'
+          ? CONFIG.colors.excellent
+          : dashboardStatus === 'failed'
+            ? CONFIG.colors.error
+            : 'lightgrey'
 
       return {
-        cicd: generateBadgeUrl('CI/CD', 'passing', 'brightgreen'),
-        healthScore: generateBadgeUrl('test health', `${healthScore}%`, color),
+        cicd: generateBadgeUrl('CI/CD', cicdStatus, cicdColor),
+        healthScore: generateBadgeUrl(
+          'test health',
+          dashboardStatus === 'passed' || dashboardStatus === 'failed' ? `${healthScore}%` : 'unknown',
+          dashboardStatus === 'passed' || dashboardStatus === 'failed' ? color : 'lightgrey',
+        ),
       }
     }
 
-    // Static badge for now - will be updated by GitHub Actions
     return {
-      cicd: generateBadgeUrl('CI/CD', 'passing', 'brightgreen'),
+      cicd: generateBadgeUrl('CI/CD', 'not run', 'lightgrey'),
       healthScore: generateBadgeUrl('test health', 'unknown', 'lightgrey'),
     }
   } catch (error) {
@@ -454,8 +564,16 @@ async function main() {
 }
 
 // CLI handling
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
   main()
 }
 
-export {generateAllBadges, generateBadgeMarkdown, generateCoverageBadges}
+export {
+  generateAccessibilityBadges,
+  generateAllBadges,
+  generateBadgeMarkdown,
+  generateCoverageBadges,
+  generateE2EBadges,
+  generatePerformanceBadges,
+  getPlaywrightSuiteSummary,
+}

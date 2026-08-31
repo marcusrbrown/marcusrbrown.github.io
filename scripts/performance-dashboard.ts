@@ -64,6 +64,22 @@ interface BundleData {
   }[]
 }
 
+interface BuildAnalysisResult {
+  timestamp: string
+  totalSize: number
+  jsSize: number
+  cssSize: number
+  htmlSize: number
+  fileCount: number
+  budgetStatus?: {
+    passed: boolean
+    violations?: unknown[]
+  }
+  assets: {file: string; sizeBytes: number}[]
+}
+
+type BuildAnalyzer = (returnDataOnly: boolean) => BuildAnalysisResult
+
 interface TrendChange {
   change: number
   direction: 'increased' | 'decreased' | 'stable'
@@ -117,6 +133,7 @@ interface HistoryEntry {
 class PerformanceDashboard {
   private readonly reportPath = './performance-dashboard.json'
   private readonly historyPath = './performance-history.json'
+  private readonly collectionFailures: string[] = []
   private readonly data: DashboardData = {
     generated: new Date().toISOString(),
     commit: process.env.GITHUB_SHA || 'local',
@@ -194,6 +211,7 @@ class PerformanceDashboard {
       const reportsDir = `./lhci-reports-${device}`
       if (!existsSync(reportsDir)) {
         console.log(`  ⚠️ No ${device} Lighthouse reports found`)
+        this.collectionFailures.push(`${device}: report directory not found`)
         continue
       }
 
@@ -203,6 +221,7 @@ class PerformanceDashboard {
 
         if (jsonFiles.length === 0) {
           console.log(`  ⚠️ No JSON reports found for ${device}`)
+          this.collectionFailures.push(`${device}: no JSON reports found`)
           continue
         }
 
@@ -242,6 +261,7 @@ class PerformanceDashboard {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.log(`  ❌ Failed to collect ${device} data:`, errorMessage)
+        this.collectionFailures.push(`${device}: ${errorMessage}`)
       }
     }
   }
@@ -249,12 +269,19 @@ class PerformanceDashboard {
   /**
    * Collect bundle analysis data
    */
-  async collectBundleData(): Promise<void> {
+  async collectBundleData(buildAnalyzer?: BuildAnalyzer): Promise<void> {
     console.log('📦 Collecting bundle analysis data...')
 
+    if (!existsSync('./dist')) {
+      const message = 'bundle: build output directory not found'
+      console.log(`  ⚠️ ${message}`)
+      this.collectionFailures.push(message)
+      return
+    }
+
     try {
-      const {analyzeBuildOutput} = await import('./analyze-build.js')
-      const analysis = analyzeBuildOutput(true)
+      const analyzer = buildAnalyzer ?? (await import('./analyze-build.js')).analyzeBuildOutput
+      const analysis = analyzer(true)
 
       this.data.bundle = {
         timestamp: analysis.timestamp,
@@ -276,6 +303,7 @@ class PerformanceDashboard {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.log('  ❌ Failed to collect bundle data:', errorMessage)
+      this.collectionFailures.push(`bundle: ${errorMessage}`)
     }
   }
 
@@ -333,10 +361,17 @@ class PerformanceDashboard {
     console.log('📋 Generating performance summary...')
 
     const summary: SummaryData = {
-      overallStatus: 'excellent',
+      overallStatus:
+        this.collectionFailures.length > 0 || Object.keys(this.data.lighthouse).length === 0
+          ? 'incomplete'
+          : 'excellent',
       scores: {},
-      issues: [],
+      issues: [...this.collectionFailures],
       achievements: [],
+    }
+
+    if (this.collectionFailures.length === 0 && Object.keys(this.data.lighthouse).length === 0) {
+      summary.issues.push('No Lighthouse data was collected')
     }
 
     // Aggregate Lighthouse scores
@@ -368,18 +403,17 @@ class PerformanceDashboard {
     // Check for issues
     if (this.data.bundle.budgetStatus && !this.data.bundle.budgetStatus.passed) {
       summary.issues.push('Bundle size budget violations')
-      summary.overallStatus = 'warning'
+      if (summary.overallStatus !== 'incomplete') summary.overallStatus = 'warning'
     }
 
     const performanceScore = summary.scores.performance
     if (performanceScore !== undefined && performanceScore < 90) {
       summary.issues.push('Performance score below 90%')
-      summary.overallStatus = 'warning'
+      if (summary.overallStatus !== 'incomplete') summary.overallStatus = 'warning'
     }
 
-    if (performanceScore !== undefined && performanceScore < 70) {
+    if (performanceScore !== undefined && performanceScore < 70 && summary.overallStatus !== 'incomplete')
       summary.overallStatus = 'critical'
-    }
 
     // Record achievements
     if (performanceScore !== undefined && performanceScore >= 95) {
@@ -392,6 +426,13 @@ class PerformanceDashboard {
 
     this.data.summary = summary
     console.log('  ✅ Generated performance summary')
+  }
+
+  /**
+   * Return the generated summary for callers and tests.
+   */
+  getSummary(): SummaryData {
+    return this.data.summary
   }
 
   /**
