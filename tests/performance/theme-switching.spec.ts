@@ -5,6 +5,8 @@
 
 import {expect, test} from '@playwright/test'
 
+import {latestLargestContentfulPaint, smoothScrollDuration} from './measurement-utils'
+
 interface LayoutShiftEntry extends PerformanceEntry {
   value: number
   hadRecentInput: boolean
@@ -197,17 +199,19 @@ test.describe('Component Rendering Performance', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
 
-    // Measure scroll performance
+    // Playwright's scroll events are not frame samples: desktop smooth-scroll
+    // coalesces them differently from mobile emulation. Measure the duration
+    // of the same smooth-scroll workload instead of reporting event gaps as
+    // dropped frames.
     const scrollPerformance = await page.evaluate(async () => {
       return new Promise<{
         scrollableExtent: number
         totalScrollEvents: number
-        frameDrops: number
-        frameDropPercentage: number
+        scrollStartTime: number
+        scrollEndTime: number
       }>(resolve => {
         let scrollEvents = 0
-        let frameDrops = 0
-        let lastFrameTime: number | null = null
+        let scrollStartTime: number | null = null
         const maxScrollPosition = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
         const targetScrollPosition = Math.min(2000, maxScrollPosition)
         let safetyTimer: number | undefined
@@ -216,19 +220,9 @@ test.describe('Component Rendering Performance', () => {
 
         const handleScroll = () => {
           scrollEvents++
-          const currentTime = performance.now()
-
-          // The first event establishes the baseline and is not a frame.
-          if (lastFrameTime !== null) {
-            const frameDelta = currentTime - lastFrameTime
-
-            // Consider frame dropped if it takes longer than ~17ms (60 FPS)
-            if (frameDelta > 20) {
-              frameDrops++
-            }
+          if (scrollStartTime === null) {
+            scrollStartTime = performance.now()
           }
-
-          lastFrameTime = currentTime
         }
 
         const finish = () => {
@@ -244,8 +238,8 @@ test.describe('Component Rendering Performance', () => {
           resolve({
             scrollableExtent: maxScrollPosition,
             totalScrollEvents: scrollEvents,
-            frameDrops,
-            frameDropPercentage: scrollEvents === 0 ? 0 : (frameDrops / scrollEvents) * 100,
+            scrollStartTime: scrollStartTime ?? performance.now(),
+            scrollEndTime: performance.now(),
           })
         }
 
@@ -280,34 +274,52 @@ test.describe('Component Rendering Performance', () => {
       'Scroll workload was absent or insufficient: no scroll events were recorded.',
     ).toBeGreaterThan(0)
 
-    // Runner contention makes frame-drop timing unsuitable for gating until #313 establishes a CI-backed threshold.
-    console.warn(
-      `[performance] Scroll frame-drop percentage: ${scrollPerformance.frameDropPercentage.toFixed(2)}% (observational; not gating)`,
-    )
+    const scrollDuration = smoothScrollDuration(scrollPerformance.scrollStartTime, scrollPerformance.scrollEndTime)
+
+    // Runner contention makes scroll timing unsuitable for gating until #313 establishes a CI-backed threshold.
+    console.warn(`[performance] Smooth-scroll duration: ${scrollDuration.toFixed(2)}ms (observational; not gating)`)
   })
 })
 
 test.describe('Core Web Vitals - Real User Monitoring', () => {
   test('Largest Contentful Paint (LCP)', async ({page}) => {
-    await page.goto('/')
+    // Install the observer before navigation. An observer attached after
+    // page.goto() misses the page's real LCP candidates and can only report a
+    // later paint, if one happens. buffered also covers candidates delivered
+    // before the observer callback runs.
+    await page.addInitScript(() => {
+      const entries: {startTime: number}[] = []
 
-    const lcp = await page.evaluate(async () => {
-      return new Promise<number | null>(resolve => {
-        new PerformanceObserver(list => {
-          const entries = list.getEntries()
-          const lastEntry = entries.at(-1)
-          resolve(lastEntry?.startTime || null)
-        }).observe({entryTypes: ['largest-contentful-paint']})
+      new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) {
+          entries.push({startTime: entry.startTime})
+        }
+      }).observe({type: 'largest-contentful-paint', buffered: true})
 
-        // Fallback timeout
-        setTimeout(() => resolve(null), 10000)
+      Object.defineProperty(window, '__largestContentfulPaintEntries', {
+        configurable: true,
+        value: entries,
       })
     })
 
-    if (lcp !== null) {
-      // Runner contention makes LCP timing unsuitable for gating until #313 establishes CI-backed thresholds.
-      console.warn(`[performance] Largest Contentful Paint: ${lcp.toFixed(2)}ms (observational; not gating)`)
-    }
+    await page.goto('/')
+
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
+
+    const lcpEntries = await page.evaluate(() => {
+      const windowWithLcp = window as Window & {
+        __largestContentfulPaintEntries?: {startTime: number}[]
+      }
+
+      return windowWithLcp.__largestContentfulPaintEntries ?? []
+    })
+    const lcp = latestLargestContentfulPaint(lcpEntries)
+
+    // Runner contention makes LCP timing unsuitable for gating until #313 establishes CI-backed thresholds.
+    console.warn(
+      `[performance] Largest Contentful Paint: ${lcp === null ? 'unavailable' : `${lcp.toFixed(2)}ms`} (observational; not gating)`,
+    )
   })
 
   test('First Input Delay (FID) simulation', async ({page}) => {
