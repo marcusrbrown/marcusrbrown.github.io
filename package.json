@@ -22,6 +22,7 @@
   "main": "src/main.tsx",
   "scripts": {
     "build": "pnpm run check-types && vite build && tsx --import ./scripts/register-blog-snapshot-loader.mjs scripts/prerender-blog.ts",
+    "build:e2e": "node scripts/build-e2e-fixture.mjs",
     "check-types": "tsc --noEmit && tsc --noEmit -p .opencode/tsconfig.json",
     "dev": "vite",
     "fix": "eslint --fix",
