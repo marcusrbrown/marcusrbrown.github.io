@@ -153,7 +153,10 @@ export default defineConfig(({command, mode}) => {
       coverage: {
         provider: 'v8',
         reporter: ['text', 'json-summary', 'html'],
-        include: ['src/**/*.{ts,tsx}'],
+        // Vitest matches coverage globs against absolute filenames with `contains: true`.
+        // Anchor this glob to the project root so a checkout under a parent `src/` directory
+        // cannot accidentally include unrelated scripts and tooling files.
+        include: [path.resolve(process.cwd(), 'src/**/*.{ts,tsx}')],
         exclude: [
           '**/*.test.{ts,tsx}',
           '**/*.spec.{ts,tsx}',
