@@ -165,11 +165,12 @@ export default defineConfig(({command, mode}) => {
           'src/types/**',
           'src/vite-env.d.ts',
         ],
+        // Calibrated below measured src-only coverage; raise as coverage improves.
         thresholds: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
+          statements: 90,
+          branches: 85,
+          functions: 88,
+          lines: 90,
         },
       },
     },
