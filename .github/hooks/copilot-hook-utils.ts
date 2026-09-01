@@ -41,18 +41,112 @@ function isShortOption(token: string, option: string): boolean {
   return token.startsWith('-') && !token.startsWith('--') && token.slice(1).includes(option)
 }
 
-function findSubcommand(tokens: string[], command: string, subcommand: string): number {
-  return tokens.findIndex((token, index) => token === command && tokens[index + 1] === subcommand)
+const gitGlobalOptionsWithValues = new Set([
+  '-C',
+  '-c',
+  '--git-dir',
+  '--work-tree',
+  '--namespace',
+  '--exec-path',
+  '--config-env',
+])
+
+const gitGlobalBooleanOptions = new Set([
+  '--no-pager',
+  '--paginate',
+  '-p',
+  '--bare',
+  '--no-replace-objects',
+  '--literal-pathspecs',
+  '--glob-pathspecs',
+  '--noglob-pathspecs',
+  '--icase-pathspecs',
+  '--no-optional-locks',
+  '--help',
+  '--version',
+])
+
+const gitGlobalOptionsWithAttachedValues = [
+  '--git-dir=',
+  '--work-tree=',
+  '--namespace=',
+  '--exec-path=',
+  '--config-env=',
+]
+
+interface GitSubcommandSearch {
+  index: number
+  unparseable: boolean
+}
+
+function hasAttachedShortGitGlobalValue(token: string): boolean {
+  return (token.startsWith('-C') || token.startsWith('-c')) && token.length > 2
+}
+
+function hasAttachedGitGlobalValue(token: string): boolean {
+  return (
+    hasAttachedShortGitGlobalValue(token) || gitGlobalOptionsWithAttachedValues.some(option => token.startsWith(option))
+  )
+}
+
+function locateGitSubcommand(tokens: string[], command: string): GitSubcommandSearch {
+  const commandIndex = tokens.indexOf(command)
+  if (commandIndex === -1) {
+    return {index: -1, unparseable: false}
+  }
+
+  let index = commandIndex + 1
+  while (index < tokens.length) {
+    const token = tokens[index]
+    if (token === undefined) {
+      return {index: -1, unparseable: true}
+    }
+
+    if (gitGlobalBooleanOptions.has(token) || hasAttachedGitGlobalValue(token)) {
+      index += 1
+      continue
+    }
+
+    if (gitGlobalOptionsWithValues.has(token)) {
+      if (index + 1 >= tokens.length) {
+        return {index: -1, unparseable: true}
+      }
+
+      index += 2
+      continue
+    }
+
+    if (token.startsWith('-')) {
+      return {index: -1, unparseable: true}
+    }
+
+    return {index, unparseable: false}
+  }
+
+  return {index: -1, unparseable: false}
+}
+
+function findSubcommand(tokens: string[], command: string, subcommand: string): GitSubcommandSearch {
+  const result = locateGitSubcommand(tokens, command)
+  if (result.index === -1 || tokens[result.index] !== subcommand) {
+    return {index: -1, unparseable: result.unparseable}
+  }
+
+  return result
+}
+
+function matchesUnrecognizedGitGlobalOption(commandText: string): boolean {
+  return commandSegments(commandText).some(tokens => locateGitSubcommand(tokens, 'git').unparseable)
 }
 
 function matchesGitCleanForce(commandText: string): boolean {
   return commandSegments(commandText).some(tokens => {
     const commandIndex = findSubcommand(tokens, 'git', 'clean')
-    if (commandIndex === -1) {
+    if (commandIndex.index === -1) {
       return false
     }
 
-    const argumentsAfterCommand = tokens.slice(commandIndex + 2)
+    const argumentsAfterCommand = tokens.slice(commandIndex.index + 1)
     const isDryRun = argumentsAfterCommand.some(token => token === '--dry-run' || isShortOption(token, 'n'))
     const usesForce = argumentsAfterCommand.some(token => token === '--force' || isShortOption(token, 'f'))
 
@@ -63,11 +157,11 @@ function matchesGitCleanForce(commandText: string): boolean {
 function matchesDestructiveCheckout(commandText: string): boolean {
   return commandSegments(commandText).some(tokens => {
     const commandIndex = findSubcommand(tokens, 'git', 'checkout')
-    if (commandIndex === -1) {
+    if (commandIndex.index === -1) {
       return false
     }
 
-    const argumentsAfterCommand = tokens.slice(commandIndex + 2)
+    const argumentsAfterCommand = tokens.slice(commandIndex.index + 1)
     const separatorIndex = argumentsAfterCommand.indexOf('--')
 
     return (
@@ -83,11 +177,11 @@ function matchesDestructiveCheckout(commandText: string): boolean {
 function matchesDestructiveRestore(commandText: string): boolean {
   return commandSegments(commandText).some(tokens => {
     const commandIndex = findSubcommand(tokens, 'git', 'restore')
-    if (commandIndex === -1) {
+    if (commandIndex.index === -1) {
       return false
     }
 
-    const argumentsAfterCommand = tokens.slice(commandIndex + 2)
+    const argumentsAfterCommand = tokens.slice(commandIndex.index + 1)
     if (argumentsAfterCommand.some(argument => argument === '--staged' || argument.startsWith('--staged='))) {
       return false
     }
@@ -146,6 +240,7 @@ const denyPatterns: {pattern: ForbiddenMatcher; label: string}[] = [
   {pattern: matchesRootRemoval, label: 'rm -rf /'},
   {pattern: matchesHttpDownload.bind(null, 'curl'), label: 'curl http(s)'},
   {pattern: matchesHttpDownload.bind(null, 'wget'), label: 'wget http(s)'},
+  {pattern: matchesUnrecognizedGitGlobalOption, label: 'git global option (unrecognized)'},
 ]
 
 export function hasForbiddenPattern(commandText: string): string | undefined {
