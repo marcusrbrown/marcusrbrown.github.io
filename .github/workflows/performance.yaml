@@ -19,7 +19,7 @@ permissions:
   pages: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-dispatch-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 env:
@@ -168,10 +168,8 @@ jobs:
           restore-keys: |
             performance-baseline-${{ runner.os }}-${{ github.repository }}-${{ matrix.device }}-main-
 
-      # Non-gating for now: compare against the cached main baseline and report deltas; thresholds await CI variance evidence in #313.
       - name: Check performance regression - ${{ matrix.device }}
         run: pnpm run test:performance:regression
-        continue-on-error: true
         env:
           DEVICE_TYPE: ${{ matrix.device }}
 

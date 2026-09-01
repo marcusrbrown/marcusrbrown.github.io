@@ -33,7 +33,7 @@ permissions:
   pages: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-dispatch-{0}-{1}', inputs.browser, inputs['test-type']) || '' }}
   cancel-in-progress: true
 
 jobs:
