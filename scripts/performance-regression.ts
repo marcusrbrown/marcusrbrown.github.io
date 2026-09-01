@@ -91,7 +91,8 @@ interface PerformanceMetrics {
 
 type LighthouseMetricKey = 'performanceScore' | 'lcp' | 'fid' | 'cls' | 'accessibilityScore'
 
-// Change this to 1 when missing baselines should become a gating failure.
+// Keep cold-cache runs green: a new cache scope and seven-day cache eviction are expected.
+// The warning annotation and report make the skipped comparison unmistakable.
 const MISSING_BASELINE_EXIT_CODE = 0
 
 /**
@@ -474,10 +475,10 @@ class PerformanceRegressionDetector {
     console.log('')
 
     if (baseline && this.comparisons.length > 0) {
-      console.log('📋 Metric deltas (observational; not gating):')
+      console.log('📋 Metric deltas:')
       this.comparisons.forEach(comparison => {
         console.log(
-          `  [performance] ${comparison.metric}: current ${this.formatMetricValue(comparison.current, comparison.unit)} (baseline ${this.formatMetricValue(comparison.baseline, comparison.unit)}; delta ${this.formatDelta(comparison.delta)}; observational; not gating)`,
+          `  [performance] ${comparison.metric}: current ${this.formatMetricValue(comparison.current, comparison.unit)} (baseline ${this.formatMetricValue(comparison.baseline, comparison.unit)}; delta ${this.formatDelta(comparison.delta)})`,
         )
       })
       console.log('')
@@ -541,7 +542,7 @@ class PerformanceRegressionDetector {
     summary += '\n'
 
     if (baseline && this.comparisons.length > 0) {
-      summary += '### 📋 Metric Deltas (observational; not gating)\n\n'
+      summary += '### 📋 Metric Deltas\n\n'
       summary += '| Metric | Current | Baseline | Delta |\n'
       summary += '|--------|---------|----------|-------|\n'
       this.comparisons.forEach(comparison => {

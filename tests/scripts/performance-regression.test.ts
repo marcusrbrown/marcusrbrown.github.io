@@ -85,8 +85,9 @@ describe('PerformanceRegressionDetector', () => {
 
     expect(output.join('\n')).toContain('Comparing performance metrics')
     expect(output.join('\n')).toContain(
-      '[performance] Performance Score (desktop): current 98% (baseline 99%; delta -1%; observational; not gating)',
+      '[performance] Performance Score (desktop): current 98% (baseline 99%; delta -1%)',
     )
+    expect(output.join('\n')).not.toContain('observational; not gating')
   })
 
   it('exits nonzero when a genuine regression is detected', async () => {
@@ -101,6 +102,7 @@ describe('PerformanceRegressionDetector', () => {
 
     expect(exit).toHaveBeenCalledWith(1)
     expect(output.join('\n')).toContain('PERFORMANCE REGRESSIONS DETECTED')
+    expect(output.join('\n')).toContain('Performance Score (desktop): 90% → was 100% (+10% change)')
   })
 
   it('exits nonzero when saving the baseline fails', async () => {
