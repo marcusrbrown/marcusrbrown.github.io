@@ -139,6 +139,37 @@ function matchesUnrecognizedGitGlobalOption(commandText: string): boolean {
   return commandSegments(commandText).some(tokens => locateGitSubcommand(tokens, 'git').unparseable)
 }
 
+function matchesGitSubcommand(
+  commandText: string,
+  subcommand: string,
+  argumentMatcher: (argumentsAfterSubcommand: string[]) => boolean,
+): boolean {
+  return commandSegments(commandText).some(tokens => {
+    const search = findSubcommand(tokens, 'git', subcommand)
+    if (search.index === -1) {
+      return false
+    }
+
+    return argumentMatcher(tokens.slice(search.index + 1))
+  })
+}
+
+function matchesLongForcePush(commandText: string): boolean {
+  return matchesGitSubcommand(commandText, 'push', argumentsAfterSubcommand =>
+    argumentsAfterSubcommand.some(argument => argument === '--force' || argument.startsWith('--force-with-lease')),
+  )
+}
+
+function matchesShortForcePush(commandText: string): boolean {
+  return matchesGitSubcommand(commandText, 'push', argumentsAfterSubcommand => argumentsAfterSubcommand.includes('-f'))
+}
+
+function matchesHardReset(commandText: string): boolean {
+  return matchesGitSubcommand(commandText, 'reset', argumentsAfterSubcommand =>
+    argumentsAfterSubcommand.includes('--hard'),
+  )
+}
+
 function matchesGitCleanForce(commandText: string): boolean {
   return commandSegments(commandText).some(tokens => {
     const commandIndex = findSubcommand(tokens, 'git', 'clean')
@@ -231,9 +262,9 @@ function matchesHttpDownload(command: 'curl' | 'wget', commandText: string): boo
 }
 
 const denyPatterns: {pattern: ForbiddenMatcher; label: string}[] = [
-  {pattern: /git\s+push\b[^|;]*--force(?:-with-lease)?\b/, label: 'git push --force'},
-  {pattern: /git\s+push\b[^|;]*\s-f\b/, label: 'git push -f'},
-  {pattern: /git\s+reset\s+--hard\b/, label: 'git reset --hard'},
+  {pattern: matchesLongForcePush, label: 'git push --force'},
+  {pattern: matchesShortForcePush, label: 'git push -f'},
+  {pattern: matchesHardReset, label: 'git reset --hard'},
   {pattern: matchesGitCleanForce, label: 'git clean --force'},
   {pattern: matchesDestructiveCheckout, label: 'git checkout (discard working tree)'},
   {pattern: matchesDestructiveRestore, label: 'git restore (discard working tree)'},

@@ -59,7 +59,11 @@ describe('hasForbiddenPattern', () => {
     ['git push origin main --force', 'git push --force'],
     ['git push --force-with-lease', 'git push --force'],
     ['git push -f', 'git push -f'],
+    ['git -C ../other push --force origin main', 'git push --force'],
+    ['git --no-pager push --force origin main', 'git push --force'],
+    ['git --git-dir=/x push --force origin main', 'git push --force'],
     ['git reset --hard HEAD~1', 'git reset --hard'],
+    ['git -C ../other reset --hard HEAD~1', 'git reset --hard'],
     ['git clean -fdx', 'git clean --force'],
     ['git -C ../other clean -fdx', 'git clean --force'],
     ['git -c user.name=x clean -fdx', 'git clean --force'],
@@ -84,7 +88,9 @@ describe('hasForbiddenPattern', () => {
 
   it.each([
     'git push origin main',
+    'git -C ../other push origin main',
     'git reset --soft HEAD~1',
+    'git -C ../other reset --soft HEAD~1',
     'git clean -ndx',
     'git checkout -b feature/x',
     'git -C ../other checkout -b feature/x',
