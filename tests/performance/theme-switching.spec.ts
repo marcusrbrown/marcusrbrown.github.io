@@ -3,6 +3,7 @@
  * Tests the performance impact of dynamic theme changes and component interactions
  */
 
+import type {TestInfo} from '@playwright/test'
 import {expect, test} from '@playwright/test'
 
 import {latestLargestContentfulPaint, smoothScrollDuration} from './measurement-utils'
@@ -15,6 +16,33 @@ interface LayoutShiftEntry extends PerformanceEntry {
 interface ThemePreloaderObservation {
   firstDataTheme: string | null
   firstDataThemeBeforeBody: boolean
+}
+
+type PerformanceDevice = 'desktop' | 'mobile'
+
+interface PerformanceThresholds {
+  modalOpen: number
+  interactionDelay: number
+}
+
+const performanceThresholds: Record<PerformanceDevice, PerformanceThresholds> = {
+  // The modal-open and interaction-delay CI maxima were 11.80ms and 0.60ms.
+  // The thresholds leave 747% and 233% headroom respectively. The modal-open
+  // margin also absorbs the ~50ms local runner measurements seen outside CI.
+  desktop: {
+    modalOpen: 100,
+    interactionDelay: 2,
+  },
+  // The modal-open and interaction-delay CI maxima were 12.40ms and 0.60ms.
+  // The thresholds leave 706% and 233% headroom respectively.
+  mobile: {
+    modalOpen: 100,
+    interactionDelay: 2,
+  },
+}
+
+function getPerformanceDevice(testInfo: TestInfo): PerformanceDevice {
+  return testInfo.project.name === 'performance-mobile' ? 'mobile' : 'desktop'
 }
 
 test.describe('Theme Switching Performance', () => {
@@ -119,7 +147,9 @@ test.describe('Theme Switching Performance', () => {
       firstDataTheme: 'dark',
       firstDataThemeBeforeBody: true,
     })
-    // Runner contention makes reload timing unsuitable for gating until #313 establishes CI-backed thresholds.
+    // Page reload varied by 31–33ms across the eight CI samples, and local
+    // runner scheduling adds substantially more wall-clock variance. Keep it
+    // observational until a larger sample supports a useful gate.
     console.warn(`[performance] Page reload time: ${reloadTime.toFixed(2)}ms (observational; not gating)`)
   })
 })
@@ -133,11 +163,14 @@ test.describe('Component Rendering Performance', () => {
     await expect(page.locator('[data-testid="project-card"]').first()).toBeVisible()
     const renderTime = Date.now() - renderStart
 
-    // Runner contention makes render timing unsuitable for gating until #313 establishes CI-backed thresholds.
+    // Gallery render varied by 29–34ms across the eight CI samples and includes
+    // navigation plus rendering wall time. Keep it observational until a larger
+    // sample supports a useful gate without training reruns around noise.
     console.warn(`[performance] Project gallery render time: ${renderTime.toFixed(2)}ms (observational; not gating)`)
   })
 
-  test('Modal open/close performance', async ({page}) => {
+  test('Modal open/close performance', async ({page}, testInfo) => {
+    const thresholds = performanceThresholds[getPerformanceDevice(testInfo)]
     await page.goto('/projects')
 
     // Project cards expose a Preview button; the card container itself is not
@@ -180,8 +213,13 @@ test.describe('Component Rendering Performance', () => {
     await expect(modal).toBeVisible()
     const modalOpenTime = await modalOpenTimePromise
 
-    // Runner contention makes modal timing unsuitable for gating until #313 establishes CI-backed thresholds.
-    console.warn(`[performance] Modal open time: ${modalOpenTime.toFixed(2)}ms (observational; not gating)`)
+    expect(
+      modalOpenTime,
+      `Modal open performance regression: ${modalOpenTime.toFixed(2)}ms exceeded ${thresholds.modalOpen.toFixed(2)}ms`,
+    ).toBeLessThan(thresholds.modalOpen)
+    console.warn(
+      `[performance] Modal open time: ${modalOpenTime.toFixed(2)}ms (gating; threshold < ${thresholds.modalOpen.toFixed(2)}ms)`,
+    )
 
     // Test modal close performance
     const modalCloseStart = Date.now()
@@ -189,7 +227,9 @@ test.describe('Component Rendering Performance', () => {
     await expect(modal).toBeHidden()
     const modalCloseTime = Date.now() - modalCloseStart
 
-    // Runner contention makes modal timing unsuitable for gating until #313 establishes CI-backed thresholds.
+    // Desktop's 19ms sample is a single outlier against a 9–14ms band. With only
+    // eight samples, keeping close observational avoids encoding that outlier as
+    // either a flaky gate or an unjustifiably wide threshold.
     console.warn(`[performance] Modal close time: ${modalCloseTime.toFixed(2)}ms (observational; not gating)`)
   })
 
@@ -316,13 +356,16 @@ test.describe('Core Web Vitals - Real User Monitoring', () => {
     })
     const lcp = latestLargestContentfulPaint(lcpEntries)
 
-    // Runner contention makes LCP timing unsuitable for gating until #313 establishes CI-backed thresholds.
+    // Keep LCP observational: the corrected measurement is meaningful, but its
+    // 8-sample CI window does not cover the wider local runner variance enough
+    // to justify a merge gate yet.
     console.warn(
       `[performance] Largest Contentful Paint: ${lcp === null ? 'unavailable' : `${lcp.toFixed(2)}ms`} (observational; not gating)`,
     )
   })
 
-  test('First Input Delay (FID) simulation', async ({page}) => {
+  test('First Input Delay (FID) simulation', async ({page}, testInfo) => {
+    const thresholds = performanceThresholds[getPerformanceDevice(testInfo)]
     await page.goto('/')
     await page.waitForLoadState('networkidle')
 
@@ -350,9 +393,12 @@ test.describe('Core Web Vitals - Real User Monitoring', () => {
       })
     })
 
-    // Runner contention makes synthetic interaction timing unsuitable for gating until #313 establishes thresholds.
+    expect(
+      interactionDelay,
+      `Synthetic interaction delay regression: ${interactionDelay.toFixed(2)}ms exceeded ${thresholds.interactionDelay.toFixed(2)}ms`,
+    ).toBeLessThan(thresholds.interactionDelay)
     console.warn(
-      `[performance] Synthetic interaction delay: ${interactionDelay.toFixed(2)}ms (observational; not gating)`,
+      `[performance] Synthetic interaction delay: ${interactionDelay.toFixed(2)}ms (gating; threshold < ${thresholds.interactionDelay.toFixed(2)}ms)`,
     )
   })
 
