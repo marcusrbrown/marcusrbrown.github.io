@@ -26,18 +26,18 @@ interface PerformanceThresholds {
 }
 
 const performanceThresholds: Record<PerformanceDevice, PerformanceThresholds> = {
-  // The modal-open and interaction-delay CI maxima were 11.80ms and 0.60ms.
-  // The thresholds leave 747% and 233% headroom respectively. The modal-open
-  // margin also absorbs the ~50ms local runner measurements seen outside CI.
+  // The shared modal-open threshold is 20ms: 1.69x the desktop maximum and
+  // 1.61x the mobile maximum. That leaves 69%/61% headroom while catching a
+  // meaningful 40ms regression instead of merely catching noise.
+  // The shared interaction threshold is 1ms: 1.67x the observed maximum. A
+  // quadrupled 2.40ms delay therefore fails instead of passing decoratively.
   desktop: {
-    modalOpen: 100,
-    interactionDelay: 2,
+    modalOpen: 20,
+    interactionDelay: 1,
   },
-  // The modal-open and interaction-delay CI maxima were 12.40ms and 0.60ms.
-  // The thresholds leave 706% and 233% headroom respectively.
   mobile: {
-    modalOpen: 100,
-    interactionDelay: 2,
+    modalOpen: 20,
+    interactionDelay: 1,
   },
 }
 
@@ -172,6 +172,7 @@ test.describe('Component Rendering Performance', () => {
   test('Modal open/close performance', async ({page}, testInfo) => {
     const thresholds = performanceThresholds[getPerformanceDevice(testInfo)]
     await page.goto('/projects')
+    await page.waitForLoadState('networkidle')
 
     // Project cards expose a Preview button; the card container itself is not
     // interactive.
@@ -193,14 +194,15 @@ test.describe('Component Rendering Performance', () => {
           'click',
           () => {
             const clickTime = performance.now()
-            const waitForModal = () => {
+            // Observe the DOM commit directly so polling does not add a frame
+            // of scheduling noise to this otherwise tight measurement.
+            const observer = new MutationObserver(() => {
               if (document.querySelector('.project-preview-modal--open')) {
+                observer.disconnect()
                 resolve(performance.now() - clickTime)
-                return
               }
-              requestAnimationFrame(waitForModal)
-            }
-            waitForModal()
+            })
+            observer.observe(document.body, {attributes: true, childList: true, subtree: true})
           },
           {once: true},
         )
