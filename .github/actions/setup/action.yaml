@@ -30,7 +30,7 @@ outputs:
     value: ${{ steps.setup-node.outputs.node-version }}
   cache-hit:
     description: Whether pnpm cache was hit
-    value: ${{ steps.setup-pnpm.outputs.cache-hit }}
+    value: ${{ steps.setup-node.outputs.cache-hit }}
   playwright-version:
     description: The Playwright version (empty if install-playwright is false)
     value: ${{ steps.playwright-version.outputs.version }}
