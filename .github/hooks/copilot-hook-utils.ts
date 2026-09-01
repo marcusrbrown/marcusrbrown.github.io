@@ -3,25 +3,28 @@ export interface CommandInput {
   bash?: unknown
   args?: unknown
   input?: unknown
-  toolInput?: {command?: unknown}
-  tool_input?: {command?: unknown}
+  toolName?: unknown
+  toolArgs?: unknown
+  toolInput?: unknown
+  tool_name?: unknown
+  tool_input?: unknown
 }
 
-export function parseInput(raw: string): Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function parseInput(raw: string): CommandInput {
   if (raw.trim().length === 0) {
-    return {}
+    throw new Error('Hook input is empty')
   }
 
-  try {
-    const parsed = JSON.parse(raw)
-    if (typeof parsed === 'object' && parsed !== null) {
-      return parsed as Record<string, unknown>
-    }
-
-    return {}
-  } catch {
-    return {}
+  const parsed: unknown = JSON.parse(raw)
+  if (!isRecord(parsed)) {
+    throw new Error('Hook input must be a JSON object')
   }
+
+  return parsed as CommandInput
 }
 
 const denyPatterns: {pattern: RegExp; label: string}[] = [
@@ -61,8 +64,8 @@ function extractFromValue(value: unknown): string {
     commandInput.bash,
     commandInput.args,
     commandInput.input,
-    commandInput.toolInput?.command,
-    commandInput.tool_input?.command,
+    commandInput.toolInput,
+    commandInput.tool_input,
   ]
 
   for (const candidate of objectCandidates) {
@@ -75,13 +78,47 @@ function extractFromValue(value: unknown): string {
   return ''
 }
 
+function extractToolArgsCommand(value: unknown): string {
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown
+    } catch {
+      return ''
+    }
+  }
+
+  return extractFromValue(value)
+}
+
 export function resolveCommandText(payload: CommandInput): string {
-  const candidates = [payload?.toolInput?.command, payload?.tool_input?.command, payload?.command, payload?.input]
+  const candidates = [
+    extractToolArgsCommand(payload?.toolArgs),
+    extractFromValue(payload?.toolInput),
+    extractFromValue(payload?.tool_input),
+    payload?.command,
+    payload?.input,
+  ]
 
   for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate
+    }
+
     const extracted = extractFromValue(candidate)
     if (extracted.trim().length > 0) {
       return extracted
+    }
+  }
+
+  return ''
+}
+
+export function resolveToolName(payload: CommandInput): string {
+  const candidates = [payload?.toolName, payload?.tool_name]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim()
     }
   }
 
