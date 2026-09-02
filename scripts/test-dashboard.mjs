@@ -12,6 +12,7 @@
  * - Historical trend tracking
  */
 
+import {randomUUID} from 'node:crypto'
 import {existsSync, promises as fs} from 'node:fs'
 import {dirname, join} from 'node:path'
 import process from 'node:process'
@@ -73,12 +74,18 @@ async function loadJsonFile(filePath, defaultValue = null) {
  * Save JSON file with pretty formatting
  */
 async function saveJsonFile(filePath, data) {
+  const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
+
   try {
     await fs.mkdir(dirname(filePath), {recursive: true})
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2))
+    const serialized = JSON.stringify(data, null, 2)
+    await fs.writeFile(temporaryPath, serialized)
+    await fs.rename(temporaryPath, filePath)
+    await fs.readFile(filePath, 'utf8')
     console.log(`✅ Saved ${filePath}`)
   } catch (error) {
-    console.error(`❌ Failed to save ${filePath}:`, error.message)
+    await fs.rm(temporaryPath, {force: true}).catch(() => {})
+    throw error
   }
 }
 
@@ -217,9 +224,9 @@ async function parseVisualTestData(root = projectRoot) {
 /**
  * Parse accessibility test data from axe-core results
  */
-async function parseAccessibilityData() {
+async function parseAccessibilityData(root = projectRoot) {
   try {
-    const a11yDir = CONFIG.input.accessibilityReports
+    const a11yDir = join(root, 'accessibility-reports')
     if (!existsSync(a11yDir)) {
       return {status: 'not-run', violations: 0, passes: 0, incomplete: 0, inapplicable: 0}
     }
@@ -239,20 +246,22 @@ async function parseAccessibilityData() {
 
     for (const file of reportFiles) {
       const reportPath = join(a11yDir, file)
-      const report = await loadJsonFile(reportPath, {})
+      const report = await loadJsonFile(reportPath)
 
-      if (report.violations) {
-        totalViolations += report.violations.length
+      if (
+        !report ||
+        !Array.isArray(report.violations) ||
+        !Array.isArray(report.passes) ||
+        !Array.isArray(report.incomplete) ||
+        !Array.isArray(report.inapplicable)
+      ) {
+        return {status: 'error', violations: 0, passes: 0, incomplete: 0, inapplicable: 0}
       }
-      if (report.passes) {
-        totalPasses += report.passes.length
-      }
-      if (report.incomplete) {
-        totalIncomplete += report.incomplete.length
-      }
-      if (report.inapplicable) {
-        totalInapplicable += report.inapplicable.length
-      }
+
+      totalViolations += report.violations.length
+      totalPasses += report.passes.length
+      totalIncomplete += report.incomplete.length
+      totalInapplicable += report.inapplicable.length
     }
 
     return {
@@ -318,25 +327,44 @@ async function parsePerformanceData() {
 /**
  * Parse build/bundle data
  */
-async function parseBuildData() {
+async function parseBuildData(root = projectRoot) {
   try {
-    const buildHistory = await loadJsonFile(CONFIG.input.buildHistory, {builds: []})
-
-    if (!buildHistory.builds || buildHistory.builds.length === 0) {
-      return {status: 'not-available', size: 0, files: 0}
+    const buildHistoryPath = join(root, 'build-history.json')
+    if (!existsSync(buildHistoryPath)) {
+      return {status: 'not-available', size: 0, files: 0, entries: 0}
     }
 
-    const latestBuild = buildHistory.builds.at(-1)
+    let buildHistory
+    try {
+      buildHistory = JSON.parse(await fs.readFile(buildHistoryPath, 'utf8'))
+    } catch {
+      return {status: 'error', size: 0, files: 0, entries: 0}
+    }
+
+    if (!Array.isArray(buildHistory)) {
+      return {status: 'error', size: 0, files: 0, entries: 0}
+    }
+
+    if (buildHistory.length === 0) {
+      return {status: 'not-available', size: 0, files: 0, entries: 0}
+    }
+
+    const latestBuild = buildHistory.at(-1)
+    if (!latestBuild || typeof latestBuild !== 'object' || Array.isArray(latestBuild)) {
+      return {status: 'error', size: 0, files: 0, entries: buildHistory.length}
+    }
+
     return {
       status: 'completed',
       size: latestBuild.totalSize || 0,
       files: latestBuild.fileCount || 0,
       jsSize: latestBuild.jsSize || 0,
       cssSize: latestBuild.cssSize || 0,
+      entries: buildHistory.length,
     }
   } catch (error) {
     console.warn('⚠️  Failed to parse build data:', error.message)
-    return {status: 'error', size: 0, files: 0}
+    return {status: 'error', size: 0, files: 0, entries: 0}
   }
 }
 
@@ -572,4 +600,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   main()
 }
 
-export {determineOverallStatus, generateDashboardData, parseE2ETestData, parseUnitTestData, parseVisualTestData}
+export {
+  determineOverallStatus,
+  generateDashboardData,
+  parseAccessibilityData,
+  parseBuildData,
+  parseE2ETestData,
+  parseUnitTestData,
+  parseVisualTestData,
+  saveJsonFile,
+}
