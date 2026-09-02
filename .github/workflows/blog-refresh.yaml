@@ -23,27 +23,14 @@ jobs:
     name: Refresh blog snapshot
     runs-on: ubuntu-latest
     steps:
-      - id: get-app-token
-        name: Get workflow access token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        with:
-          app-id: ${{ secrets.APPLICATION_ID }}
-          private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-          persist-credentials: true
-          # Check out with the mrbro-bot app installation token so the content
-          # branch push and PR are attributed to mrbro-bot and trigger the PR's
-          # required status checks. A branch pushed by the default GITHUB_TOKEN
-          # would land its PR runs in an approval-required state, so the checks
-          # would not run automatically and the protected-main PR could never
-          # satisfy protection.
-          token: ${{ steps.get-app-token.outputs.token }}
+          # Do not persist repository-write credentials during dependency
+          # installation. The mrbro-bot app token is minted only for the PR
+          # publication step below, where it is configured for git and gh.
+          persist-credentials: false
 
       - name: Setup project
         uses: ./.github/actions/setup
@@ -89,6 +76,16 @@ jobs:
           cat .blog-refresh-summary.md >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
+      - id: get-app-token
+        if: steps.diff.outputs.changed == 'true'
+        name: Get workflow access token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ secrets.APPLICATION_ID }}
+          private-key: ${{ secrets.APPLICATION_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Open or update content refresh PR
         if: steps.diff.outputs.changed == 'true'
         env:
@@ -102,6 +99,9 @@ jobs:
         run: |
           set -euo pipefail
           branch="chore/blog-refresh"
+          auth="$(printf '%s' "x-access-token:${GH_TOKEN}" | base64 | tr -d '\n')"
+          echo "::add-mask::${auth}"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth}"
           # Commit as the mrbro-bot identity behind the app installation token
           # that pushes the branch and opens the PR, not github-actions[bot].
           git config user.name "mrbro-bot[bot]"

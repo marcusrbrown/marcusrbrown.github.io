@@ -452,6 +452,11 @@ jobs:
           token: ${{ secrets.FRO_BOT_PAT }}
           persist-credentials: false
 
+      - name: Setup project dependencies
+        uses: ./.github/actions/setup
+        with:
+          install-playwright: 'true'
+
       - name: Enable authenticated git push for autoheal fixes
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal')
         env:
@@ -475,11 +480,6 @@ jobs:
           auth="$(printf '%s' "x-access-token:${FRO_BOT_PAT}" | base64 | tr -d '\n')"
           echo "::add-mask::${auth}"
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth}"
-
-      - name: Setup project dependencies
-        uses: ./.github/actions/setup
-        with:
-          install-playwright: 'true'
 
       - name: Run Fro Bot
         uses: fro-bot/agent@e9501a93f428fec4eedcef3f11ee97bbd903d6e8 # v0.105.1
