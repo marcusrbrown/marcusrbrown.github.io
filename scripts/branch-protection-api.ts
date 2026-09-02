@@ -55,14 +55,20 @@ function resolveRepository(config: ScriptConfig, runCommand: RepositoryCommandRu
   return fullName
 }
 
-function verifyBranchExists(repository: string, config: ScriptConfig, runCommand: RepositoryCommandRunner): void {
+/**
+ * Best-effort branch validation. A Contents-denied token may still be able to
+ * read branch protection via Administration, so 403 is not itself fatal.
+ * The caller must not interpret a protection 404 as unprotected unless this
+ * check returns true.
+ */
+function verifyBranchExists(repository: string, config: ScriptConfig, runCommand: RepositoryCommandRunner): boolean {
   const result = runCommand(['api', `repos/${repository}/branches/${config.branch}`])
   if (result.status !== 0) {
     if (/\b404\b/.test(result.stderr)) {
       throw new Error(`Branch ${config.branch} does not exist in repository ${repository} (GitHub returned 404).`)
     }
     if (/\b403\b/.test(result.stderr)) {
-      throw new Error(`Access denied while resolving branch ${config.branch} in repository ${repository}.`)
+      return false
     }
 
     assertSuccess('gh api resolve branch', result)
@@ -78,6 +84,8 @@ function verifyBranchExists(repository: string, config: ScriptConfig, runCommand
   if (!isRecord(parsed) || parsed.name !== config.branch) {
     throw new Error(`gh api resolve branch returned no matching branch for ${repository}/${config.branch}.`)
   }
+
+  return true
 }
 
 function getCurrentProtection(
@@ -85,10 +93,15 @@ function getCurrentProtection(
   runCommand: RepositoryCommandRunner = runGhCommand,
 ): CurrentProtectionResponse | null {
   const repository = resolveRepository(config, runCommand)
-  verifyBranchExists(repository, config, runCommand)
+  const branchVerified = verifyBranchExists(repository, config, runCommand)
   const result = runCommand(['api', `repos/${repository}/branches/${config.branch}/protection`])
   if (result.status !== 0) {
     if (/\b404\b/.test(result.stderr)) {
+      if (!branchVerified) {
+        throw new Error(
+          `Cannot determine whether branch ${config.branch} is protected: branch existence access was denied, and the protection endpoint returned 404.`,
+        )
+      }
       return null
     }
 

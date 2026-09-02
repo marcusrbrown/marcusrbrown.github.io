@@ -41,6 +41,19 @@ describe('branch protection repository resolution', () => {
     expect(() => getCurrentProtection(SCRIPT_CONFIG, runCommand)).toThrow(/branch .*does not exist/i)
   })
 
+  it('fails loudly when branch existence is denied to an Administration-only token', () => {
+    const responses = [
+      result(JSON.stringify({full_name: canonicalRepository})),
+      result('', 1, 'HTTP 403: Resource not accessible by personal access token'),
+      result('', 1, 'HTTP 404: Resource not found'),
+    ]
+    const runCommand: RepositoryCommandRunner = () => responses.shift() ?? result('', 1, 'unexpected command')
+
+    expect(() => getCurrentProtection(SCRIPT_CONFIG, runCommand)).toThrow(
+      /cannot determine whether branch main is protected/i,
+    )
+  })
+
   it('fails distinctly when the configured repository is not found or not visible', () => {
     const runCommand: RepositoryCommandRunner = () => result('', 1, 'HTTP 404: Not Found')
 
