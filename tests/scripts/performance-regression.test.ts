@@ -1,3 +1,6 @@
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {PerformanceRegressionDetector} from '../../scripts/performance-regression'
 
@@ -34,6 +37,18 @@ const metrics = (
       seoScore: 100,
       ...lighthouseOverrides,
     },
+    mobile: {
+      performanceScore,
+      lcp: 1000,
+      fid: 10,
+      cls: 0.01,
+      fcp: 800,
+      tti: 1200,
+      tbt: 50,
+      accessibilityScore: 100,
+      bestPracticesScore: 100,
+      seoScore: 100,
+    },
   },
   ...(bundle ? {bundle} : {}),
   commit: 'test-commit',
@@ -67,6 +82,7 @@ const mockProcessExit = () =>
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
 
 describe('PerformanceRegressionDetector', () => {
@@ -168,5 +184,29 @@ describe('PerformanceRegressionDetector', () => {
 
     expect(exit).toHaveBeenCalledWith(1)
     expect(output.join('\n')).toContain('Baseline persistence failed: permission denied')
+  })
+
+  it('rejects current Lighthouse metrics when an expected device is missing', () => {
+    const detector = new PerformanceRegressionDetector()
+    const current = metrics(98)
+    delete current.lighthouse.mobile
+
+    expect(() => detector.compareMetrics(current, metrics(98))).toThrowError(/current.*mobile/i)
+  })
+
+  it('treats malformed current Lighthouse reports as fatal', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'performance-regression-test-'))
+    const originalCwd = process.cwd()
+    mkdirSync(join(directory, 'lhci-reports-desktop'))
+    writeFileSync(join(directory, 'lhci-reports-desktop', 'report.json'), '{')
+    process.chdir(directory)
+    vi.stubEnv('DEVICE_TYPE', 'desktop')
+
+    try {
+      await expect(new PerformanceRegressionDetector().loadLighthouseResults()).rejects.toThrowError(/report\.json/i)
+    } finally {
+      process.chdir(originalCwd)
+      rmSync(directory, {force: true, recursive: true})
+    }
   })
 })

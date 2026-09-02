@@ -11,6 +11,41 @@ import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writ
 import {basename, join} from 'node:path'
 import process from 'node:process'
 
+const REQUIRED_ARTIFACT_COUNTS = {
+  lighthouse: 1,
+  bundles: 1,
+} as const
+
+interface LighthouseArtifactSource {
+  device: string
+  path: string
+}
+
+export const resolveLighthouseArtifactSources = (
+  environment: NodeJS.ProcessEnv = process.env,
+  args: readonly string[] = process.argv.slice(2),
+): LighthouseArtifactSource[] => {
+  const explicitSource = args.find(argument => argument.startsWith('--source='))?.slice('--source='.length)
+  if (explicitSource) {
+    return [{device: environment.DEVICE_TYPE ?? 'custom', path: explicitSource}]
+  }
+
+  if (environment.LHCI_REPORTS_DIR) {
+    return [{device: environment.DEVICE_TYPE ?? 'default', path: environment.LHCI_REPORTS_DIR}]
+  }
+
+  if (environment.DEVICE_TYPE) {
+    return [{device: environment.DEVICE_TYPE, path: `./lhci-reports-${environment.DEVICE_TYPE}`}]
+  }
+
+  if (existsSync('./lhci-reports')) return [{device: 'default', path: './lhci-reports'}]
+
+  return [
+    {device: 'desktop', path: './lhci-reports-desktop'},
+    {device: 'mobile', path: './lhci-reports-mobile'},
+  ]
+}
+
 interface ArtifactInfo {
   file: string
   category: string
@@ -56,6 +91,7 @@ class PerformanceArtifactManager {
   private readonly artifactsDir = './performance-artifacts'
   private readonly maxArtifacts = Number.parseInt(process.env.MAX_PERFORMANCE_ARTIFACTS || '50', 10)
   private readonly retentionDays = Number.parseInt(process.env.ARTIFACT_RETENTION_DAYS || '30', 10)
+  private readonly allowEmpty = process.argv.includes('--allow-empty')
 
   /**
    * Initialize artifact management
@@ -105,6 +141,9 @@ class PerformanceArtifactManager {
       // Collect dashboard data
       await this.collectDashboardData(runId)
 
+      const artifacts = this.scanArtifacts(runId)
+      if (!this.allowEmpty) this.validateRequiredArtifacts(artifacts)
+
       // Generate artifact manifest
       await this.generateManifest(runId)
 
@@ -128,11 +167,12 @@ class PerformanceArtifactManager {
   async collectLighthouseReports(runId: string): Promise<ArtifactInfo[]> {
     console.log('🚀 Collecting Lighthouse reports...')
 
-    const devices = ['desktop', 'mobile']
+    const sources = resolveLighthouseArtifactSources()
     const reportsCollected: ArtifactInfo[] = []
 
-    for (const device of devices) {
-      const sourceDir = `./lhci-reports-${device}`
+    for (const source of sources) {
+      const {device, path: sourceDir} = source
+      console.log(`  ℹ️ Lighthouse report source for ${device}: ${sourceDir}`)
       if (!existsSync(sourceDir)) {
         console.log(`  ⚠️ No ${device} reports found`)
         continue
@@ -144,7 +184,7 @@ class PerformanceArtifactManager {
 
         // Copy all JSON reports
         const files = readdirSync(sourceDir)
-        const jsonFiles = files.filter(f => f.endsWith('.json'))
+        const jsonFiles = files.filter(f => f.endsWith('.json') && f !== 'manifest.json')
 
         for (const file of jsonFiles) {
           const sourcePath = join(sourceDir, file)
@@ -375,6 +415,19 @@ class PerformanceArtifactManager {
     }
 
     return artifacts
+  }
+
+  private validateRequiredArtifacts(artifacts: readonly ArtifactInfo[]): void {
+    if (artifacts.length === 0) {
+      throw new Error('No performance artifacts were collected')
+    }
+
+    for (const [category, minimum] of Object.entries(REQUIRED_ARTIFACT_COUNTS)) {
+      const count = artifacts.filter(artifact => artifact.category === category).length
+      if (count < minimum) {
+        throw new Error(`Required artifact category ${category} is missing (expected at least ${minimum})`)
+      }
+    }
   }
 
   /**
