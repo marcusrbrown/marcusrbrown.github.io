@@ -12,8 +12,10 @@ import {
 const temporaryDirectories: string[] = []
 const budgetValidatorScript = resolve(process.cwd(), 'scripts/performance-budgets.ts')
 
+// Measure the validator process directly; pnpm's package-manager startup was
+// the variable part of these assertions under parallel load.
 const runBudgetValidator = (reportsPath: string): ReturnType<typeof spawnSync> =>
-  spawnSync('pnpm', ['exec', 'tsx', budgetValidatorScript], {
+  spawnSync(process.execPath, ['--import', 'tsx', budgetValidatorScript], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env: {...process.env, LHCI_REPORTS_DIR: reportsPath},

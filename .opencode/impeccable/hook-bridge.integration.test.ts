@@ -224,7 +224,9 @@ describe('createSpawnRunner', () => {
         `setInterval(() => {}, 1000);`, // stay alive
       ].join('\n'),
     )
-    const runner = createSpawnRunner({scriptPath, timeoutMs: 150, killGraceMs: 100})
+    // Allow cold Node startup and PID-file creation under contention; this test
+    // is about SIGKILL/reaping, not making startup latency part of the fixture.
+    const runner = createSpawnRunner({scriptPath, timeoutMs: 1000, killGraceMs: 100})
     const start = Date.now()
     const result = await runner(payload, {worktree: worktree()})
     const elapsedMs = Date.now() - start

@@ -49,14 +49,16 @@ const workflowDispatchEvent = (mode: string, schedule?: unknown): Record<string,
 })
 
 const routeEventScript = resolve(process.cwd(), 'scripts/live-audit/route-event.ts')
+// Keep the CLI subprocess boundary without adding pnpm's variable startup cost
+// to every assertion.
 const runRouteEventCli = (eventText: string, args: readonly string[] = []): ReturnType<typeof spawnSync> => {
   const directory = mkdtempSync(join(tmpdir(), 'live-audit-route-event-'))
   const eventPath = join(directory, 'event.json')
   writeFileSync(eventPath, eventText)
   try {
     return spawnSync(
-      'pnpm',
-      ['exec', 'tsx', routeEventScript, '--event-name', 'issue_comment', '--event-path', eventPath, ...args],
+      process.execPath,
+      ['--import', 'tsx', routeEventScript, '--event-name', 'issue_comment', '--event-path', eventPath, ...args],
       {cwd: process.cwd(), encoding: 'utf8'},
     )
   } finally {
@@ -152,10 +154,14 @@ describe('live-audit event routing', () => {
   })
 
   it('CLI fails nonzero for invalid arguments and invalid JSON', () => {
-    const invalidArguments = spawnSync('pnpm', ['exec', 'tsx', routeEventScript, '--event-name', 'issue_comment'], {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-    })
+    const invalidArguments = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', routeEventScript, '--event-name', 'issue_comment'],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      },
+    )
     expect(invalidArguments.status).not.toBe(0)
 
     const invalidJson = runRouteEventCli('{not-json')
@@ -175,8 +181,8 @@ describe('live-audit event routing', () => {
     const eventPath = join(tmpdir(), 'live-audit-route-event-missing.json')
     rmSync(eventPath, {force: true})
     const result = spawnSync(
-      'pnpm',
-      ['exec', 'tsx', routeEventScript, '--event-name', 'issue_comment', '--event-path', eventPath],
+      process.execPath,
+      ['--import', 'tsx', routeEventScript, '--event-name', 'issue_comment', '--event-path', eventPath],
       {cwd: process.cwd(), encoding: 'utf8'},
     )
 
