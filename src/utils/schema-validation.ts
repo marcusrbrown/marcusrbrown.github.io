@@ -16,21 +16,37 @@ export const THEME_EXPORT_VERSION = '1.0'
 
 const SCHEMA_VALIDATOR_EXPORTER = 'schema-validator'
 
-// Create Ajv instance with configuration
-const ajv = new Ajv({
+// Validation must observe the original input and never mutate caller-owned data.
+const validationAjv = new Ajv({
   allErrors: true, // Collect all validation errors
   verbose: true, // Include schema and data in errors
-  strict: false, // Disable strict mode to avoid schema issues
-  removeAdditional: true, // Remove additional properties not in schema
-  useDefaults: true, // Use default values from schema
+  strict: true,
+  removeAdditional: false,
+  useDefaults: false,
   coerceTypes: false, // Don't coerce types for security
 })
 
-// Add format validation (date-time, etc.)
-addFormats(ajv)
+// Sanitization deliberately removes additional properties and applies schema defaults,
+// but only to a cloned input (see sanitizeThemeData).
+const sanitizationAjv = new Ajv({
+  allErrors: true,
+  verbose: true,
+  strict: true,
+  removeAdditional: true,
+  useDefaults: true,
+  coerceTypes: false,
+})
 
-// Compile the theme schema
-const validateThemeExport = ajv.compile(themeSchema)
+// Add format validation (date-time, etc.) to both independent instances.
+addFormats(validationAjv)
+addFormats(sanitizationAjv)
+
+// Compile separate validators for validation and sanitization.
+const validateThemeExport = validationAjv.compile(themeSchema)
+const sanitizeThemeExport = sanitizationAjv.compile(themeSchema)
+const validateColor = validationAjv.compile({
+  $ref: `${themeSchema.$id}#/definitions/ColorValue`,
+})
 
 /**
  * Formats Ajv validation errors into human-readable messages
@@ -139,8 +155,8 @@ export const sanitizeThemeData = (data: unknown): ThemeExportData | null => {
     // Create a deep copy to avoid modifying original
     const dataCopy = JSON.parse(JSON.stringify(data)) as ThemeExportData
 
-    // Validate and sanitize using Ajv
-    const isValid = validateThemeExport(dataCopy)
+    // Validate and sanitize using the mutating validator on the clone only.
+    const isValid = sanitizeThemeExport(dataCopy)
 
     if (isValid) {
       // After successful validation, we know the data matches ThemeExportData structure
@@ -158,14 +174,6 @@ export const sanitizeThemeData = (data: unknown): ThemeExportData | null => {
  * Defers to Ajv and the schema's ColorValue definition.
  */
 export const validateColorFormat = (color: unknown): boolean => {
-  // Use Ajv to validate the color against the ColorValue definition in the main schema
-  const colorSchema = themeSchema.definitions?.ColorValue
-  if (!colorSchema) {
-    // If no definition is found, fallback to a basic string check
-    return typeof color === 'string'
-  }
-
-  const validateColor = ajv.compile(colorSchema)
   return validateColor(color)
 }
 
@@ -184,8 +192,8 @@ export const getValidationDetails = (
   const isValid = validateThemeExport(data)
   const errors = validateThemeExport.errors || []
 
-  // Only sanitize if valid
-  const sanitizedData = isValid ? (JSON.parse(JSON.stringify(data)) as ThemeExportData) : null
+  // Only sanitize if valid. The sanitization validator operates on its own clone.
+  const sanitizedData = isValid ? sanitizeThemeData(data) : null
 
   const warnings: string[] = []
 

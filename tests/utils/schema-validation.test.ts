@@ -51,6 +51,30 @@ describe('schema-validation utilities', () => {
       expect(result.errors).toEqual([])
     })
 
+    it('should reject unknown fields and name them in the errors', () => {
+      const dataWithUnknownField = {
+        ...validThemeExportData,
+        maliciousField: 'should be rejected',
+      }
+
+      const result = validateThemeExportData(dataWithUnknownField)
+
+      expect(result.isValid).toBe(false)
+      expect(result.errors.some(error => error.includes('maliciousField'))).toBe(true)
+    })
+
+    it('should not mutate input data', () => {
+      const dataWithUnknownField = {
+        ...validThemeExportData,
+        maliciousField: 'should remain untouched',
+      }
+      const before = JSON.stringify(dataWithUnknownField)
+
+      validateThemeExportData(dataWithUnknownField)
+
+      expect(JSON.stringify(dataWithUnknownField)).toBe(before)
+    })
+
     it('should reject data missing required version', () => {
       const invalidData = {
         ...validThemeExportData,
@@ -196,6 +220,29 @@ describe('schema-validation utilities', () => {
       expect(
         (result as unknown as {theme?: {colors?: Record<string, unknown>}})?.theme?.colors?.extraColor,
       ).toBeUndefined()
+    })
+
+    it('should strip unknown fields while preserving schema-defined values', () => {
+      const dataWithExtra = {
+        ...validThemeExportData,
+        extraProperty: 'should be removed',
+      }
+
+      const result = sanitizeThemeData(dataWithExtra)
+
+      expect(result).toEqual(validThemeExportData)
+    })
+
+    it('should not mutate its input while sanitizing', () => {
+      const dataWithExtra = {
+        ...validThemeExportData,
+        extraProperty: 'should be removed',
+      }
+      const before = JSON.stringify(dataWithExtra)
+
+      sanitizeThemeData(dataWithExtra)
+
+      expect(JSON.stringify(dataWithExtra)).toBe(before)
     })
 
     it('should handle null or undefined input', () => {
