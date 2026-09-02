@@ -189,6 +189,8 @@ describe('test dashboard aggregate status', () => {
         entries: 2,
         size: 120,
         files: 3,
+        jsSize: 90,
+        cssSize: 30,
       })
     } finally {
       await rm(root, {recursive: true, force: true})
@@ -200,6 +202,24 @@ describe('test dashboard aggregate status', () => {
 
     try {
       await writeFile(join(root, 'build-history.json'), JSON.stringify({builds: []}))
+
+      await expect(dashboardScript.parseBuildData(root)).resolves.toMatchObject({status: 'error'})
+    } finally {
+      await rm(root, {recursive: true, force: true})
+    }
+  })
+
+  it.each([
+    ['an empty latest entry', JSON.stringify([{}])],
+    ['a non-numeric metric', JSON.stringify([{totalSize: 'invalid', fileCount: 3, jsSize: 90, cssSize: 30}])],
+    ['a null metric', JSON.stringify([{totalSize: null, fileCount: 3, jsSize: 90, cssSize: 30}])],
+    ['a negative metric', JSON.stringify([{totalSize: -1, fileCount: 3, jsSize: 90, cssSize: 30}])],
+    ['a non-finite metric', '[{"totalSize":1e400,"fileCount":3,"jsSize":90,"cssSize":30}]'],
+  ])('reports %s as an error', async (_name, content) => {
+    const root = await mkdtemp(join(tmpdir(), 'mrbro-build-dashboard-'))
+
+    try {
+      await writeFile(join(root, 'build-history.json'), content)
 
       await expect(dashboardScript.parseBuildData(root)).resolves.toMatchObject({status: 'error'})
     } finally {

@@ -354,12 +354,22 @@ async function parseBuildData(root = projectRoot) {
       return {status: 'error', size: 0, files: 0, entries: buildHistory.length}
     }
 
+    const buildMetrics = ['totalSize', 'fileCount', 'jsSize', 'cssSize']
+    const hasValidBuildMetrics = buildMetrics.every(metric => {
+      const value = latestBuild[metric]
+      return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    })
+
+    if (!hasValidBuildMetrics) {
+      return {status: 'error', size: 0, files: 0, entries: buildHistory.length}
+    }
+
     return {
       status: 'completed',
-      size: latestBuild.totalSize || 0,
-      files: latestBuild.fileCount || 0,
-      jsSize: latestBuild.jsSize || 0,
-      cssSize: latestBuild.cssSize || 0,
+      size: latestBuild.totalSize,
+      files: latestBuild.fileCount,
+      jsSize: latestBuild.jsSize,
+      cssSize: latestBuild.cssSize,
       entries: buildHistory.length,
     }
   } catch (error) {
