@@ -504,9 +504,77 @@ jobs:
           prompt: ${{ env.PROMPT }}
           timeout: 0
 
+  pull_request_scope:
+    name: Validate generated-content PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      generated-only: ${{ steps.scope.outputs.generated-only }}
+    steps:
+      - name: Check changed paths
+        id: scope
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # The default is deliberately false. Every lookup and validation
+          # failure below leaves the bot-authored PR on the existing skip path.
+          echo 'generated-only=false' >> "$GITHUB_OUTPUT"
+
+          if ! pr_json="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}" 2>/dev/null)"; then
+            echo '::warning::Could not read pull request metadata; generated-content exception disabled.'
+            exit 0
+          fi
+          if ! expected_files="$(jq -er '.changed_files | select(type == "number" and floor == . and . > 0)' <<<"$pr_json")"; then
+            echo '::warning::Pull request metadata did not contain a positive changed-file count; generated-content exception disabled.'
+            exit 0
+          fi
+
+          # --paginate follows every Link header and --slurp retains the page
+          # boundaries. Comparing the collected entry count with changed_files
+          # prevents a partial/pagination-limited response from looking clean.
+          if ! files_json="$(gh api --paginate --slurp "repos/${REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" 2>/dev/null)"; then
+            echo '::warning::Could not read the complete pull request file list; generated-content exception disabled.'
+            exit 0
+          fi
+          if ! jq -e --argjson expected "$expected_files" '
+            type == "array" and
+            length > 0 and
+            all(.[]; type == "array" and length > 0) and
+            (map(.[]) | length == $expected) and
+            (map(.[]) | all(.[];
+              type == "object" and
+              (.filename | type == "string" and length > 0) and
+              ((.previous_filename // "") | type == "string")
+            ))
+          ' <<<"$files_json" >/dev/null; then
+            echo '::warning::Pull request file list was empty, malformed, or incomplete; generated-content exception disabled.'
+            exit 0
+          fi
+
+          if ! jq -e '
+            def allowed:
+              . == "src/data/blog-snapshot.json" or
+              . == "src/data/projects-snapshot.json" or
+              startswith("public/project-previews/");
+            map(.[] | [.filename, (.previous_filename // empty)] | .[])
+            | length > 0 and all(.[]; allowed)
+          ' <<<"$files_json" >/dev/null; then
+            exit 0
+          fi
+
+          echo 'generated-only=true' >> "$GITHUB_OUTPUT"
+
   fro-bot:
     name: Fro Bot
-    needs: live-audit-preflight
+    needs: [live-audit-preflight, pull_request_scope]
     runs-on: ubuntu-latest
     permissions:
       # Interactive runs stay least-privileged; brokered mention pushes use
@@ -522,7 +590,13 @@ jobs:
         github.event.pull_request == null ||
         (
           !github.event.pull_request.head.repo.fork &&
-          !endsWith(github.event.pull_request.user.login || '', '[bot]')
+          (
+            !endsWith(github.event.pull_request.user.login || '', '[bot]') ||
+            (
+              (github.event.pull_request.user.login || '') == 'mrbro-bot[bot]' &&
+              needs.pull_request_scope.outputs.generated-only == 'true'
+            )
+          )
         )
       ) &&
       (
@@ -534,7 +608,13 @@ jobs:
         ) ||
         (
           github.event_name == 'pull_request' &&
-          !endsWith(github.event.pull_request.user.login || '', '[bot]') &&
+          (
+            !endsWith(github.event.pull_request.user.login || '', '[bot]') ||
+            (
+              (github.event.pull_request.user.login || '') == 'mrbro-bot[bot]' &&
+              needs.pull_request_scope.outputs.generated-only == 'true'
+            )
+          ) &&
           (github.event.pull_request.user.login || '') != 'fro-bot'
         ) ||
         (github.event_name == 'workflow_dispatch' && inputs.mode == 'review') ||
