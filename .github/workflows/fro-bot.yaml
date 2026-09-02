@@ -506,7 +506,12 @@ jobs:
 
   pull_request_scope:
     name: Validate generated-content PR scope
-    if: github.event_name == 'pull_request'
+    # Only the generated-content exception consumes this output, and that
+    # exception is scoped to a single author. Gating here keeps every other
+    # pull request from paying for a result nothing reads.
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.user.login || '') == 'mrbro-bot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
