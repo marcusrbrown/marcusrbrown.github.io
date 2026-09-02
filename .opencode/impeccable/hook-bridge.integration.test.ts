@@ -255,7 +255,7 @@ describe('createSpawnRunner + createHook end-to-end', () => {
     expect(output.output).not.toContain('hookSpecificOutput')
   })
 
-  it('never invokes the runner and leaves output untouched when no path is extractable', async () => {
+  it('warns without invoking the runner when no path is extractable', async () => {
     let invoked = false
     const scriptPath = fixture('process.exit(0);\n')
     const baseRunner = createSpawnRunner({scriptPath})
@@ -269,7 +269,7 @@ describe('createSpawnRunner + createHook end-to-end', () => {
     const output = {title: 't', output: 'ok', metadata: {}}
     await hook({tool: 'edit', sessionID: 's', callID: 'c', args: {}}, output)
     expect(invoked).toBe(false)
-    expect(output.output).toBe('ok')
+    expect(output.output).toContain('[impeccable] design hook skipped recognized mutating tool with no extractable path')
   })
 
   it('does not resolve while a SIGTERM-resistant child is still alive (composition race)', async () => {

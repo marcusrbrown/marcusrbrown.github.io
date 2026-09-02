@@ -224,17 +224,22 @@ describe('bridge (createHook)', () => {
     expect(calls).toHaveLength(0)
   })
 
-  it('bypasses (never invokes the runner) when a recognized mutating tool call has no extractable path', async () => {
-    const calls: unknown[][] = []
-    const hook = createHook({
-      runDetector: fakeRunner({stdout: '', stderr: '', exitCode: 0}, calls),
-      worktree: '/repo',
-    })
-    const output = makeOutput()
-    await hook(makeInput({args: {}}), output)
-    expect(calls).toHaveLength(0)
-    expect(output.output).toBe('ok')
-  })
+  it.each(['edit', 'write', 'apply_patch', 'aft_edit', 'aft_write', 'aft_apply_patch'])(
+    'warns when recognized mutating tool %s has no extractable path',
+    async tool => {
+      const calls: unknown[][] = []
+      const hook = createHook({
+        runDetector: fakeRunner({stdout: '', stderr: '', exitCode: 0}, calls),
+        worktree: '/repo',
+      })
+      const output = makeOutput()
+      await hook(makeInput({tool, args: {}}), output)
+      expect(calls).toHaveLength(0)
+      expect(output.output).toContain(
+        '[impeccable] design hook skipped recognized mutating tool with no extractable path',
+      )
+    },
+  )
 
   it('warns when the runner rejects (e.g. its own timeout/spawn-failure signal)', async () => {
     const hook = createHook({
