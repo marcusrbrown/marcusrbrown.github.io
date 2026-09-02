@@ -18,6 +18,7 @@ describe('branch protection repository resolution', () => {
     const calls: string[][] = []
     const responses = [
       result(JSON.stringify({full_name: canonicalRepository})),
+      result(JSON.stringify({name: 'main'})),
       result('', 1, 'HTTP 404: Branch protection not enabled'),
     ]
     const runCommand: RepositoryCommandRunner = args => {
@@ -28,8 +29,16 @@ describe('branch protection repository resolution', () => {
     expect(getCurrentProtection(SCRIPT_CONFIG, runCommand)).toBeNull()
     expect(calls).toEqual([
       ['api', 'repos/marcusrbrown/mrbro.dev'],
+      ['api', `repos/${canonicalRepository}/branches/main`],
       ['api', `repos/${canonicalRepository}/branches/main/protection`],
     ])
+  })
+
+  it('throws when the configured branch does not exist', () => {
+    const responses = [result(JSON.stringify({full_name: canonicalRepository})), result('', 1, 'HTTP 404: Not Found')]
+    const runCommand: RepositoryCommandRunner = () => responses.shift() ?? result('', 1, 'unexpected command')
+
+    expect(() => getCurrentProtection(SCRIPT_CONFIG, runCommand)).toThrow(/branch .*does not exist/i)
   })
 
   it('fails distinctly when the configured repository is not found or not visible', () => {

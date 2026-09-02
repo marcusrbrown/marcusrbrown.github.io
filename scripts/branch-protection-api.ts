@@ -55,11 +55,37 @@ function resolveRepository(config: ScriptConfig, runCommand: RepositoryCommandRu
   return fullName
 }
 
+function verifyBranchExists(repository: string, config: ScriptConfig, runCommand: RepositoryCommandRunner): void {
+  const result = runCommand(['api', `repos/${repository}/branches/${config.branch}`])
+  if (result.status !== 0) {
+    if (/\b404\b/.test(result.stderr)) {
+      throw new Error(`Branch ${config.branch} does not exist in repository ${repository} (GitHub returned 404).`)
+    }
+    if (/\b403\b/.test(result.stderr)) {
+      throw new Error(`Access denied while resolving branch ${config.branch} in repository ${repository}.`)
+    }
+
+    assertSuccess('gh api resolve branch', result)
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(result.stdout) as unknown
+  } catch {
+    throw new Error(`gh api resolve branch returned invalid JSON for ${repository}/${config.branch}.`)
+  }
+
+  if (!isRecord(parsed) || parsed.name !== config.branch) {
+    throw new Error(`gh api resolve branch returned no matching branch for ${repository}/${config.branch}.`)
+  }
+}
+
 function getCurrentProtection(
   config: ScriptConfig,
   runCommand: RepositoryCommandRunner = runGhCommand,
 ): CurrentProtectionResponse | null {
   const repository = resolveRepository(config, runCommand)
+  verifyBranchExists(repository, config, runCommand)
   const result = runCommand(['api', `repos/${repository}/branches/${config.branch}/protection`])
   if (result.status !== 0) {
     if (/\b404\b/.test(result.stderr)) {
