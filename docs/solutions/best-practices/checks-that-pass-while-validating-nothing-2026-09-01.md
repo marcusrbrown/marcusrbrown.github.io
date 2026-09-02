@@ -90,6 +90,8 @@ The same command can validate different things in different environments. Vitest
 
 Arguments passed through package-manager scripts need the same treatment. #270 correctly identified `pnpm run test -- --coverage` as a silent argument-loss path. The repository's `package.json` now uses `pnpm run test --coverage`, and PR #327 verified delivery empirically by adding a file filter and confirming the measured file count dropped to one. A flag's appearance in a script is not proof that the underlying runner received it.
 
+The boundary is wider than `package.json`. #338 found the same broken invocation inside an agent prompt in `.github/workflows/fro-bot.yaml`, where it had survived because the agent sometimes noticed and re-ran the correct form — model behaviour, not a guarantee. Anywhere a command is written as text and executed elsewhere is a place this defect can hide.
+
 ### Fail closed at every boundary
 
 Useful boundary checks include:
@@ -177,5 +179,6 @@ This is the contract now reflected by `generate-test-badges.mjs`: `readJsonFile`
 - #322 — fabricated public badges; PR #327 records the recursive reporting fixes and their verification.
 - #323 — dashboards treating missing data and collection failures as success.
 - #326 — observational performance metrics whose labels did not match what they measured.
-- #270 — coverage flag lost through the package-manager script boundary. #309 is adjacent but distinct: its verified issue is concurrent pre-push checks making timing-sensitive tests flaky, not coverage argument loss.
+- #270 — coverage flag lost through the package-manager script boundary. #309 is adjacent but distinct: its verified issue is concurrent pre-push checks making timing-sensitive tests flaky, not coverage argument loss. #348 later established that the pre-push fix was only half of it — the suites themselves paid package-manager startup cost on every subprocess spawn, which is what pushed fixed timeouts over the edge under load.
+- [A guardrail that allowed every command it existed to block](../security/copilot-guardrail-contract-drift-2026-09-02.md) — the security-layer instance of this defect class, where the root cause was contract drift rather than absent evidence.
 - PR #332 — evidence-based performance gates and fault-injection verification.
