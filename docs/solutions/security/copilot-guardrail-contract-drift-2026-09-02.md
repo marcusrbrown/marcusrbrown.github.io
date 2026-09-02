@@ -45,7 +45,7 @@ $ echo '{"toolName":"bash","toolArgs":"{\"command\":\"git push --force origin ma
 {"action":"allow"}
 ```
 
-The 59-test suite covering this file passed. `pnpm lint`, `pnpm build`, and type checks were all clean. Nothing in the repository indicated a problem.
+The 59-test suite covering this file passed. `pnpm lint`, `pnpm build`, and type checks were all clean.
 
 ## What Didn't Work
 
@@ -77,6 +77,8 @@ The config key selects the payload shape. `copilot-guardrails.json` registers lo
 
 Because the type is open, `resolveCommandText` in `.github/hooks/copilot-hook-utils.ts` accepts both the string form and an already-parsed object rather than assuming either. Registering PascalCase `PreToolUse` instead selects a compatibility shape using `tool_name` and `tool_input`, which it also handles.
 
+The resolver deliberately checks a wider set of candidates than the two documented shapes — `toolArgs`, `toolInput`, `tool_input`, `command`, `input` — and extracts recursively from nested values. Preserve that breadth. Narrowing it to whatever the host happens to send today is how the original defect happened.
+
 Narrowing to string-only would be its own version of this bug: a guardrail that rejects a documented-valid invocation is as broken as one that permits an invalid command.
 
 The response contract is `permissionDecision` with values `allow`, `deny`, or `ask`, and `permissionDecisionReason` required on a denial:
@@ -100,6 +102,8 @@ sudo rm -rf /                             → deny     ls -la                   
 ```
 
 The allow column is load-bearing. `git checkout -b`, `git restore --staged`, and `rm -rf ./dist` are everyday commands; blocking any of them makes the guardrail obstructive enough to get disabled, which is worse than the gap it closes.
+
+**The matcher is token-based, not a shell parser.** `commandSegments()` splits on `[|;&]` and then on whitespace. It does not interpret quoting, escaping, or command substitution, so quoted and shell-escaped variants sit outside its model and are an accepted gap — not something the matrix above covers. That boundary is deliberate: this guards an agent's own tool calls against destructive accidents, and anyone with shell access has better options than defeating a token matcher. Stating it matters, because a matrix that looks exhaustive invites exactly the false confidence this doc is about.
 
 ## Why This Works
 
@@ -125,7 +129,9 @@ Contract: <https://docs.github.com/en/copilot/reference/hooks-reference>
 
 **A check that cries wolf fails the same way as one that always passes.** Three test suites failed under parallel load and passed in isolation (subprocess startup contention from `pnpm exec tsx`, not temp-path collisions). The unreliable signal trained a subagent into pushing with `--no-verify`. Both ends of the reliability spectrum end with nobody reading the check.
 
-**Related defects from the same audit**, each worth checking for in similar code:
+## Same Audit, Other Findings
+
+Smaller defects found alongside the guardrail, each worth checking for in similar code:
 
 - Instructions to an agent carry the same argument-delivery hazards as scripts. `pnpm test -- --coverage` silently produces no coverage, because pnpm swallows everything after `--`; the third occurrence of this defect in this repository.
 - `git diff --quiet` is blind to untracked files, so a change check gated on newly created artifacts reports no change. Use `git status --porcelain` when the output includes new files.
