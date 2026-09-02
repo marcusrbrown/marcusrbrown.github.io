@@ -65,7 +65,7 @@ Only an inventory of every rule and the matcher path it takes ended the sequence
 
 Read the command from Copilot's documented location, and answer in Copilot's documented schema.
 
-The config key selects the payload shape. `copilot-guardrails.json` registers lowercase `preToolUse`, which means camelCase fields and `toolArgs` as a **JSON-encoded string**:
+The config key selects the payload shape. `copilot-guardrails.json` registers lowercase `preToolUse`, which means camelCase fields and the arguments under **`toolArgs`** — the field the old resolver never looked at. The contract types `toolArgs` as `unknown`; the documented example carries a JSON-encoded string, which is what the CLI sends in practice:
 
 ```json
 {
@@ -75,7 +75,9 @@ The config key selects the payload shape. `copilot-guardrails.json` registers lo
 }
 ```
 
-Registering PascalCase `PreToolUse` instead selects a compatibility shape using `tool_name` and `tool_input` (an object). `resolveCommandText` in `.github/hooks/copilot-hook-utils.ts` handles both.
+Because the type is open, `resolveCommandText` in `.github/hooks/copilot-hook-utils.ts` accepts both the string form and an already-parsed object rather than assuming either. Registering PascalCase `PreToolUse` instead selects a compatibility shape using `tool_name` and `tool_input`, which it also handles.
+
+Narrowing to string-only would be its own version of this bug: a guardrail that rejects a documented-valid invocation is as broken as one that permits an invalid command.
 
 The response contract is `permissionDecision` with values `allow`, `deny`, or `ask`, and `permissionDecisionReason` required on a denial:
 
