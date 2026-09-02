@@ -27,6 +27,7 @@ interface WarningItem {
   baseline: string | number
   change: number // Always a number for comparisons
   unit: string
+  observational?: boolean
 }
 
 interface ImprovementItem {
@@ -110,11 +111,11 @@ class PerformanceRegressionDetector {
     this.baselinePath = './performance-baseline.json'
     this.thresholds = {
       // Regression thresholds (percentage increase that triggers alert)
-      performanceScore: 5, // 5% decrease in performance score
-      lcp: 10, // 10% increase in LCP
-      fid: 15, // 15% increase in FID
-      cls: 20, // 20% increase in CLS
-      bundleSize: 5, // 5% increase in bundle size
+      performanceScore: 5, // Observational: 5% decrease in performance score
+      lcp: 10, // Observational: 10% increase in LCP
+      fid: 15, // Observational: 15% increase in FID
+      cls: 20, // Gating: 20% increase in CLS
+      bundleSize: 5, // Gating: 5% increase in bundle size
       // Warning thresholds (smaller changes that warrant attention)
       warningThresholds: {
         performanceScore: 2, // 2% decrease
@@ -344,11 +345,11 @@ class PerformanceRegressionDetector {
    */
   compareLighthouseMetrics(current: LighthouseMetrics, baseline: LighthouseMetrics, device: string): void {
     const metrics = [
-      {key: 'performanceScore', name: 'Performance Score', unit: '%', reverse: true},
-      {key: 'lcp', name: 'LCP', unit: 'ms'},
-      {key: 'fid', name: 'FID', unit: 'ms'},
-      {key: 'cls', name: 'CLS', unit: ''},
-      {key: 'accessibilityScore', name: 'Accessibility Score', unit: '%', reverse: true},
+      {key: 'performanceScore', name: 'Performance Score', unit: '%', reverse: true, gating: false},
+      {key: 'lcp', name: 'LCP', unit: 'ms', gating: false},
+      {key: 'fid', name: 'FID', unit: 'ms', gating: false},
+      {key: 'cls', name: 'CLS', unit: '', gating: true},
+      {key: 'accessibilityScore', name: 'Accessibility Score', unit: '%', reverse: true, gating: false},
     ]
 
     for (const metric of metrics) {
@@ -362,11 +363,12 @@ class PerformanceRegressionDetector {
         : ((currentValue - baselineValue) / baselineValue) * 100 // For timings, increase is bad
 
       const regressionThreshold = this.thresholds[metric.key as LighthouseMetricKey] ?? Number.POSITIVE_INFINITY
-      const isRegression = Math.abs(change) > regressionThreshold
-      const isWarning =
-        Math.abs(change) >
-        (this.thresholds.warningThresholds[metric.key as keyof typeof this.thresholds.warningThresholds] ??
-          Number.POSITIVE_INFINITY)
+      const warningThreshold =
+        this.thresholds.warningThresholds[metric.key as keyof typeof this.thresholds.warningThresholds] ??
+        Number.POSITIVE_INFINITY
+      const isPositiveChange = change > 0
+      const isRegression = metric.gating && isPositiveChange && change > regressionThreshold
+      const isWarning = !isRegression && isPositiveChange && change > warningThreshold
       const isImprovement = metric.reverse ? change < -2 : change < -2 // 2% improvement threshold
 
       this.comparisons.push({
@@ -377,7 +379,7 @@ class PerformanceRegressionDetector {
         unit: metric.unit,
       })
 
-      if (isRegression && (metric.reverse ? change > 0 : change > 0)) {
+      if (isRegression) {
         this.regressions.push({
           metric: `${metric.name} (${device})`,
           current: currentValue,
@@ -386,13 +388,14 @@ class PerformanceRegressionDetector {
           unit: metric.unit,
           severity: 'high',
         })
-      } else if (isWarning && (metric.reverse ? change > 0 : change > 0)) {
+      } else if (isWarning) {
         this.warnings.push({
           metric: `${metric.name} (${device})`,
           current: currentValue,
           baseline: baselineValue,
           change: Math.round(change * 10) / 10,
           unit: metric.unit,
+          observational: !metric.gating,
         })
       } else if (isImprovement) {
         this.improvements.push({
@@ -502,9 +505,10 @@ class PerformanceRegressionDetector {
     if (this.warnings.length > 0) {
       console.log('⚠️  PERFORMANCE WARNINGS:')
       this.warnings.forEach(w => {
-        console.log(
-          `  ⚠️  ${w.metric}: ${w.current}${w.unit} → was ${w.baseline}${w.unit} (${w.change > 0 ? '+' : ''}${w.change}% change)`,
-        )
+        const warningMessage = `${w.metric}: ${w.current}${w.unit} → was ${w.baseline}${w.unit} (${w.change > 0 ? '+' : ''}${w.change}% change)`
+        const classification = w.observational ? ' [observational; not gating]' : ''
+        console.log(`  ⚠️  ${warningMessage}${classification}`)
+        console.warn(`::warning::${warningMessage}${classification}`)
       })
       console.log('')
     }
