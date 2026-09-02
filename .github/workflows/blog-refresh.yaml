@@ -63,7 +63,10 @@ jobs:
       - name: Check for snapshot and preview changes
         id: diff
         run: |
-          if git diff --quiet -- src/data/blog-snapshot.json src/data/projects-snapshot.json public/project-previews/; then
+          if test -z "$(git status --porcelain -- \
+            src/data/blog-snapshot.json \
+            src/data/projects-snapshot.json \
+            public/project-previews/)"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
