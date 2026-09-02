@@ -182,12 +182,14 @@ env:
          output to verify bundle budgets (JS <500KB warning, total <2MB
          max). If over budget, open or update a single issue with the
          offending chunks and sizes.
-       - Run tests in coverage mode (`pnpm test -- --coverage`) and verify
-         the enforced 80% thresholds for statements/branches/functions/
-         lines. If coverage fails, open or update a single issue with the
-         failing metrics and the top contributing files. Do not attempt
-         historical regression analysis unless a concrete baseline is
-         already available in the repository or workflow artifacts.
+       - Run tests in coverage mode (`pnpm run test --coverage`) and verify
+         the enforced 80% thresholds for all four metrics: statements,
+         branches, functions, and lines. All four metrics must be present
+         before the result is reported as successful. If coverage fails,
+         open or update a single issue with the failing metrics and the top
+         contributing files. Do not attempt historical regression analysis
+         unless a concrete baseline is already available in the repository
+         or workflow artifacts.
        - Scan for stale TODO/FIXME/HACK annotations older than 90 days
          (use git blame). Collect them into a single issue or update an
          existing "Stale TODOs" issue.
@@ -739,11 +741,29 @@ jobs:
             if [[ "$candidate_prefix" == 'true' && "$(jq -er '.kind' <<<"$route")" == 'manual-candidate' ]]; then
               manual_candidate=true
               actor="$(jq -er '.actor' <<<"$route")"
-              permission="$(gh api "repos/${REPOSITORY}/collaborators/${actor}/permission" --jq '.permission' 2>/dev/null || true)"
+              permission_response=''
+              permission_lookup_exit=0
+              permission_response="$(gh api "repos/${REPOSITORY}/collaborators/${actor}/permission" --include 2>/dev/null)" || permission_lookup_exit=$?
+              http_status="$(printf '%s\n' "$permission_response" | awk '/^HTTP\/[0-9.]+ / { status=$2 } END { print status }')"
+              if [[ "$http_status" == '404' ]]; then
+                # GitHub uses 404 for a valid negative collaborator lookup.
+                permission=''
+              elif [[ "$permission_lookup_exit" -ne 0 || ! "$http_status" =~ ^2[0-9][0-9]$ ]]; then
+                echo "::error::Collaborator permission lookup failed for ${actor} (HTTP ${http_status:-unknown}, exit ${permission_lookup_exit})."
+                exit 1
+              else
+                permission="$(printf '%s\n' "$permission_response" | awk 'BEGIN { body=0 } body { print } /^\r?$/ { body=1 }' | jq -er '.permission | select(type == "string")')" || {
+                  echo "::error::Collaborator permission lookup returned an invalid response for ${actor}."
+                  exit 1
+                }
+              fi
               case "$permission" in
                 write|maintain|admin)
                   eligible=true
                   run_kind='manual'
+                  ;;
+                *)
+                  echo "Actor ${actor} lacks write access (permission=${permission:-none}); manual validation denied."
                   ;;
               esac
             fi
