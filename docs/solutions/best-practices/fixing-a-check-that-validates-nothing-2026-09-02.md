@@ -24,13 +24,9 @@ tags:
 
 ## Context
 
-The companion doc, [Checks that pass while validating nothing](./checks-that-pass-while-validating-nothing-2026-09-01.md), covers detection: how to recognise a check whose precondition, input, measurement, comparison, or failure path is absent. It closes with one sentence about remediation — *"fixes need the same evidence audit as the defects they remove"* — supported by two examples.
+[Checks that pass while validating nothing](./checks-that-pass-while-validating-nothing-2026-09-01.md) covers detection, and states the remediation lesson in one sentence: *"fixes need the same evidence audit as the defects they remove."* This doc is that sentence's mechanics.
 
-This doc is that sentence's evidence, and the mechanics behind it.
-
-An audit swept `scripts/`, `src/utils/`, `src/schemas/`, `.opencode/`, `.github/git-hooks/`, and test setup for the same defect class, producing issues #355–#358 and PRs #360–#363. The findings were ordinary. What was not ordinary: **every review round caught the fix reproducing its own defect one layer down.** Not once — in every PR of the batch, plus both earlier PRs in the same body of work.
-
-That reproducibility is what makes it worth writing down. It is not carelessness. It is what happens when you patch the instance you were shown.
+An audit of `scripts/`, `src/utils/`, `src/schemas/`, `.opencode/`, `.github/git-hooks/`, and test setup produced issues #355–#358 and PRs #360–#363. **Every PR in the batch was caught in review reproducing its own defect one layer down**, as were both earlier PRs in the same body of work. That reproducibility is the point: it is not carelessness, it is what happens when you patch the instance you were shown.
 
 ## Guidance
 
@@ -44,9 +40,9 @@ That reproducibility is what makes it worth writing down. It is not carelessness
 | #344 | Closed the reported command-matcher evasion | Two more evasion paths, one per review round — see below |
 | #327 | Removed fabricated success badges | Reintroduced fabrication in per-suite attribution |
 
-The shape is constant: **container → contents, repository → branch, script → workflow.** The fix is correct about the level it addresses and silent about the level beneath it.
+The fix is correct about the level it addresses and silent about the level beneath it.
 
-#344 is the clearest case because it took three rounds and each round's fix was individually reasonable:
+#344 is the clearest case, because it took three rounds and each round's fix was individually reasonable:
 
 1. Closed argument reordering (`rm -r -f /`)
 2. Introduced a `findSubcommand` locator — still bypassed by a global option (`git -C ../other clean -fdx`)
@@ -55,19 +51,6 @@ The shape is constant: **container → contents, repository → branch, script �
 It ended only when the fix stopped being a spot patch: every git rule routed through a shared `locateGitSubcommand()`, unknown leading git options denied by default. The next gap is now visible by inspection rather than discovered in review.
 
 **Rule: when fixing an evasion or a false negative, inventory the whole rule set and record which path each rule takes.** If you cannot name what every sibling rule does, you have not finished. Three cheap rounds of review cost more than one inventory.
-
-### Prove the gate can fail by raising the measured value
-
-A threshold that cannot trip is the same defect wearing a gate's clothing.
-
-The tell is in how failure gets demonstrated. In #332, a first pass shipped a modal-open gate at `<100ms` against a measured maximum of 12.4ms — 8x headroom — and proved it worked by *lowering the threshold* to 1.00ms, below the measured floor. That proves arithmetic, not gating.
-
-```
-✗ lower the threshold below the observed range until it fails
-✓ raise the measured value past the shipped threshold
-```
-
-The redone pass shipped `<20ms` against a measured max of 12.4ms (~1.6x headroom) and proved it by injecting `47.00ms exceeded 20.00ms`. Same for bundle size in #365: a real regression still exits 1, demonstrated by moving the input, not the limit.
 
 ### Observational must not mean silent
 
@@ -84,14 +67,14 @@ In #365 the LCP gate had failed a PR at +79.8% on a diff containing only dashboa
 const isRegression = metric.gating && isPositiveChange && change > regressionThreshold
 ```
 
-Observational metrics still compute their real delta, still emit an annotation, and are labelled so nobody reads the absence of a failure as an absence of movement:
+Observational metrics are still compared and still carry their real delta. When one crosses its threshold it takes the warning path rather than the failing one, labelled so nobody reads the absence of a failure as an absence of movement:
 
 ```ts
 const classification = w.observational ? ' [observational; not gating]' : ''
 console.warn(`::warning::${warningMessage}${classification}`)
 ```
 
-Because `isRegression` requires `metric.gating`, an observational metric cannot reach the failing path by any route, and the script still exits nonzero for a real bundle-size regression. Both properties need a test; a gate that can no longer fail at all is the worse outcome.
+Because `isRegression` requires `metric.gating`, an observational metric cannot reach the failing path by any route, and the script still exits nonzero for a real bundle-size regression. Both properties need a test — a gate that can no longer fail at all is the worse outcome. Prove the surviving gate the same way the companion doc requires: raise the measured value past the shipped threshold, never lower the threshold below the observed range.
 
 Scope permissiveness the same way. `--allow-empty` in the reporting lane names one acceptable absence and leaves every other failure fatal. `|| echo "Failed to generate dashboard"` on the adjacent line hides write errors, malformed input, and crashes alike — which is why it is filed as #366 rather than left as precedent.
 
