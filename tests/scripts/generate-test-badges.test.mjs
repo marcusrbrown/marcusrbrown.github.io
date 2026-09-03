@@ -7,6 +7,7 @@ import {
   generateE2EBadges,
   generatePerformanceBadges,
 } from '../../scripts/generate-test-badges.mjs'
+import * as badgeScript from '../../scripts/generate-test-badges.mjs'
 
 const temporaryDirectories = []
 
@@ -137,5 +138,14 @@ describe('generate-test-badges', () => {
 
     expect(badges.performance).toContain('93%2F100')
     expect(badges.bundleSize).toContain('123KB')
+  })
+
+  it('propagates badge output write failures', async () => {
+    const directory = await createTemporaryDirectory()
+    const outputDirectory = join(directory, 'badges')
+
+    await mkdir(join(outputDirectory, 'badges.json'), {recursive: true})
+
+    await expect(badgeScript.saveBadgeData({cicd: 'badge'}, outputDirectory)).rejects.toBeDefined()
   })
 })
