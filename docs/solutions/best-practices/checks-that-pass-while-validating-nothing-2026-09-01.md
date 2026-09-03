@@ -109,6 +109,8 @@ Green output is an assertion about reality, not a reward for reaching the end of
 
 The recursive failures in PR #327 are especially important. The PR removed fabricated badges, then discovered that its own first implementation looked in the wrong artifact root, assigned report-wide Playwright statistics to individual suites, treated failure-only screenshots as proof of execution, and allowed two downloaded reports to overwrite one another. PR #332 found the same pattern in threshold validation: a gate was initially made impossible to trip and was "proved" by lowering the threshold below the observed floor. Fixes need the same evidence audit as the defects they remove.
 
+That pattern held across a later audit of `scripts/`, `src/utils/`, `src/schemas/`, and test setup: every PR in the batch was caught in review reproducing its own defect one layer down. [Fixing a check that validates nothing](./fixing-a-check-that-validates-nothing-2026-09-02.md) covers the remediation mechanics — auditing a whole rule set rather than the reported instance, proving a gate can fail, and making a noisy gate observational without making it silent.
+
 ## When to Apply
 
 - When adding a CI step, first prove that the step runs and that its named inputs exist.
