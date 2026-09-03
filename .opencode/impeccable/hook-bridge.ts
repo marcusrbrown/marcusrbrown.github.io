@@ -378,7 +378,7 @@ export function extractFeedbackText(stdout: string): string | null {
  * layer should paper over with a second, racing timeout.
  *
  * Resolves the five R9 outcomes:
- *  (a) bypass — recognized mutating tool, no extractable path: runner never invoked.
+ *  (a) unextractable input — recognized mutating tool, no extractable path: runner never invoked and a warning is emitted.
  *  (b) quiet-clean — valid payload sent, exit 0, empty stdout, empty stderr: no output.
  *  (c) stderr-with-empty-stdout — exit 0 but non-empty stderr: anomaly, warn-once,
  *      stderr content never surfaced verbatim.
@@ -411,7 +411,10 @@ export function createHook(options: CreateHookOptions) {
       if (!isMutatingTool(input.tool)) return
 
       const touchedPaths = extractTouchedPaths(input.tool, input.args)
-      if (touchedPaths.length === 0) return // (a) explicit bypass — runner never invoked.
+      if (touchedPaths.length === 0) {
+        warnOnce('[impeccable] design hook skipped recognized mutating tool with no extractable path')
+        return
+      }
 
       const payload = buildHookPayload({
         tool: input.tool,

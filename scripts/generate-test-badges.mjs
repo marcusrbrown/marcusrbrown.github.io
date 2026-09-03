@@ -13,6 +13,7 @@
  * - CI/CD pipeline status
  */
 
+import {randomUUID} from 'node:crypto'
 import {existsSync, promises as fs} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import process from 'node:process'
@@ -493,21 +494,27 @@ async function generateAllBadges() {
 /**
  * Save badge URLs to JSON file for use by other tools
  */
-async function saveBadgeData(badges) {
+async function saveBadgeData(badges, outputDir = CONFIG.badges.outputDir) {
+  const badgeDataFile = join(outputDir, 'badges.json')
+  const temporaryPath = `${badgeDataFile}.${process.pid}.${randomUUID()}.tmp`
+
   try {
     // Ensure badges directory exists
-    await fs.mkdir(CONFIG.badges.outputDir, {recursive: true})
+    await fs.mkdir(outputDir, {recursive: true})
 
-    const badgeDataFile = join(CONFIG.badges.outputDir, 'badges.json')
     const badgeData = {
       generated: new Date().toISOString(),
       badges,
     }
 
-    await fs.writeFile(badgeDataFile, JSON.stringify(badgeData, null, 2))
+    const serialized = JSON.stringify(badgeData, null, 2)
+    await fs.writeFile(temporaryPath, serialized)
+    await fs.rename(temporaryPath, badgeDataFile)
+    await fs.readFile(badgeDataFile, 'utf8')
     console.log(`✅ Badge data saved to ${badgeDataFile}`)
   } catch (error) {
-    console.error('❌ Error saving badge data:', error)
+    await fs.rm(temporaryPath, {force: true}).catch(() => {})
+    throw error
   }
 }
 
@@ -567,6 +574,8 @@ async function main() {
 if (process.argv[1] && resolve(process.argv[1]) === __filename) {
   main()
 }
+
+export {saveBadgeData}
 
 export {
   generateAccessibilityBadges,

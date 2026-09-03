@@ -149,7 +149,12 @@ class PerformanceBudgetValidator {
   async validateBundleSizes() {
     const distPath = './dist'
     if (!existsSync(distPath)) {
-      this.addWarning('Bundle validation', 'dist/ directory not found. Run build first.')
+      this.addViolation(
+        'Bundle validation',
+        'dist/ directory not found. Run build first.',
+        'missing',
+        'readable build output',
+      )
       return
     }
 
@@ -204,9 +209,11 @@ class PerformanceBudgetValidator {
 
       console.log()
     } catch (error: unknown) {
-      this.addWarning(
+      this.addViolation(
         'Bundle validation',
         `Failed to analyze bundle: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'unreadable',
+        'readable build output',
       )
     }
   }

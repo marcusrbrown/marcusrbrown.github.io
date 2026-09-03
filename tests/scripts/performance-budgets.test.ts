@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process'
-import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
@@ -11,12 +11,13 @@ import {
 
 const temporaryDirectories: string[] = []
 const budgetValidatorScript = resolve(process.cwd(), 'scripts/performance-budgets.ts')
+const tsxLoader = resolve(process.cwd(), 'node_modules/tsx/dist/loader.mjs')
 
 // Measure the validator process directly; pnpm's package-manager startup was
 // the variable part of these assertions under parallel load.
-const runBudgetValidator = (reportsPath: string): ReturnType<typeof spawnSync> =>
-  spawnSync(process.execPath, ['--import', 'tsx', budgetValidatorScript], {
-    cwd: process.cwd(),
+const runBudgetValidator = (reportsPath: string, cwd = process.cwd()): ReturnType<typeof spawnSync> =>
+  spawnSync(process.execPath, ['--import', tsxLoader, budgetValidatorScript], {
+    cwd,
     encoding: 'utf8',
     env: {...process.env, LHCI_REPORTS_DIR: reportsPath},
   })
@@ -24,6 +25,15 @@ const runBudgetValidator = (reportsPath: string): ReturnType<typeof spawnSync> =
 const createReportsDirectory = (): string => {
   const directory = mkdtempSync(join(tmpdir(), 'performance-budgets-test-'))
   temporaryDirectories.push(directory)
+  return directory
+}
+
+const createBuildDirectory = (): string => {
+  const directory = mkdtempSync(join(tmpdir(), 'performance-budgets-build-'))
+  temporaryDirectories.push(directory)
+  mkdirSync(join(directory, 'dist'), {recursive: true})
+  writeFileSync(join(directory, 'dist', 'index.html'), '<!doctype html>')
+  writeFileSync(join(directory, 'dist', 'main.js'), 'console.log(1)')
   return directory
 }
 
@@ -98,6 +108,48 @@ describe('Lighthouse budget validation failures', () => {
     expect(output).toContain(reportsPath)
   })
 
+  it('exits nonzero when Lighthouse is valid but the build output is absent', () => {
+    const directory = createReportsDirectory()
+    const projectDirectory = mkdtempSync(join(tmpdir(), 'performance-budgets-project-'))
+    temporaryDirectories.push(projectDirectory)
+    writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
+
+    const result = runBudgetValidator(directory, projectDirectory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(1)
+    expect(output).toContain('Bundle validation')
+    expect(output).toMatch(/dist|build output/i)
+  })
+
+  it('exits nonzero when Lighthouse is valid but the build output is empty', () => {
+    const directory = createReportsDirectory()
+    const projectDirectory = mkdtempSync(join(tmpdir(), 'performance-budgets-project-'))
+    temporaryDirectories.push(projectDirectory)
+    mkdirSync(join(projectDirectory, 'dist'))
+    writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
+
+    const result = runBudgetValidator(directory, projectDirectory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(1)
+    expect(output).toMatch(/empty|unreadable|build output/i)
+  })
+
+  it('exits nonzero when Lighthouse is valid but the build output is unreadable', () => {
+    const directory = createReportsDirectory()
+    const projectDirectory = mkdtempSync(join(tmpdir(), 'performance-budgets-project-'))
+    temporaryDirectories.push(projectDirectory)
+    writeFileSync(join(projectDirectory, 'dist'), 'not a directory')
+    writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
+
+    const result = runBudgetValidator(directory, projectDirectory)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).toBe(1)
+    expect(output).toMatch(/unreadable|build output|dist/i)
+  })
+
   it('exits nonzero when a report is malformed even if another report is valid', () => {
     const directory = createReportsDirectory()
     writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
@@ -127,10 +179,11 @@ describe('Lighthouse budget validation failures', () => {
 
   it('exits zero and reports Lighthouse metrics as informational when all reports are valid', () => {
     const directory = createReportsDirectory()
+    const projectDirectory = createBuildDirectory()
     writeFileSync(join(directory, 'manifest.json'), JSON.stringify([{url: 'metadata'}]))
     writeFileSync(join(directory, 'valid-report.json'), JSON.stringify(lighthouseReport))
 
-    const result = runBudgetValidator(directory)
+    const result = runBudgetValidator(directory, projectDirectory)
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
 
     expect(result.status).toBe(0)
@@ -142,6 +195,7 @@ describe('Lighthouse budget validation failures', () => {
 
   it('does not fail on Lighthouse metric values that LHCI owns', () => {
     const directory = createReportsDirectory()
+    const projectDirectory = createBuildDirectory()
     writeFileSync(
       join(directory, 'slow-report.json'),
       JSON.stringify({
@@ -154,7 +208,7 @@ describe('Lighthouse budget validation failures', () => {
       }),
     )
 
-    const result = runBudgetValidator(directory)
+    const result = runBudgetValidator(directory, projectDirectory)
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
 
     expect(result.status).toBe(0)
