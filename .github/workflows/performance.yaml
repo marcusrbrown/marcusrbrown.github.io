@@ -192,7 +192,6 @@ jobs:
 
       - name: Collect performance artifacts
         run: pnpm run test:performance:artifacts
-        continue-on-error: true
 
       - name: Generate performance report
         run: |
@@ -343,8 +342,9 @@ jobs:
             # Generate dashboard
             pnpm run test:performance:dashboard || echo "Failed to generate dashboard"
 
-            # Collect artifacts
-            pnpm run test:performance:artifacts || echo "Failed to collect artifacts"
+            # Summary aggregates downloaded Lighthouse artifacts; the audit job remains the strict gate.
+            # Build/bundle evidence is unavailable in this clean workspace, so allow emptiness explicitly here.
+            pnpm run test:performance:artifacts -- --allow-empty
           else
             echo "No Lighthouse reports found, skipping dashboard generation"
           fi

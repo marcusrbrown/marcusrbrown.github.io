@@ -110,6 +110,8 @@ class BuildAnalyzer {
 
       return analysis
     } catch (error) {
+      if (returnDataOnly) throw error
+
       console.error('❌ Build analysis failed:', this.getErrorMessage(error))
       process.exit(1)
     }
@@ -117,6 +119,17 @@ class BuildAnalyzer {
 
   private collectBuildMetrics(): BuildAnalysis {
     const files = this.getAllFiles(this.distPath)
+
+    if (files.length === 0) {
+      throw new Error(`Build output ${this.distPath} is empty or unreadable`)
+    }
+
+    const indexPath = join(this.distPath, 'index.html')
+    const hasJavaScriptEntry = files.some(file => /\.(?:js|mjs)$/i.test(file))
+    if (!files.includes(indexPath) || !hasJavaScriptEntry) {
+      throw new Error(`Build output must contain ${indexPath} and at least one JavaScript entry`)
+    }
+
     const analysis: BuildAnalysis = {
       totalSize: 0,
       fileCount: 0,

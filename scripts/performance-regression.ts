@@ -92,6 +92,10 @@ interface PerformanceMetrics {
 
 type LighthouseMetricKey = 'performanceScore' | 'lcp' | 'fid' | 'cls' | 'accessibilityScore'
 
+const DEFAULT_EXPECTED_DEVICES = ['desktop', 'mobile'] as const
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
 // Keep cold-cache runs green: a new cache scope and seven-day cache eviction are expected.
 // The warning annotation and report make the skipped comparison unmistakable.
 const MISSING_BASELINE_EXIT_CODE = 0
@@ -138,7 +142,17 @@ class PerformanceRegressionDetector {
     console.log('🔍 Detecting performance regressions...\n')
 
     // Load current performance data
-    const currentMetrics = await this.loadCurrentMetrics()
+    let currentMetrics: PerformanceMetrics | null
+    try {
+      currentMetrics = await this.loadCurrentMetrics()
+    } catch (error: unknown) {
+      console.error(
+        '❌ Failed to load current performance data:',
+        error instanceof Error ? error.message : 'Unknown error',
+      )
+      process.exit(1)
+    }
+
     if (!currentMetrics) {
       console.log('❌ No current performance data found. Run performance tests first.')
       process.exit(1)
@@ -150,7 +164,15 @@ class PerformanceRegressionDetector {
 
     if (baselineMetrics) {
       // Compare metrics
-      this.compareMetrics(currentMetrics, baselineMetrics)
+      try {
+        this.compareMetrics(currentMetrics, baselineMetrics)
+      } catch (error: unknown) {
+        console.error(
+          '❌ Performance evidence is incomplete:',
+          error instanceof Error ? error.message : 'Unknown error',
+        )
+        process.exit(1)
+      }
 
       // Generate comprehensive report
       this.generateReport(currentMetrics, baselineMetrics)
@@ -222,45 +244,81 @@ class PerformanceRegressionDetector {
   async loadLighthouseResults(): Promise<Record<string, LighthouseMetrics> | null> {
     const results: Record<string, LighthouseMetrics> = {}
 
-    for (const device of ['desktop', 'mobile']) {
+    for (const device of this.expectedDevices()) {
       const reportsDir = `./lhci-reports-${device}`
-      if (!existsSync(reportsDir)) continue
+      if (!existsSync(reportsDir)) {
+        throw new Error(`Missing ${device} Lighthouse reports directory: ${reportsDir}`)
+      }
 
       try {
         const fs = await import('node:fs/promises')
         const files = await fs.readdir(reportsDir)
         const jsonFiles = files.filter(f => f.endsWith('.json') && !f.includes('manifest'))
 
-        if (jsonFiles.length === 0) continue
+        if (jsonFiles.length === 0) {
+          throw new Error(`No Lighthouse reports found in ${reportsDir}`)
+        }
 
         // Use the most recent report
         const latestFile = jsonFiles.sort().pop()
-        if (!latestFile) continue
+        if (!latestFile) throw new Error(`No Lighthouse reports found in ${reportsDir}`)
 
         const reportPath = join(reportsDir, latestFile)
-        const report = JSON.parse(readFileSync(reportPath, 'utf8'))
+        let report: unknown
+        try {
+          report = JSON.parse(readFileSync(reportPath, 'utf8')) as unknown
+        } catch (error: unknown) {
+          throw new Error(
+            `Malformed Lighthouse report ${reportPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          )
+        }
+        if (!isRecord(report) || !isRecord(report.categories) || !isRecord(report.audits)) {
+          throw new Error(`Malformed Lighthouse report: ${reportPath}`)
+        }
+
+        const categories = report.categories
+        const requiredCategories = ['performance', 'accessibility', 'best-practices', 'seo']
+        for (const category of requiredCategories) {
+          const value = categories[category]
+          if (!isRecord(value) || typeof value.score !== 'number') {
+            throw new Error(`Malformed Lighthouse report: ${reportPath} is missing ${category} score`)
+          }
+        }
+
+        const categoryScore = (name: string): number => {
+          const value = categories[name]
+          if (!isRecord(value) || typeof value.score !== 'number') {
+            throw new Error(`Malformed Lighthouse report: ${reportPath} is missing ${name} score`)
+          }
+          return value.score
+        }
+
+        const audits = report.audits
+        const auditValue = (name: string): number => {
+          const audit = audits[name]
+          return isRecord(audit) && typeof audit.numericValue === 'number' ? audit.numericValue : 0
+        }
 
         results[device] = {
-          performanceScore: report.categories.performance.score * 100,
-          lcp: report.audits['largest-contentful-paint']?.numericValue || 0,
-          fid: report.audits['first-input-delay']?.numericValue || 0,
-          cls: report.audits['cumulative-layout-shift']?.numericValue || 0,
-          fcp: report.audits['first-contentful-paint']?.numericValue || 0,
-          tti: report.audits.interactive?.numericValue || 0,
-          tbt: report.audits['total-blocking-time']?.numericValue || 0,
-          accessibilityScore: report.categories.accessibility.score * 100,
-          bestPracticesScore: report.categories['best-practices'].score * 100,
-          seoScore: report.categories.seo.score * 100,
+          performanceScore: categoryScore('performance') * 100,
+          lcp: auditValue('largest-contentful-paint'),
+          fid: auditValue('first-input-delay'),
+          cls: auditValue('cumulative-layout-shift'),
+          fcp: auditValue('first-contentful-paint'),
+          tti: auditValue('interactive'),
+          tbt: auditValue('total-blocking-time'),
+          accessibilityScore: categoryScore('accessibility') * 100,
+          bestPracticesScore: categoryScore('best-practices') * 100,
+          seoScore: categoryScore('seo') * 100,
         }
       } catch (error: unknown) {
-        console.warn(
-          `⚠️ Failed to load ${device} Lighthouse results:`,
-          error instanceof Error ? error.message : 'Unknown error',
+        throw new Error(
+          `Failed to load ${device} Lighthouse results: ${error instanceof Error ? error.message : 'Unknown error'}`,
         )
       }
     }
 
-    return Object.keys(results).length > 0 ? results : null
+    return results
   }
 
   /**
@@ -327,8 +385,26 @@ class PerformanceRegressionDetector {
   compareMetrics(current: PerformanceMetrics, baseline: PerformanceMetrics): void {
     console.log('📊 Comparing performance metrics...\n')
 
+    const currentDevices = Object.keys(current.lighthouse)
+    const baselineDevices = Object.keys(baseline.lighthouse)
+    for (const device of this.expectedDevices()) {
+      if (!currentDevices.includes(device)) throw new Error(`Current Lighthouse metrics missing for device: ${device}`)
+      if (!baselineDevices.includes(device)) {
+        throw new Error(`Baseline Lighthouse metrics missing for device: ${device}`)
+      }
+    }
+
+    for (const device of currentDevices) {
+      if (!baselineDevices.includes(device)) {
+        throw new Error(`Baseline Lighthouse metrics missing for device: ${device}`)
+      }
+    }
+    for (const device of baselineDevices) {
+      if (!currentDevices.includes(device)) throw new Error(`Current Lighthouse metrics missing for device: ${device}`)
+    }
+
     // Compare Lighthouse metrics
-    for (const device of ['desktop', 'mobile']) {
+    for (const device of this.expectedDevices()) {
       if (current.lighthouse[device] && baseline.lighthouse[device]) {
         this.compareLighthouseMetrics(current.lighthouse[device], baseline.lighthouse[device], device)
       }
@@ -632,6 +708,10 @@ class PerformanceRegressionDetector {
 
   formatDelta(delta: number): string {
     return `${delta > 0 ? '+' : ''}${delta}%`
+  }
+
+  private expectedDevices(): readonly string[] {
+    return process.env.DEVICE_TYPE ? [process.env.DEVICE_TYPE] : DEFAULT_EXPECTED_DEVICES
   }
 }
 
