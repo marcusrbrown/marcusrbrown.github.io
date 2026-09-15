@@ -9,6 +9,10 @@ on:
     types: [edited]
   push:
     branches-ignore: [main]
+  schedule:
+    # Twice daily, off the top of the hour to avoid GitHub's peak-minute scheduling contention.
+    # 13:17 UTC / 01:17 UTC = 06:17 / 18:17 America/Phoenix (UTC-7, no DST).
+    - cron: '17 1,13 * * *'
   workflow_dispatch:
     inputs:
       log-level:
