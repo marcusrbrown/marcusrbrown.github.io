@@ -32,10 +32,19 @@ build-config: &build-config
 # tests/copilot-hooks/pre-tool-use.test.ts imports .github/hooks/copilot-hook-utils.ts
 # and spawns .github/hooks/pre-tool-use.ts), so they belong with scripts/** rather
 # than going uncovered.
+#
+# This is also the taxonomy's own control plane: .github/filters.yaml (this file)
+# and .github/workflows/** define every category and every gate in this file, and
+# `automation` is the one anchor shared by unit-tests, e2e, visual, accessibility,
+# performance, and the ci.yaml build gate. Anchoring the control plane here means a
+# change to any workflow or to this file itself is validated by everything it
+# could affect, rather than by one suite guessed to be "most representative".
 automation: &automation
   - scripts/**
   - .github/hooks/**
   - .github/git-hooks/**
+  - .github/filters.yaml
+  - .github/workflows/**
 
 test-config: &test-config
   - playwright.config.ts
