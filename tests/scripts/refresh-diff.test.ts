@@ -633,6 +633,29 @@ describe('refresh-diff script', () => {
     it('evaluatePreviewCheck reports unchanged for empty output', () => {
       expect(evaluatePreviewCheck({output: ''}).status).toBe('unchanged')
     })
+
+    // Defensive case: `--untracked-files=all` (readPreviewStatus) should make
+    // a collapsed directory line unreachable, but if some git version/config
+    // combination ever produces one anyway, it must still count as CHANGED
+    // and must never be silently rendered as if it were a specific image
+    // path -- a maintainer reading the summary needs to be able to tell
+    // "a directory collapsed" apart from "this exact file changed".
+    it('a porcelain line naming a DIRECTORY (trailing slash) still reports changed, and is not emitted as if it were a file path', () => {
+      const result = detectPreviewChanges('?? public/project-previews/\n')
+      expect(result.changed).toBe(true)
+      expect(result.paths).toHaveLength(1)
+      expect(result.paths[0]).toMatch(/^public\/project-previews\//)
+      // Distinguishable from a real per-file entry like ".../1234.png" -- not
+      // just the bare directory path repeated back.
+      expect(result.paths[0]).not.toBe('public/project-previews/')
+      expect(result.paths[0]).toContain('directory')
+    })
+
+    it('evaluatePreviewCheck surfaces the directory-collapse note in its summary', () => {
+      const outcome = evaluatePreviewCheck({output: '?? public/project-previews/\n'})
+      expect(outcome.status).toBe('changed')
+      expect(outcome.note).toContain('directory')
+    })
   })
 
   // ---------------------------------------------------------------------------
@@ -887,6 +910,39 @@ describe('refresh-diff script', () => {
       const result = withHermeticProcessEnv(() => runDetection(repoDir))
       expect(result.changed).toBe(true)
       expect(result.summary.some(line => line.includes('new-image.png'))).toBe(true)
+    })
+
+    // BITE-PROOF for the flag itself, not just "behaviour looks right": sets
+    // the repo-local config to the ADVERSARIAL value git's own default
+    // resolves to (`status.showUntrackedFiles=normal`, the collapsing
+    // behaviour) -- the exact setting a machine WITHOUT this repo owner's
+    // permissive `~/.config/git/config` override would hit. A command-line
+    // flag always wins over config, so this only enumerates `new-image.png`
+    // by name if `readPreviewStatus` is actually passing
+    // `--untracked-files=all` on the `git status` invocation -- not merely
+    // relying on ambient/default behaviour happening to already do the right
+    // thing.
+    it('BITE-PROOF: still enumerates the individual new preview PNG by name when status.showUntrackedFiles=normal is explicitly configured', () => {
+      initRepo()
+      git(['config', 'status.showUntrackedFiles', 'normal'])
+      writeAndCommit(
+        BLOG_SNAPSHOT_PATH,
+        stringify({posts: [], generatedAt: 'A', generator: 'blog-refresh'}),
+        'seed blog',
+      )
+      writeAndCommit(PROJECTS_SNAPSHOT_PATH, stringify(pr369Previous), 'seed projects')
+      writeFileSync(join(repoDir, PROJECTS_SNAPSHOT_PATH), stringify(pr369Current))
+
+      // The WHOLE directory is untracked (never committed), which is exactly
+      // the case git's `normal` default collapses to a single line.
+      spawnSync('mkdir', ['-p', join(repoDir, PREVIEW_DIRECTORY)])
+      writeFileSync(join(repoDir, PREVIEW_DIRECTORY, 'new-image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+
+      const result = withHermeticProcessEnv(() => runDetection(repoDir))
+      expect(result.changed).toBe(true)
+      expect(result.summary.some(line => line.includes('new-image.png'))).toBe(true)
+      // And NOT collapsed to the bare directory note.
+      expect(result.summary.some(line => line.includes('directory reported as a single entry'))).toBe(false)
     })
 
     it('CLI: writes changed=false to GITHUB_OUTPUT for the #369 case, changed=true after a real edit', () => {

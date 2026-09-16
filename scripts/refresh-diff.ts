@@ -21,6 +21,14 @@
  *     third-party interaction (someone starring the repo), not the project
  *     itself changing
  *
+ * `stars` staleness between real content changes is ACCEPTED, indefinitely,
+ * by decision — this job exists to propagate content, and a star tick is
+ * someone else's interaction, not the project changing. Contrast
+ * `lastUpdated` below: that field's suppression self-heals at the 3-month
+ * bucket boundary, so it can never silently drift forever the way an
+ * unbounded `stars` gap can. That asymmetry is intentional, not an
+ * oversight — see PR #411 review.
+ *
  * `lastUpdated` in `projects-snapshot.json` is NOT unconditionally ignored.
  * It is not merely displayed — `getProjectStatus` (`src/utils/projects.ts`)
  * buckets it into Active (<=3mo) / Recent (<=12mo) / Archived, and that
@@ -48,6 +56,13 @@
  * git comparison itself, is reported as CHANGED (with a `::warning::`) so a
  * broken comparison can never silently suppress a real content update — see
  * docs/solutions/best-practices/checks-that-pass-while-validating-nothing-2026-09-01.md.
+ *
+ * The preview-directory check passes `--untracked-files=all` explicitly
+ * (`readPreviewStatus`) rather than relying on git's default. Without it,
+ * an untracked `public/project-previews/` (e.g. a fresh checkout with no
+ * preview images committed yet) collapses to a single directory line
+ * instead of enumerating each file — governed by `status.showUntrackedFiles`,
+ * which varies by git version, machine, and CI configuration.
  *
  * Dual CLI/library shape mirrors `scripts/blog-refresh.ts`: pure comparison
  * logic is exported and unit-tested directly; `main()` wires it to git/fs and
@@ -307,12 +322,24 @@ export const parsePorcelainPath = (line: string): string => {
  * preview images — including untracked new PNGs, the case PR #349 fixed
  * after `git diff --quiet` missed them.
  */
+/**
+ * A path ending in `/` is a git-reported DIRECTORY entry, not a file — the
+ * exact collapse `--untracked-files=all` (above) exists to prevent, kept
+ * here as defense-in-depth in case some other git version/config combination
+ * ever produces one anyway. Rendered distinctly rather than left to look
+ * like a plausible (but wrong) image filename, so a maintainer reading the
+ * summary can't mistake a collapsed directory for a specific changed image.
+ */
+const DIRECTORY_ENTRY_SUFFIX = ' [directory reported as a single entry — individual file paths unavailable]'
+
 export const detectPreviewChanges = (porcelainOutput: string): {changed: boolean; paths: string[]} => {
   const lines = porcelainOutput
     .split('\n')
     .map(line => line.replace(/\r$/, ''))
     .filter(line => line.length > 0)
-  const paths = lines.map(parsePorcelainPath)
+  const paths = lines
+    .map(parsePorcelainPath)
+    .map(path => (path.endsWith('/') ? `${path}${DIRECTORY_ENTRY_SUFFIX}` : path))
   return {changed: lines.length > 0, paths}
 }
 
@@ -376,9 +403,21 @@ const readCommittedFile = (root: string, relativePath: string): PreviousRead => 
   }
 }
 
+/**
+ * `--untracked-files=all` is load-bearing, not decorative: git's default
+ * (`status.showUntrackedFiles=normal`) collapses a WHOLLY untracked
+ * directory to a single `?? public/project-previews/` line instead of
+ * listing each file inside it — confirmed on this machine only by
+ * explicitly setting `status.showUntrackedFiles=normal`, because this
+ * machine's own `~/.config/git/config` overrides the git-wide default to
+ * `all` globally. A CI runner or another contributor's machine has no such
+ * override and gets git's true default, so relying on default behaviour
+ * here would make preview-image detection silently environment-dependent.
+ * The explicit flag makes per-file enumeration unconditional.
+ */
 const readPreviewStatus = (root: string): PreviewStatusRead => {
   try {
-    const output = execFileSync('git', ['status', '--porcelain', '--', PREVIEW_DIRECTORY], {
+    const output = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', PREVIEW_DIRECTORY], {
       cwd: root,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
