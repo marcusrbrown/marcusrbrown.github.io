@@ -209,8 +209,11 @@ jobs:
             echo "### 📊 Performance Metrics" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            # Extract key metrics from Lighthouse results
-            find lhci-reports-${{ matrix.device }} -name "*.json" -not -name "manifest.json" | head -1 | xargs cat | jq -r '
+            # Extract key metrics from Lighthouse results.
+            # Non-gating: LHCI assertions own performance gating, this table is cosmetic.
+            # jq's stderr is captured (not discarded) so a real extraction failure is visible
+            # in the log and as an Actions warning annotation instead of a silent "unable to extract".
+            if ! metrics_error=$(find lhci-reports-${{ matrix.device }} -name "*.json" -not -name "manifest.json" | head -1 | xargs cat | jq -r '
               "| Metric | Value |",
               "|--------|-------|",
               "| Performance Score | " + (.categories.performance.score * 100 | round | tostring) + "% |",
@@ -218,7 +221,10 @@ jobs:
               "| CLS | " + (.audits["cumulative-layout-shift"].numericValue | . * 1000 | round / 1000 | tostring) + " |",
               "| FCP | " + (.audits["first-contentful-paint"].numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |",
               "| TTI | " + (.audits.interactive.numericValue / 1000 | . * 100 | round / 100 | tostring) + "s |"
-            ' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "❌ Unable to extract performance metrics" >> $GITHUB_STEP_SUMMARY
+            ' 2>&1 >> $GITHUB_STEP_SUMMARY); then
+              echo "❌ Unable to extract performance metrics" >> $GITHUB_STEP_SUMMARY
+              echo "::warning::Unable to extract performance metrics for ${{ matrix.device }}: ${metrics_error}"
+            fi
           else
             echo "❌ No Lighthouse reports generated for ${{ matrix.device }}" >> $GITHUB_STEP_SUMMARY
           fi
@@ -340,7 +346,7 @@ jobs:
             [ -d "lighthouse-reports-mobile-${{ github.run_number }}/lhci-reports-mobile" ] && cp -r lighthouse-reports-mobile-${{ github.run_number }}/lhci-reports-mobile ./
 
             # Generate dashboard
-            pnpm run test:performance:dashboard || echo "Failed to generate dashboard"
+            pnpm run test:performance:dashboard
 
             # Summary aggregates downloaded Lighthouse artifacts; the audit job remains the strict gate.
             # Build/bundle evidence is unavailable in this clean workspace, so allow emptiness explicitly here.

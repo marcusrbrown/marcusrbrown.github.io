@@ -46,6 +46,16 @@ describe('performance workflow evidence propagation', () => {
     expect(summaryStep?.run).not.toContain('test:performance:artifacts ||')
   })
 
+  it('does not mask summary-lane dashboard generation failures', () => {
+    const workflow = loadWorkflow()
+    const summarySteps = workflow.jobs['performance-summary']?.steps ?? []
+    const summaryStep = summarySteps.find(step => step.run?.includes('test:performance:dashboard'))
+
+    expect(summaryStep?.run).toBeDefined()
+    expect(summaryStep?.run).not.toContain('test:performance:dashboard ||')
+    expect(summaryStep?.run).not.toMatch(/test:performance:dashboard\s*\|\|/)
+  })
+
   it('allows the summary collector to omit unavailable build evidence only explicitly', () => {
     const workflow = loadWorkflow()
     const summarySteps = workflow.jobs['performance-summary']?.steps ?? []
