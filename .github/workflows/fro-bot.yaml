@@ -484,7 +484,7 @@ jobs:
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth}"
 
       - name: Run Fro Bot
-        uses: fro-bot/agent@e9501a93f428fec4eedcef3f11ee97bbd903d6e8 # v0.105.1
+        uses: fro-bot/agent@67b8c41aa60f6da45d2a7c3e8be4783f1e0454a4 # v0.113.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
@@ -728,7 +728,7 @@ jobs:
           fi
 
       - name: Run Fro Bot
-        uses: fro-bot/agent@e9501a93f428fec4eedcef3f11ee97bbd903d6e8 # v0.105.1
+        uses: fro-bot/agent@67b8c41aa60f6da45d2a7c3e8be4783f1e0454a4 # v0.113.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
@@ -991,7 +991,7 @@ jobs:
           PY
 
       - name: Run bounded visual discovery
-        uses: fro-bot/agent@e9501a93f428fec4eedcef3f11ee97bbd903d6e8 # v0.105.1
+        uses: fro-bot/agent@67b8c41aa60f6da45d2a7c3e8be4783f1e0454a4 # v0.113.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
         with:
