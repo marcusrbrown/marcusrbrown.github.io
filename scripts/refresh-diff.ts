@@ -4,21 +4,24 @@
  * Semantic content-change detector for the blog-refresh workflow.
  *
  * `blog-refresh.ts` and `projects-refresh.ts` regenerate `generatedAt` (and,
- * for projects, each project's upstream-push-derived `lastUpdated`) on every
- * run, even when nothing a reader would see has changed. Byte-level
- * `git status` therefore treats a pure timestamp drift as "changed" and opens
- * a content-refresh PR for no visible reason (see PR #369, where the only
- * delta across both snapshot files was one project's `lastUpdated` and the
- * top-level `generatedAt`).
+ * for projects, each project's upstream-push-derived `lastUpdated` and
+ * third-party `stars` count) on every run, even when nothing a reader would
+ * see has changed. Byte-level `git status` therefore treats a pure timestamp
+ * (or star-count) drift as "changed" and opens a content-refresh PR for no
+ * visible reason (see PR #369, where the only delta across both snapshot
+ * files was one project's `lastUpdated` and the top-level `generatedAt`).
  *
  * This script decides whether the workflow's regenerated
  * `src/data/blog-snapshot.json` / `src/data/projects-snapshot.json` and
  * `public/project-previews/` differ from the last commit in any way a reader
- * would notice, ignoring only:
- *   - top-level `generatedAt` (pure generation metadata) in both snapshots
- *   - each project's `lastUpdated` in `projects-snapshot.json` (tracks the
- *     upstream repo's push activity — e.g. an unrelated CI config commit —
- *     not any property of the project as displayed)
+ * would notice, ignoring only these volatile fields (none of which mean the
+ * project's content changed):
+ *   - top-level `generatedAt` in both snapshots — pure generation metadata
+ *   - each project's `lastUpdated` in `projects-snapshot.json` — tracks the
+ *     upstream repo's push activity, not any displayed property
+ *   - each project's `stars` in `projects-snapshot.json` — tracks
+ *     third-party interaction (someone starring the repo), not the project
+ *     itself changing
  *
  * `blog-snapshot.json` posts carry `gistUpdatedAt`, but that field is the
  * timestamp of the exact content being compared (the gist's Markdown
@@ -26,12 +29,6 @@
  * and/or `frontmatter`, which this script DOES compare. It is deliberately
  * NOT stripped — see the `kind === 'projects'` guard in
  * `normalizeForComparison`.
- *
- * A repo star-count change alone (`stars` on a project) is treated as a real
- * change here, not filtered as volatile. Star counts are a displayed
- * property of the project, unlike push-activity timestamps; a maintainer who
- * finds that churn too noisy should add `stars` to the volatile set
- * explicitly rather than have this script silently absorb it.
  *
  * Fails closed: any unreadable/unparseable snapshot, or any failure in the
  * git comparison itself, is reported as CHANGED (with a `::warning::`) so a
@@ -89,11 +86,11 @@ const parseJsonRecord = (raw: string, label: string): UnknownRecord => {
 
 /**
  * Strips `generatedAt` and, for `projects-snapshot.json`, each project's
- * `lastUpdated`, then returns a stable JSON string for equality comparison.
- * Key order is preserved from the source object; both the committed and the
- * freshly regenerated file are produced by the same generator's
- * `JSON.stringify(snapshot, null, 2)`, so remaining key order always matches
- * when the underlying data matches.
+ * `lastUpdated` and `stars`, then returns a stable JSON string for equality
+ * comparison. Key order is preserved from the source object; both the
+ * committed and the freshly regenerated file are produced by the same
+ * generator's `JSON.stringify(snapshot, null, 2)`, so remaining key order
+ * always matches when the underlying data matches.
  */
 export const normalizeForComparison = (snapshot: UnknownRecord, kind: SnapshotKind): string => {
   const {generatedAt: _generatedAt, ...rest} = snapshot
@@ -101,7 +98,7 @@ export const normalizeForComparison = (snapshot: UnknownRecord, kind: SnapshotKi
   if (kind === 'projects' && Array.isArray(rest.projects)) {
     rest.projects = rest.projects.map(project => {
       if (typeof project !== 'object' || project === null) return project
-      const {lastUpdated: _lastUpdated, ...projectRest} = project as UnknownRecord
+      const {lastUpdated: _lastUpdated, stars: _stars, ...projectRest} = project as UnknownRecord
       return projectRest
     })
   }
@@ -143,7 +140,7 @@ export const evaluateSnapshotCheck = (
     const previousNormalized = normalizeForComparison(parseJsonRecord(previous.content, `previous ${label}`), kind)
     const currentNormalized = normalizeForComparison(parseJsonRecord(current.content, `current ${label}`), kind)
     if (previousNormalized === currentNormalized) {
-      const ignored = kind === 'projects' ? 'generatedAt/lastUpdated ignored' : 'generatedAt ignored'
+      const ignored = kind === 'projects' ? 'generatedAt/lastUpdated/stars ignored' : 'generatedAt ignored'
       return {status: 'unchanged', note: `${label}: no semantic change (${ignored})`}
     }
     return {status: 'changed', note: `${label}: content differs`}

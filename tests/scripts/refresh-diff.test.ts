@@ -24,29 +24,29 @@ import {
 // The exact PR #369 delta: a real repo's projects-snapshot.json where the
 // only differences between the committed and regenerated file are one
 // project's `lastUpdated` and the top-level `generatedAt`.
+const pr369Project = {
+  id: '1297795539',
+  title: 'Dev Like',
+  description:
+    "Profile a shop's engineering culture from public sources and install develop-like-<target> agent skills. /dev-like Every",
+  url: 'https://github.com/marcusrbrown/dev-like',
+  language: 'JavaScript',
+  stars: 2,
+  homepage: 'https://mrbro.dev/dev-like/',
+  topics: ['agent-skills', 'ai-agents', 'claude-code', 'codex', 'cursor', 'engineering-culture', 'portfolio'],
+  lastUpdated: '2026-09-01T12:40:27Z',
+  imageUrl: '/project-previews/1297795539.png',
+}
+
 const pr369Previous = {
-  projects: [
-    {
-      id: '1297795539',
-      title: 'Dev Like',
-      description:
-        "Profile a shop's engineering culture from public sources and install develop-like-<target> agent skills. /dev-like Every",
-      url: 'https://github.com/marcusrbrown/dev-like',
-      language: 'JavaScript',
-      stars: 2,
-      homepage: 'https://mrbro.dev/dev-like/',
-      topics: ['agent-skills', 'ai-agents', 'claude-code', 'codex', 'cursor', 'engineering-culture', 'portfolio'],
-      lastUpdated: '2026-09-01T12:40:27Z',
-      imageUrl: '/project-previews/1297795539.png',
-    },
-  ],
+  projects: [pr369Project],
   generatedAt: '2026-09-02T07:00:29.410Z',
   generator: 'projects-refresh',
 }
 
 const pr369Current = {
   ...pr369Previous,
-  projects: [{...pr369Previous.projects[0], lastUpdated: '2026-09-16T01:56:01Z'}],
+  projects: [{...pr369Project, lastUpdated: '2026-09-16T01:56:01Z'}],
   generatedAt: '2026-09-16T07:00:00.595Z',
 }
 
@@ -88,20 +88,31 @@ describe('refresh-diff script', () => {
       expect(normalizeForComparison(pr369Current, 'projects')).not.toBe(normalizeForComparison(changed, 'projects'))
     })
 
-    it('detects topics/stars changes', () => {
+    it('detects topics changes', () => {
       const topicsChanged = {
         ...pr369Current,
         projects: [{...pr369Current.projects[0], topics: ['new-topic']}],
       }
+      expect(normalizeForComparison(pr369Current, 'projects')).not.toBe(
+        normalizeForComparison(topicsChanged, 'projects'),
+      )
+    })
+
+    it('ignores a stars-only change — a star is third-party interaction, not the project changing', () => {
       const starsChanged = {
         ...pr369Current,
         projects: [{...pr369Current.projects[0], stars: 999}],
       }
+      expect(normalizeForComparison(pr369Current, 'projects')).toBe(normalizeForComparison(starsChanged, 'projects'))
+    })
+
+    it('does NOT let a stars change mask a real field change occurring alongside it', () => {
+      const starsAndDescriptionChanged = {
+        ...pr369Current,
+        projects: [{...pr369Current.projects[0], stars: 999, description: 'A totally different description'}],
+      }
       expect(normalizeForComparison(pr369Current, 'projects')).not.toBe(
-        normalizeForComparison(topicsChanged, 'projects'),
-      )
-      expect(normalizeForComparison(pr369Current, 'projects')).not.toBe(
-        normalizeForComparison(starsChanged, 'projects'),
+        normalizeForComparison(starsAndDescriptionChanged, 'projects'),
       )
     })
 
@@ -154,6 +165,41 @@ describe('refresh-diff script', () => {
         'projects-snapshot.json',
         'projects',
         {content: stringify(changed)},
+        {content: stringify(pr369Previous)},
+      )
+      expect(outcome.status).toBe('changed')
+    })
+
+    it('a stars-only delta → unchanged (a star is third-party interaction, not a PR-worthy update)', () => {
+      const starsOnly = {
+        ...pr369Previous,
+        projects: [{...pr369Project, stars: pr369Project.stars + 50}],
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(starsOnly)},
+        {content: stringify(pr369Previous)},
+      )
+      expect(outcome.status).toBe('unchanged')
+      expect(outcome.warning).toBeUndefined()
+    })
+
+    it('stars changing together with a real field change → changed (broadening the volatile set must not mask a co-occurring real edit)', () => {
+      const starsAndDescription = {
+        ...pr369Previous,
+        projects: [
+          {
+            ...pr369Project,
+            stars: pr369Project.stars + 50,
+            description: 'A brand new description landing in the same run as a star bump',
+          },
+        ],
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(starsAndDescription)},
         {content: stringify(pr369Previous)},
       )
       expect(outcome.status).toBe('changed')
