@@ -21,6 +21,7 @@ interface WorkflowJob {
   if?: string
   strategy?: {matrix?: Record<string, unknown>}
   steps: WorkflowStep[]
+  outputs?: Record<string, string>
 }
 
 interface Workflow {
@@ -60,11 +61,39 @@ const collectGateSteps = (): GateStepRef[] => {
   return gateSteps
 }
 
+// Collects every job-level output across all three workflows whose value expression reads
+// from a gate or filter step (`steps.gate*.outputs.*` or `steps.filter.outputs.*`). This is
+// derived from the actual workflow content rather than hardcoded, so a newly added gate
+// output (like run-type-check) is picked up automatically instead of needing this file
+// updated in lockstep -- the exact gap that let run-type-check go missing here originally.
+const collectGateOutputNames = (): string[] => {
+  const names = new Set<string>()
+  for (const relativePath of Object.values(WORKFLOW_RELATIVE_PATHS)) {
+    const workflow = loadWorkflow(relativePath)
+    for (const job of Object.values(workflow.jobs)) {
+      for (const [outputName, expression] of Object.entries(job.outputs ?? {})) {
+        if (/steps\.[\w-]*(?:gate|filter)[\w-]*\.outputs\./.test(expression)) names.add(outputName)
+      }
+    }
+  }
+  return [...names]
+}
+
 // A job/step is "filter-keyed" if its condition references a filter- or gate-derived output.
 // A job `if:` can only reach the `needs.<job>.outputs.*` context (the `steps.*` context is
 // unavailable at job scope), so this pattern is what a filter-keyed job `if:` always looks like.
-const FILTER_KEYED_JOB_IF =
-  /needs\.[\w-]+\.outputs\.(run-unit-tests|run-build-typecheck|e2e|visual|accessibility|run)\b/
+const buildFilterKeyedJobIfPattern = (): RegExp => {
+  const gateOutputNames = collectGateOutputNames()
+  // Sanity check the derivation itself found something -- an empty alternation would make
+  // the regex match nothing and every assertion below vacuously pass.
+  if (gateOutputNames.length === 0) {
+    throw new Error('collectGateOutputNames() found no gate-derived job outputs -- derivation is broken')
+  }
+  const escaped = gateOutputNames.map(name => name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`))
+  return new RegExp(String.raw`needs\.[\w-]+\.outputs\.(${escaped.join('|')})\b`)
+}
+
+const FILTER_KEYED_JOB_IF = buildFilterKeyedJobIfPattern()
 
 // Flattens the nested-array shape produced by parsing a category built from YAML
 // aliases (e.g. `unit-tests: [*app, *build-config, ...]`) into a flat list of glob
