@@ -50,8 +50,16 @@ appendFileSync(markerPath, check + ':end\n')
       PATH: `${binDirectory}:${process.env.PATH ?? ''}`,
       PRE_PUSH_FAIL_CHECKS: failChecks.join(','),
       PRE_PUSH_MARKERS: markerPath,
-      ...extraEnv,
     }
+
+    // Scrub CI signals by default so a test of the hook's normal path is deterministic
+    // regardless of the ambient environment running this suite — GitHub Actions sets both
+    // CI=true and GITHUB_ACTIONS=true, which would otherwise silently divert every call into
+    // the CI-bypass path. Tests exercising that path opt in explicitly via extraEnv.
+    delete env.CI
+    delete env.GITHUB_ACTIONS
+
+    Object.assign(env, extraEnv)
 
     for (const [key, value] of Object.entries(extraEnv)) {
       if (value === undefined) {
@@ -118,7 +126,7 @@ describe('pre-push hook CI bypass', () => {
   })
 
   it('skips all checks and exits 0 when GITHUB_ACTIONS is set', () => {
-    const result = runHook([], {CI: undefined, GITHUB_ACTIONS: 'true'})
+    const result = runHook([], {GITHUB_ACTIONS: 'true'})
 
     expect(result.status).toBe(0)
     expect(result.markers).toEqual([])
@@ -126,7 +134,7 @@ describe('pre-push hook CI bypass', () => {
   })
 
   it('runs checks as normal and fails the push when CI is not set', () => {
-    const result = runHook(['test'], {CI: undefined, GITHUB_ACTIONS: undefined})
+    const result = runHook(['test'])
 
     expect(result.status).toBe(1)
     expect(result.output).toContain('[pre-push] test: test exited with code 1')
