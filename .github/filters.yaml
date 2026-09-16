@@ -113,5 +113,26 @@ performance:
 # gate-type-check step, which is deliberately separate from
 # gate-build-typecheck: build only needs app/build-config/automation to
 # produce a working dist/, but type-check must cover everything tsc reaches.
+#
+# Deliberately NOT narrowed to a source-extension glob (e.g. **/*.{ts,tsx,js,
+# jsx,mjs,cjs}), even though `tsc --showConfig` confirms that is the exact set
+# of file extensions both projects sweep via "include" (allowJs is on via the
+# inherited @bfra.me/tsconfig base, and neither project's compilerOptions
+# overrides it; resolveJsonModule is also on from that base, but TypeScript's
+# own include-glob resolution never sweeps in .json files by extension --
+# verified empirically, zero .json files appear in either project's resolved
+# file list). The reason is resolveJsonModule itself: src/utils/analytics.ts,
+# src/hooks/UseProjects.ts, src/hooks/UseBlogPosts.ts, and the schema/data
+# JSON they import (src/schemas/*.schema.json, src/data/*-snapshot.json) type
+# their JSON imports directly against hand-written interfaces. Corrupting
+# src/data/projects-snapshot.json's shape and running `tsc --noEmit` produces
+# real TS2741/TS2352 errors in three files with zero *.ts changed -- confirmed
+# by deliberately breaking and reverting it while writing this comment. An
+# extension-based glob would miss every one of those files, and the set of
+# JSON files reachable this way is not statically enumerable from tsconfig
+# alone (it grows with the import graph, not with a fixed pattern list) --
+# unlike the source-extension set, which IS closed and exhaustively known from
+# TypeScript's own supported extensions. A narrow-but-wrong gate is worse than
+# a correct-but-conservative one, so this stays `**`.
 type-check:
   - '**'
