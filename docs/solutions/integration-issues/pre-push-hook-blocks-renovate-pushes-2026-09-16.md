@@ -106,7 +106,7 @@ if (isRunningInCi) {
 
 `CI` is the primary signal — Renovate's container receives it via `docker run --env CI`. `GITHUB_ACTIONS` is a second cheap check. Neither is set on a developer machine, so the hook is unchanged for its actual audience.
 
-**The skip is loud.** A guard that quietly does nothing is the defect class in the sibling docs below; this one states what it skipped and why it is safe.
+**The skip is loud** — it states what it skipped and why that is safe.
 
 Plus: the redundant `'group:allNonMajor'` removed with a comment recording why it is absent, and `schedule: - cron: '17 * * * *'` added to the caller (hourly, offset off `:00` to avoid GitHub's peak-minute contention).
 
@@ -126,8 +126,17 @@ Nothing is lost by skipping: the branch's PR runs the same lint/test/build as re
   ```ts
   delete env.CI
   delete env.GITHUB_ACTIONS
+
   Object.assign(env, extraEnv)
+
+  for (const [key, value] of Object.entries(extraEnv)) {
+    if (value === undefined) {
+      delete env[key]
+    }
+  }
   ```
+
+  The second pass matters: without it `undefined` cannot mean "remove this variable", so a test could no longer assert the *absence* of a signal.
 
   Assert the *absence of work*, not just a zero exit:
 
@@ -136,7 +145,7 @@ Nothing is lost by skipping: the branch's PR runs the same lint/test/build as re
   ```
 
   `markers` are written by stub executables on `PATH`, so an empty array proves nothing spawned. An exit-code-only assertion passes even when the checks ran and happened to succeed.
-- **Run the CI-emulated form before pushing.** `CI=true pnpm test` is one command. This fix shipped with a full local suite passing and failed in Actions, because `runHook()` spread `...process.env` and three pre-existing tests silently took the new bypass path. Third instance of local-vs-CI divergence in this repository, after #320 (Vitest matched coverage globs against absolute paths, so a checkout path containing `src` changed measured coverage) and #363 (a required `bundles` evidence category that passed locally only because `dist/` exists on a dev machine).
+- **Run the CI-emulated form before pushing.** `CI=true pnpm test` is one command. This fix shipped with a full local suite passing and failed in Actions, because `runHook()` spread `...process.env` and three pre-existing tests silently took the new bypass path. Third instance in this repository after #320 and #363.
 - **Do not re-add a preset rule the preset already extends.** Check whether the preset applies it and then deliberately carves exceptions out; re-adding it after silently discards the carve-out.
 - **Define schedules on the caller.** Reusable-workflow `on:` triggers do not propagate.
 
@@ -153,8 +162,8 @@ Both were plausible and wrong, which is why they are recorded:
 
 ## Related
 
-- [Checks that pass while validating nothing](../best-practices/checks-that-pass-while-validating-nothing-2026-09-01.md) — the local-vs-CI divergence rule, and why a quiet skip would have been the wrong fix
-- [Fixing a check that validates nothing](../best-practices/fixing-a-check-that-validates-nothing-2026-09-02.md) — the fix here failed review for the same reason described there: the remedy reproduced a defect one layer down, in its own test harness
+- [Checks that pass while validating nothing](../best-practices/checks-that-pass-while-validating-nothing-2026-09-01.md) — the local-vs-CI divergence rule
+- [Fixing a check that validates nothing](../best-practices/fixing-a-check-that-validates-nothing-2026-09-02.md) — a fix reproducing its own defect one layer down, as this one did in its test harness
 - #348 — the subprocess-lifecycle timeouts that failed in the container
 - #383 — the unhandled `ECONNREFUSED` that failed alongside them
 - PRs #385 and #387
