@@ -18,6 +18,23 @@ const parallelChecks: readonly Check[] = [
   {label: 'build', args: ['run', 'build']},
 ]
 
+// Automated CI runners (GitHub Actions, Renovate's container) already enforce lint/test/build as
+// required status checks on the pull request. Running the full suite again inside the pre-push
+// hook there is redundant and, for long-running/self-hosted automation (e.g. Renovate), can exceed
+// job timeouts and block every push. `CI` is the de facto standard signal every CI vendor sets;
+// `GITHUB_ACTIONS` is checked too so a GitHub Actions job that only sets its own vendor var (and
+// not the generic one, however unlikely) still skips. Local developer pushes never set either, so
+// this does not weaken the hook for its intended audience.
+const isRunningInCi = process.env.CI !== undefined || process.env.GITHUB_ACTIONS !== undefined
+
+if (isRunningInCi) {
+  // eslint-disable-next-line no-console
+  console.log(
+    '\n[pre-push] skipping checks: running in CI (CI or GITHUB_ACTIONS is set) — CI enforces the same checks as required status checks',
+  )
+  process.exit(0)
+}
+
 const activeChildren = new Set<ChildProcess>()
 
 function forwardSignal(signal: NodeJS.Signals) {

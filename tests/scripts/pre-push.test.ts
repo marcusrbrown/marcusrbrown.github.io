@@ -14,7 +14,7 @@ const readMarkers = (markerPath: string) => {
   }
 }
 
-const runHook = (failChecks: readonly string[] = []) => {
+const runHook = (failChecks: readonly string[] = [], extraEnv: Record<string, string | undefined> = {}) => {
   const directory = mkdtempSync(join(tmpdir(), 'pre-push-hook-'))
   const binDirectory = join(directory, 'bin')
   const markerPath = join(directory, 'markers.log')
@@ -45,15 +45,24 @@ appendFileSync(markerPath, check + ':end\n')
     writeFileSync(pnpmPath, fakePnpmScript, {mode: 0o755})
     chmodSync(pnpmPath, 0o755)
 
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      PATH: `${binDirectory}:${process.env.PATH ?? ''}`,
+      PRE_PUSH_FAIL_CHECKS: failChecks.join(','),
+      PRE_PUSH_MARKERS: markerPath,
+      ...extraEnv,
+    }
+
+    for (const [key, value] of Object.entries(extraEnv)) {
+      if (value === undefined) {
+        delete env[key]
+      }
+    }
+
     const result = spawnSync(process.execPath, [hookPath], {
       cwd: process.cwd(),
       encoding: 'utf8',
-      env: {
-        ...process.env,
-        PATH: `${binDirectory}:${process.env.PATH ?? ''}`,
-        PRE_PUSH_FAIL_CHECKS: failChecks.join(','),
-        PRE_PUSH_MARKERS: markerPath,
-      },
+      env,
     })
 
     return {
@@ -96,5 +105,31 @@ describe('pre-push hook failure attribution', () => {
     expect(result.output).toContain('[pre-push] test: test exited with code 1')
     expect(result.output).not.toContain('[pre-push] lint:')
     expect(result.output).not.toContain('[pre-push] build:')
+  })
+})
+
+describe('pre-push hook CI bypass', () => {
+  it('skips all checks and exits 0 when CI is set', () => {
+    const result = runHook([], {CI: 'true'})
+
+    expect(result.status).toBe(0)
+    expect(result.markers).toEqual([])
+    expect(result.output).toContain('[pre-push] skipping checks: running in CI')
+  })
+
+  it('skips all checks and exits 0 when GITHUB_ACTIONS is set', () => {
+    const result = runHook([], {CI: undefined, GITHUB_ACTIONS: 'true'})
+
+    expect(result.status).toBe(0)
+    expect(result.markers).toEqual([])
+    expect(result.output).toContain('[pre-push] skipping checks: running in CI')
+  })
+
+  it('runs checks as normal and fails the push when CI is not set', () => {
+    const result = runHook(['test'], {CI: undefined, GITHUB_ACTIONS: undefined})
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('[pre-push] test: test exited with code 1')
+    expect(result.output).not.toContain('[pre-push] skipping checks')
   })
 })
