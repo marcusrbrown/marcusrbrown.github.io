@@ -4,7 +4,8 @@
  * Semantic content-change detector for the blog-refresh workflow.
  *
  * `blog-refresh.ts` and `projects-refresh.ts` regenerate `generatedAt` (and,
- * for projects, each project's upstream-push-derived `lastUpdated` and
+ * for projects, each project's `lastUpdated` — sourced from the GitHub repo's
+ * `updated_at`, which moves on pushes and on metadata edits alike — plus its
  * third-party `stars` count) on every run, even when nothing a reader would
  * see has changed. Byte-level `git status` therefore treats a pure timestamp
  * (or star-count) drift as "changed" and opens a content-refresh PR for no
