@@ -172,6 +172,8 @@ This is the contract now reflected by `generate-test-badges.mjs`: `readJsonFile`
 
 ## Related
 
+- [Skipping a check without lying about it](skipping-a-check-without-lying-about-it-2026-09-16.md) — the deliberate case: path-filtered gating, and the conditions under which a check that intentionally does not run still reports honestly
+
 - [ESM CLI exports `main()` but never invokes it](../logic-errors/tsx-esm-cli-exports-main-without-invoking-it-2026-07-26.md) — a directly analogous no-op that exits successfully.
 - [Gist list API omits content, producing an empty snapshot](../integration-issues/gist-list-api-omits-content-snapshot-empty-2026-07-18.md) — fail-safe handling for missing or incomplete upstream evidence.
 - #300–#303 — Lighthouse configuration, Playwright project selection, budget-validator input paths, and hidden theme-switching failures.
