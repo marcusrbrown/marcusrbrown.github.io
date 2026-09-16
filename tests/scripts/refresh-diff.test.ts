@@ -308,14 +308,47 @@ describe('refresh-diff script', () => {
       expect(result.paths).toEqual(['public/project-previews/1234.png'])
     })
 
-    it('detects a modified tracked preview PNG', () => {
+    it('detects a modified tracked preview PNG and extracts the FULL path, uncorrupted by the leading-space status column', () => {
+      // Bite-proof: porcelain's fixed-width prefix is "XY " (X or Y may be a
+      // literal space). Trimming the line before slicing off that prefix eats
+      // one character of the path whenever X is a space -- exactly this case.
       const result = detectPreviewChanges(' M public/project-previews/1234.png\n')
       expect(result.changed).toBe(true)
+      expect(result.paths).toEqual(['public/project-previews/1234.png'])
     })
 
     it('detects a deleted preview PNG', () => {
       const result = detectPreviewChanges(' D public/project-previews/1234.png\n')
       expect(result.changed).toBe(true)
+      expect(result.paths).toEqual(['public/project-previews/1234.png'])
+    })
+
+    it('extracts a path added to the index ("A  path")', () => {
+      const result = detectPreviewChanges('A  public/project-previews/9999.png\n')
+      expect(result.paths).toEqual(['public/project-previews/9999.png'])
+    })
+
+    it('extracts a path modified in both index and work tree ("MM path")', () => {
+      const result = detectPreviewChanges('MM public/project-previews/1234.png\n')
+      expect(result.paths).toEqual(['public/project-previews/1234.png'])
+    })
+
+    it('preserves a space embedded in the path itself', () => {
+      const result = detectPreviewChanges(' M public/project-previews/my project.png\n')
+      expect(result.paths).toEqual(['public/project-previews/my project.png'])
+    })
+
+    it('extracts the destination path from a rename entry ("R  old -> new")', () => {
+      // Renamed/copied entries report as "XY ORIG_PATH -> NEW_PATH". The
+      // destination is what a maintainer reading the summary needs to find on
+      // disk right now, so that -- not the origin -- is what this reports.
+      const result = detectPreviewChanges('R  public/project-previews/1234.png -> public/project-previews/5678.png\n')
+      expect(result.paths).toEqual(['public/project-previews/5678.png'])
+    })
+
+    it('does not misparse an ordinary (non-rename) path that happens to contain " -> "', () => {
+      const result = detectPreviewChanges(' M public/project-previews/before -> after.png\n')
+      expect(result.paths).toEqual(['public/project-previews/before -> after.png'])
     })
 
     it('reports no change on empty porcelain output', () => {
