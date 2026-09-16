@@ -60,22 +60,19 @@ jobs:
           # listing gets the 5,000/hr budget instead of the anonymous 60/hr.
           GITHUB_TOKEN: ${{ github.token }}
 
-      - name: Check for snapshot and preview changes
+      - name: Check for semantic content changes
         id: diff
-        run: |
-          if test -z "$(git status --porcelain -- \
-            src/data/blog-snapshot.json \
-            src/data/projects-snapshot.json \
-            public/project-previews/)"; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: pnpm run refresh-diff
 
       - name: No content changes
         if: steps.diff.outputs.changed == 'false'
         run: |
           echo "no content changes"
+          # Discard the regenerated files (they differ only in ignored volatile
+          # fields, e.g. generatedAt/lastUpdated) so the runner's working tree
+          # matches HEAD, and remove any stray untracked preview artifacts.
+          git checkout -- src/data/blog-snapshot.json src/data/projects-snapshot.json
+          git clean -fd -- public/project-previews/
           cat .blog-refresh-summary.md >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit SHA: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
