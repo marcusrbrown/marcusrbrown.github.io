@@ -6,6 +6,7 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {parse as parseYaml} from 'yaml'
 
 import {SCRIPT_CONFIG} from '../../scripts/branch-protection-config'
+import viteConfig from '../../vite.config'
 
 interface WorkflowStep {
   name?: string
@@ -105,15 +106,22 @@ const flattenPatterns = (value: unknown): string[] => {
 }
 
 // Minimal glob matcher covering exactly the pattern shapes present in
-// .github/filters.yaml: an exact path, a `<prefix>/**` directory match, or the
-// catch-all `**`. Deliberately not a general-purpose glob engine -- it only
-// needs to answer "does this sample path fall under this pattern" for the fixed
-// set of patterns this repository's filter file actually contains.
+// .github/filters.yaml: an exact path, a `<prefix>/**` directory match, a
+// filename-level `*` wildcard confined to one path segment (e.g. `tsconfig*.json`,
+// `tests/setup*.ts`), or the catch-all `**`. Deliberately not a general-purpose
+// glob engine -- it only needs to answer "does this sample path fall under this
+// pattern" for the fixed set of patterns this repository's filter file actually
+// contains.
 const matchesPath = (pattern: string, filePath: string): boolean => {
   if (pattern === '**') return true
   if (pattern.endsWith('/**')) {
     const prefix = pattern.slice(0, -3)
     return filePath === prefix || filePath.startsWith(`${prefix}/`)
+  }
+  if (pattern.includes('*')) {
+    const escaped = pattern.replaceAll(/[.+^${}()|[\]\\]/g, String.raw`\$&`)
+    const regexSource = escaped.replaceAll('*', '[^/]*')
+    return new RegExp(`^${regexSource}$`).test(filePath)
   }
   return pattern === filePath
 }
@@ -422,5 +430,37 @@ describe('CI path filtering invariants', () => {
     // The literal GitHub Actions expression text, not a JS template string.
     // eslint-disable-next-line no-template-curly-in-string
     expect(setupStep?.with?.['install-playwright']).toBe('${{ steps.gate.outputs.run }}')
+  })
+
+  it('invariant 12: every Vitest setupFiles entry is covered by the unit-tests category', () => {
+    // Derived from vite.config.ts's actual resolved config rather than hardcoded, so a
+    // third setup file (or a renamed/removed one) cannot silently fall outside CI's test
+    // gate the way tests/setup.shared.ts did when it was first added (#407).
+    const resolvedConfig = viteConfig({command: 'serve', mode: 'test'}) as {
+      test?: {projects?: {test?: {setupFiles?: string[] | string}}[]}
+    }
+    const projects = resolvedConfig.test?.projects ?? []
+    expect(projects.length).toBeGreaterThan(0)
+
+    const setupFilePaths = new Set<string>()
+    for (const project of projects) {
+      const setupFiles = project.test?.setupFiles
+      const entries = Array.isArray(setupFiles) ? setupFiles : setupFiles === undefined ? [] : [setupFiles]
+      for (const entry of entries) setupFilePaths.add(entry.replace(/^\.\//, ''))
+    }
+
+    // Sanity check the derivation itself found something -- an empty set would make the
+    // coverage loop below vacuously pass without proving anything.
+    expect(setupFilePaths.size).toBeGreaterThan(0)
+
+    const filters = parseYaml(readRepoFile('.github/filters.yaml')) as Record<string, unknown>
+    const unitTestPatterns = flattenPatterns(filters['unit-tests'])
+
+    for (const setupFilePath of setupFilePaths) {
+      expect(
+        unitTestPatterns.some(pattern => matchesPath(pattern, setupFilePath)),
+        `${setupFilePath} (a configured Vitest setupFiles entry) is not covered by any unit-tests pattern`,
+      ).toBe(true)
+    }
   })
 })

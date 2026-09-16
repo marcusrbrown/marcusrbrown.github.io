@@ -1,6 +1,11 @@
 import {cleanup} from '@testing-library/react'
 import {afterEach, beforeEach, vi} from 'vitest'
 import '@testing-library/jest-dom'
+import './setup.shared'
+
+// Browser-only setup for the DOM Vitest project (see vite.config.ts and #383). The
+// environment-neutral fetch-rejection policy lives in tests/setup.shared.ts and is
+// shared with the Node project.
 
 declare global {
   interface GlobalThis {
@@ -85,10 +90,4 @@ beforeEach(() => {
       },
     })
   }
-
-  // Reject every request unless a test explicitly installs a narrower fixture.
-  globalThis.fetch = vi.fn().mockImplementation(async (url: string | URL | Request) => {
-    const urlString = typeof url === 'string' ? url : url.toString()
-    throw new Error(`Unexpected fetch request in test: ${urlString}`)
-  })
 })
