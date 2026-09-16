@@ -59,6 +59,7 @@
 | Script | Role |
 | --- | --- |
 | `project-preview-refresh.ts` | Fetches and atomically publishes GitHub social cards, with fail-safe refresh and R9 pruning |
+| `refresh-diff.ts` | Semantic (not byte-level) change detector gating the blog-refresh PR: ignores volatile `generatedAt`/`stars`, suppresses `lastUpdated` only while it stays in the same Active/Recent/Archived bucket, fails closed to CHANGED on any read/parse/git failure |
 
 ### Security Boundary
 

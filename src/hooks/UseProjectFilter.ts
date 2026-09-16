@@ -1,5 +1,7 @@
 import type {Project} from '../types'
+
 import {useMemo, useState} from 'react'
+import {getProjectStatus} from '../utils/projects'
 
 export interface ProjectFilters {
   technologies: string[]
@@ -291,16 +293,4 @@ function formatTypeName(topic: string): string {
 
   const normalized = topic.toLowerCase()
   return formatMap[normalized] || topic.charAt(0).toUpperCase() + topic.slice(1).replaceAll('-', ' ')
-}
-
-function getProjectStatus(lastUpdated?: string): string {
-  if (!lastUpdated) return 'Unknown'
-
-  const lastUpdateDate = new Date(lastUpdated)
-  const now = new Date()
-  const monthsAgo = (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
-
-  if (monthsAgo <= 3) return 'Active'
-  if (monthsAgo <= 12) return 'Recent'
-  return 'Archived'
 }

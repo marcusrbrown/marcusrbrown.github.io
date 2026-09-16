@@ -69,3 +69,24 @@ export const transformReposToProjects = (repos: GitHubRepo[]): Project[] =>
       lastUpdated: repo.updated_at,
       imageUrl: previewImagePath(repo.id),
     }))
+
+/**
+ * Buckets a project's `lastUpdated` timestamp into the Active/Recent/Archived
+ * status the UI displays and filters on (`UseProjectFilter.ts`). `now`
+ * defaults to the wall clock for every existing (UI) caller — it exists as a
+ * parameter purely so callers that need a deterministic comparison (e.g. the
+ * blog-refresh semantic diff, comparing a committed value against a freshly
+ * regenerated one) can inject a fixed reference time instead of depending on
+ * whenever the check happens to run. Passing no `now` reproduces the exact
+ * original behaviour bit-for-bit.
+ */
+export function getProjectStatus(lastUpdated?: string, now: Date = new Date()): string {
+  if (!lastUpdated) return 'Unknown'
+
+  const lastUpdateDate = new Date(lastUpdated)
+  const monthsAgo = (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24 * 30)
+
+  if (monthsAgo <= 3) return 'Active'
+  if (monthsAgo <= 12) return 'Recent'
+  return 'Archived'
+}
