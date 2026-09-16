@@ -101,3 +101,17 @@ performance:
   - *automation
   - *test-config
   - tests/performance/**
+
+# `pnpm run check-types` runs two tsconfig projects: root tsconfig.json
+# (include: **/*, exclude: .opencode/**) and .opencode/tsconfig.json
+# (include: **/*). Their includes are complementary with no gap, so the union
+# of both projects' inputs is every tracked file in the repository -- not an
+# approximation of it. `**` is therefore the precise (not overbroad) set of
+# type-check inputs, and it is the only pattern that closes gaps like
+# examples/** and tests/**, which belong to no other category but are
+# compiled by the root project. See .github/workflows/ci.yaml's
+# gate-type-check step, which is deliberately separate from
+# gate-build-typecheck: build only needs app/build-config/automation to
+# produce a working dist/, but type-check must cover everything tsc reaches.
+type-check:
+  - '**'

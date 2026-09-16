@@ -23,6 +23,7 @@ jobs:
       cache-hit: ${{ steps.setup.outputs.cache-hit }}
       run-unit-tests: ${{ steps.gate-unit-tests.outputs.run }}
       run-build-typecheck: ${{ steps.gate-build-typecheck.outputs.run }}
+      run-type-check: ${{ steps.gate-type-check.outputs.run }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -81,6 +82,29 @@ jobs:
           done
 
           echo "run=${result}" >> "$GITHUB_OUTPUT"
+
+      # Deliberately separate from gate-build-typecheck above: `pnpm run check-types`
+      # covers every input to both tsconfig projects (see the `type-check` category
+      # comment in .github/filters.yaml), which is broader than what building a
+      # working dist/ requires. Reusing the build gate here would let changes under
+      # tests/**, examples/**, or .opencode/impeccable/** skip TypeScript compilation
+      # entirely.
+      - name: Gate type-check on changed paths
+        id: gate-type-check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_RESULT: ${{ steps.filter.outputs.type-check }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$FILTER_RESULT" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$FILTER_RESULT" == "false" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::paths-filter returned an unexpected value: '$FILTER_RESULT' (expected 'true' or 'false')"
+            exit 1
+          fi
 
   lint:
     name: Lint Code
@@ -184,7 +208,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Run TypeScript compiler
-        if: needs.setup.outputs.run-build-typecheck == 'true'
+        if: needs.setup.outputs.run-type-check == 'true'
         run: pnpm run check-types
 
   validate:
