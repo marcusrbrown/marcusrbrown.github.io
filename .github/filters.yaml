@@ -46,22 +46,43 @@ automation: &automation
   - .github/filters.yaml
   - .github/workflows/**
 
+# `tests/setup*.ts` (not the single hardcoded `tests/setup.ts`) so every Vitest
+# setupFile -- current and future -- is covered without editing this file again.
+# Matches `tests/setup.ts`, `tests/setup.shared.ts`, and `tests/setup.test.ts`
+# (redundant with unit-tests' own explicit entry below, harmless). Does not match
+# anything under a subdirectory (`tests/foo/setup.ts`) or without the `tests/setup`
+# prefix (`tests/teardown.ts`) -- see #383's follow-up and
+# tests/scripts/ci-path-filtering.test.ts's setup-file-coverage invariant, which
+# derives the actual setupFiles list from vite.config.ts and checks each entry
+# against this pattern rather than trusting the pattern by inspection alone.
 test-config: &test-config
   - playwright.config.ts
   - lighthouserc.cjs
   - tests/fixtures/**
-  - tests/setup.ts
+  - tests/setup*.ts
 
 # Everything Vitest picks up under `pnpm test` (vite.config.ts test.exclude only
 # excludes tests/e2e, tests/visual, tests/accessibility, tests/performance).
-# Includes the plan's named dirs plus three gaps found by inspecting the tree:
+# Includes the plan's named dirs plus gaps found by inspecting the tree:
 # tests/copilot-hooks/**, the loose root-level specs (main.test.tsx,
-# main-integration.test.tsx, setup.test.ts), and .opencode/impeccable/** (its
-# own colocated *.test.ts files run under the same `vitest run` invocation).
+# main-integration.test.tsx, setup.test.ts), .opencode/impeccable/** (its own
+# colocated *.test.ts files run under the same `vitest run` invocation), and two
+# entries NOT aliased from *test-config: playwright.config.ts (read and asserted
+# on directly by tests/scripts/playwright-config.test.ts) and tests/setup*.ts
+# (every Vitest project's setupFiles entry -- tests/setup.ts and
+# tests/setup.shared.ts as of #383/#407). *test-config's other two members,
+# lighthouserc.cjs and tests/fixtures/**, are deliberately NOT included here:
+# neither is read by any unit test (lighthouserc.cjs only feeds the Lighthouse
+# CI action in performance.yaml; tests/fixtures/** is only consumed by e2e specs
+# via BLOG_SNAPSHOT, and the one string that looks like a fixture path inside
+# tests/scripts/check-react-router-rsc-boundary.test.ts is an in-memory mock key,
+# not a real file read).
 unit-tests:
   - *app
   - *build-config
   - *automation
+  - playwright.config.ts
+  - tests/setup*.ts
   - tests/components/**
   - tests/hooks/**
   - tests/utils/**
