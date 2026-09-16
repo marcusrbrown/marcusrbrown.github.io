@@ -13,6 +13,7 @@ interface WorkflowStep {
   if?: string
   run?: string
   uses?: string
+  with?: Record<string, unknown>
 }
 
 interface WorkflowJob {
@@ -64,6 +65,29 @@ const collectGateSteps = (): GateStepRef[] => {
 // unavailable at job scope), so this pattern is what a filter-keyed job `if:` always looks like.
 const FILTER_KEYED_JOB_IF =
   /needs\.[\w-]+\.outputs\.(run-unit-tests|run-build-typecheck|e2e|visual|accessibility|run)\b/
+
+// Flattens the nested-array shape produced by parsing a category built from YAML
+// aliases (e.g. `unit-tests: [*app, *build-config, ...]`) into a flat list of glob
+// strings. dorny/paths-filter itself flattens the same shape at evaluation time.
+const flattenPatterns = (value: unknown): string[] => {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(element => flattenPatterns(element))
+  return []
+}
+
+// Minimal glob matcher covering exactly the pattern shapes present in
+// .github/filters.yaml: an exact path, a `<prefix>/**` directory match, or the
+// catch-all `**`. Deliberately not a general-purpose glob engine -- it only
+// needs to answer "does this sample path fall under this pattern" for the fixed
+// set of patterns this repository's filter file actually contains.
+const matchesPath = (pattern: string, filePath: string): boolean => {
+  if (pattern === '**') return true
+  if (pattern.endsWith('/**')) {
+    const prefix = pattern.slice(0, -3)
+    return filePath === prefix || filePath.startsWith(`${prefix}/`)
+  }
+  return pattern === filePath
+}
 
 const temporaryDirectories: string[] = []
 
@@ -269,5 +293,105 @@ describe('CI path filtering invariants', () => {
       )
       expect(dashboardResult.status).toBe(0)
     })
+  })
+
+  it('invariant 8: every category a workflow gates on also covers that workflow file and the shared filter definition', () => {
+    const filters = parseYaml(readRepoFile('.github/filters.yaml')) as Record<string, unknown>
+
+    for (const [workflow, relativePath] of Object.entries(WORKFLOW_RELATIVE_PATHS)) {
+      const raw = readRepoFile(relativePath)
+      const referenced = new Set<string>()
+      for (const match of raw.matchAll(/steps\.filter\.outputs\.([\w-]+)/g)) {
+        if (match[1]) referenced.add(match[1])
+      }
+      expect(referenced.size).toBeGreaterThan(0)
+
+      // At least one category this workflow reads from paths-filter must cover both
+      // this workflow's own file and .github/filters.yaml itself -- otherwise a
+      // change to either one reports every category this workflow gates on as
+      // false and skips the validation meant to catch it. This is exactly the gap
+      // this PR's own workflow/filter edits demonstrated: they only triggered unit
+      // tests because a test file happened to be added alongside them.
+      const coversControlPlane = [...referenced].some(category => {
+        const patterns = flattenPatterns(filters[category])
+        return (
+          patterns.some(pattern => matchesPath(pattern, relativePath)) &&
+          patterns.some(pattern => matchesPath(pattern, '.github/filters.yaml'))
+        )
+      })
+      expect(coversControlPlane, `${workflow} (${relativePath}) has no self-validating category`).toBe(true)
+    }
+  })
+
+  describe('invariant 9: type-check category covers every input to both tsconfig projects', () => {
+    const filters = parseYaml(readRepoFile('.github/filters.yaml')) as Record<string, unknown>
+    const patterns = flattenPatterns(filters['type-check'])
+
+    it('has at least one pattern', () => {
+      expect(patterns.length).toBeGreaterThan(0)
+    })
+
+    // Root tsconfig.json (include: **/*, exclude: .opencode/**) and
+    // .opencode/tsconfig.json (include: **/*) are complementary with no gap, so a
+    // file under any of these three directories is compiled by one project or the
+    // other. examples/** in particular belongs to no other filter category.
+    it.each([
+      'tests/scripts/ci-path-filtering.test.ts',
+      '.opencode/impeccable/plugin.ts',
+      'examples/use-theme-example.tsx',
+    ])('covers %s', sample => {
+      expect(patterns.some(pattern => matchesPath(pattern, sample))).toBe(true)
+    })
+
+    it('gates the type-check step separately from the build step', () => {
+      const ci = loadWorkflow(WORKFLOW_RELATIVE_PATHS.ci)
+      const typeCheckStep = ci.jobs['type-check']?.steps.find(step => step.name === 'Run TypeScript compiler')
+      const buildStep = ci.jobs.build?.steps.find(step => step.name === 'Build project')
+
+      expect(typeCheckStep?.if).toBeDefined()
+      expect(buildStep?.if).toBeDefined()
+      // The two gates must be independent outputs, not the same one reused --
+      // otherwise splitting the category would not have changed anything.
+      expect(typeCheckStep?.if).not.toBe(buildStep?.if)
+    })
+  })
+
+  it('invariant 10: suite-specific Setup project steps carry the same gate as the suite work they support', () => {
+    const e2e = loadWorkflow(WORKFLOW_RELATIVE_PATHS.e2e)
+    const suites = [
+      {jobId: 'e2e-tests', runStepName: 'Run E2E tests'},
+      {jobId: 'visual-regression', runStepName: 'Run visual regression tests'},
+      {jobId: 'accessibility-tests', runStepName: 'Run accessibility tests'},
+    ]
+
+    for (const {jobId, runStepName} of suites) {
+      const steps = e2e.jobs[jobId]?.steps ?? []
+      const setupStep = steps.find(step => step.name === 'Setup project')
+      const runStep = steps.find(step => step.name === runStepName)
+
+      expect(setupStep?.if).toBeDefined()
+      expect(setupStep?.if).toBe(runStep?.if)
+    }
+
+    const buildForTestsSteps = e2e.jobs['build-for-tests']?.steps ?? []
+    const setupStep = buildForTestsSteps.find(step => step.name === 'Setup project')
+    const buildStep = buildForTestsSteps.find(step => step.name === 'Build project')
+
+    expect(setupStep?.if).toBeDefined()
+    expect(setupStep?.if).toBe(buildStep?.if)
+  })
+
+  it('invariant 11: performance.yaml ties install-playwright to the audit gate without gating dependency install', () => {
+    const performance = loadWorkflow(WORKFLOW_RELATIVE_PATHS.performance)
+    const steps = performance.jobs['performance-audit']?.steps ?? []
+    const setupStep = steps.find(step => step.name === 'Setup project')
+
+    // Dependency install must stay unconditional: "Generate performance dashboard"
+    // and "Generate performance report" below are deliberately ungated (invariant 7)
+    // and need node_modules/pnpm regardless of whether the audit itself runs.
+    expect(setupStep?.if).toBeUndefined()
+    // The literal GitHub Actions expression text, not a JS template string.
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(setupStep?.with?.['install-playwright']).toBe('${{ steps.gate.outputs.run }}')
   })
 })
