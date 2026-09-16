@@ -263,7 +263,7 @@ jobs:
   test-summary:
     name: Test Summary & Badge Generation
     runs-on: ubuntu-latest
-    needs: [e2e-tests, visual-regression, accessibility-tests]
+    needs: [setup, e2e-tests, visual-regression, accessibility-tests]
     if: ${{ !cancelled() }}
     permissions:
       contents: read
@@ -303,6 +303,13 @@ jobs:
         env:
           A11Y_RESULT: ${{ needs.accessibility-tests.result }}
           E2E_RESULT: ${{ needs.e2e-tests.result }}
+          # Gate outputs distinguish "the suite job succeeded because its tests passed"
+          # from "the suite job succeeded because every step in it was gated off". A
+          # job made of only skipped steps still reports result == success, so the
+          # *_RESULT vars above cannot tell those two cases apart on their own.
+          GATE_E2E: ${{ needs.setup.outputs.e2e }}
+          GATE_VISUAL: ${{ needs.setup.outputs.visual }}
+          GATE_A11Y: ${{ needs.setup.outputs.accessibility }}
           TEST_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs['test-type'] || 'all' }}
           VISUAL_RESULT: ${{ needs.visual-regression.result }}
         run: |
@@ -314,7 +321,9 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [[ "$TEST_TYPE" == "all" || "$TEST_TYPE" == "e2e" ]]; then
-            if [[ "$E2E_RESULT" == "success" ]]; then
+            if [[ "$GATE_E2E" == "false" ]]; then
+              echo "⏭️ **E2E Tests**: Not run (no relevant path changes)" >> "$GITHUB_STEP_SUMMARY"
+            elif [[ "$E2E_RESULT" == "success" ]]; then
               echo "✅ **E2E Tests**: All browsers passed" >> "$GITHUB_STEP_SUMMARY"
             else
               echo "❌ **E2E Tests**: Some tests failed" >> "$GITHUB_STEP_SUMMARY"
@@ -324,7 +333,9 @@ jobs:
           fi
 
           if [[ "$TEST_TYPE" == "all" || "$TEST_TYPE" == "visual" ]]; then
-            if [[ "$VISUAL_RESULT" == "success" ]]; then
+            if [[ "$GATE_VISUAL" == "false" ]]; then
+              echo "⏭️ **Visual Regression Tests**: Not run (no relevant path changes)" >> "$GITHUB_STEP_SUMMARY"
+            elif [[ "$VISUAL_RESULT" == "success" ]]; then
               echo "✅ **Visual Regression Tests**: All screenshots matched" >> "$GITHUB_STEP_SUMMARY"
             else
               echo "❌ **Visual Regression Tests**: Some screenshots differed or tests failed" >> "$GITHUB_STEP_SUMMARY"
@@ -334,7 +345,9 @@ jobs:
           fi
 
           if [[ "$TEST_TYPE" == "all" || "$TEST_TYPE" == "accessibility" ]]; then
-            if [[ "$A11Y_RESULT" == "success" ]]; then
+            if [[ "$GATE_A11Y" == "false" ]]; then
+              echo "⏭️ **Accessibility Tests**: Not run (no relevant path changes)" >> "$GITHUB_STEP_SUMMARY"
+            elif [[ "$A11Y_RESULT" == "success" ]]; then
               echo "✅ **Accessibility Tests**: WCAG 2.1 AA passed" >> "$GITHUB_STEP_SUMMARY"
             else
               echo "❌ **Accessibility Tests**: Some accessibility violations found" >> "$GITHUB_STEP_SUMMARY"
@@ -372,7 +385,7 @@ jobs:
   notification:
     name: Test Notifications
     runs-on: ubuntu-latest
-    needs: [test-summary, e2e-tests, visual-regression, accessibility-tests]
+    needs: [setup, test-summary, e2e-tests, visual-regression, accessibility-tests]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     permissions:
       pull-requests: write
@@ -390,10 +403,16 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.get-app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          STATUS: ${{ (needs.e2e-tests.result == 'success' && needs.visual-regression.result == 'success' && needs.accessibility-tests.result == 'success') && 'success' || 'failure' }}
+          # A gated-off suite produced no evidence either way and must not count
+          # toward failure. Only a suite that actually ran (gate == 'true') and did
+          # not succeed flips STATUS to failure.
+          STATUS: ${{ ((needs.setup.outputs.e2e != 'true' || needs.e2e-tests.result == 'success') && (needs.setup.outputs.visual != 'true' || needs.visual-regression.result == 'success') && (needs.setup.outputs.accessibility != 'true' || needs.accessibility-tests.result == 'success')) && 'success' || 'failure' }}
           E2E_RESULT: ${{ needs.e2e-tests.result }}
           VISUAL_RESULT: ${{ needs.visual-regression.result }}
           A11Y_RESULT: ${{ needs.accessibility-tests.result }}
+          GATE_E2E: ${{ needs.setup.outputs.e2e }}
+          GATE_VISUAL: ${{ needs.setup.outputs.visual }}
+          GATE_A11Y: ${{ needs.setup.outputs.accessibility }}
           RUN_NUMBER: ${{ github.run_number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO: ${{ github.repository }}
@@ -401,22 +420,56 @@ jobs:
           MARKER="<!-- E2E_TEST_NOTIFICATION_v1 -->"
           DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-          E2E_ICON=$([[ "$E2E_RESULT" == "success" ]] && echo "✅" || echo "❌")
-          VISUAL_ICON=$([[ "$VISUAL_RESULT" == "success" ]] && echo "✅" || echo "❌")
-          A11Y_ICON=$([[ "$A11Y_RESULT" == "success" ]] && echo "✅" || echo "❌")
+          # A gated-off suite is reported as skipped, never as passed: its job
+          # result is 'success' only because every step inside it was skipped, not
+          # because any test ran.
+          ANY_SKIPPED=0
+          if [[ "$GATE_E2E" == "false" ]]; then
+            E2E_ICON="⏭️"
+            E2E_LABEL="skipped"
+            ANY_SKIPPED=1
+          else
+            E2E_ICON=$([[ "$E2E_RESULT" == "success" ]] && echo "✅" || echo "❌")
+            E2E_LABEL="$E2E_RESULT"
+          fi
+
+          if [[ "$GATE_VISUAL" == "false" ]]; then
+            VISUAL_ICON="⏭️"
+            VISUAL_LABEL="skipped"
+            ANY_SKIPPED=1
+          else
+            VISUAL_ICON=$([[ "$VISUAL_RESULT" == "success" ]] && echo "✅" || echo "❌")
+            VISUAL_LABEL="$VISUAL_RESULT"
+          fi
+
+          if [[ "$GATE_A11Y" == "false" ]]; then
+            A11Y_ICON="⏭️"
+            A11Y_LABEL="skipped"
+            ANY_SKIPPED=1
+          else
+            A11Y_ICON=$([[ "$A11Y_RESULT" == "success" ]] && echo "✅" || echo "❌")
+            A11Y_LABEL="$A11Y_RESULT"
+          fi
 
           if [[ "$STATUS" == "success" ]]; then
+            if [[ "$ANY_SKIPPED" == "1" ]]; then
+              HEADLINE="✅ **E2E Testing Passed** (some suites skipped — no relevant path changes)"
+              SUBTEXT="All suites that ran passed. Suites marked ⏭️ skipped did not run because no relevant paths changed."
+            else
+              HEADLINE="✅ **E2E Testing Passed**"
+              SUBTEXT="All accessibility, visual, and functional tests passed successfully."
+            fi
             BODY="$MARKER
 
-          ✅ **E2E Testing Passed**
+          $HEADLINE
 
-          All accessibility, visual, and functional tests passed successfully.
+          $SUBTEXT
 
           | Suite | Result |
           |-------|--------|
-          | ${E2E_ICON} E2E Tests | ${E2E_RESULT} |
-          | ${VISUAL_ICON} Visual Regression | ${VISUAL_RESULT} |
-          | ${A11Y_ICON} Accessibility (WCAG 2.1 AA) | ${A11Y_RESULT} |
+          | ${E2E_ICON} E2E Tests | ${E2E_LABEL} |
+          | ${VISUAL_ICON} Visual Regression | ${VISUAL_LABEL} |
+          | ${A11Y_ICON} Accessibility (WCAG 2.1 AA) | ${A11Y_LABEL} |
 
           **Workflow Run**: [#${RUN_NUMBER}](${RUN_URL})
           **Test Date**: $DATE"
@@ -429,9 +482,9 @@ jobs:
 
           | Suite | Result |
           |-------|--------|
-          | ${E2E_ICON} E2E Tests | ${E2E_RESULT} |
-          | ${VISUAL_ICON} Visual Regression | ${VISUAL_RESULT} |
-          | ${A11Y_ICON} Accessibility (WCAG 2.1 AA) | ${A11Y_RESULT} |
+          | ${E2E_ICON} E2E Tests | ${E2E_LABEL} |
+          | ${VISUAL_ICON} Visual Regression | ${VISUAL_LABEL} |
+          | ${A11Y_ICON} Accessibility (WCAG 2.1 AA) | ${A11Y_LABEL} |
 
           **Workflow Run**: [#${RUN_NUMBER}](${RUN_URL})
           **Test Date**: $DATE"
