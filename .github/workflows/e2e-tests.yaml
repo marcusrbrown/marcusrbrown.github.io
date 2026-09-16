@@ -109,7 +109,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      # OR-union of the three suite categories: this step exists only to support
+      # "Build project" below, which is itself gated on the same OR-union.
+      # Installing dependencies when nothing downstream will consume them wastes
+      # the exact cost this gating mechanism exists to avoid.
       - name: Setup project
+        if: ${{ needs.setup.outputs.e2e == 'true' || needs.setup.outputs.visual == 'true' || needs.setup.outputs.accessibility == 'true' }}
         uses: ./.github/actions/setup
 
       # OR-union of the three suite categories: the artifact this step produces
@@ -146,7 +151,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      # Gated on this job's own suite category: nothing later in this job needs
+      # node_modules or a browser binary when e2e is not selected to run.
       - name: Setup project
+        if: ${{ needs.setup.outputs.e2e == 'true' }}
         uses: ./.github/actions/setup
         with:
           install-playwright: 'true'
@@ -188,7 +196,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      # Gated on this job's own suite category: nothing later in this job needs
+      # node_modules or a browser binary when visual is not selected to run.
       - name: Setup project
+        if: ${{ needs.setup.outputs.visual == 'true' }}
         uses: ./.github/actions/setup
         with:
           install-playwright: 'true'
@@ -229,7 +240,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      # Gated on this job's own suite category: nothing later in this job needs
+      # node_modules or a browser binary when accessibility is not selected to run.
       - name: Setup project
+        if: ${{ needs.setup.outputs.accessibility == 'true' }}
         uses: ./.github/actions/setup
         with:
           install-playwright: 'true'
