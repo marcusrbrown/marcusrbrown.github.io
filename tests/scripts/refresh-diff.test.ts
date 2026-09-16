@@ -5,7 +5,9 @@ import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import process from 'node:process'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+
 import {
+  alignProjectLastUpdatedBuckets,
   BLOG_SNAPSHOT_PATH,
   combineOutcomes,
   detectPreviewChanges,
@@ -16,6 +18,7 @@ import {
   PROJECTS_SNAPSHOT_PATH,
   runDetection,
   type CheckOutcome,
+  type UnknownRecord,
 } from '../../scripts/refresh-diff'
 
 // ---------------------------------------------------------------------------
@@ -66,10 +69,16 @@ describe('refresh-diff script', () => {
       )
     })
 
-    it('strips each project lastUpdated for the projects kind', () => {
+    // normalizeForComparison no longer strips `lastUpdated` unconditionally —
+    // deciding whether to suppress it requires comparing BOTH sides against a
+    // shared reference time (see `alignProjectLastUpdatedBuckets` below), which
+    // this single-snapshot function cannot do. Called alone, on data it hasn't
+    // been pre-aligned by `alignProjectLastUpdatedBuckets`, it now correctly
+    // treats differing `lastUpdated` values as a real difference.
+    it('does NOT strip lastUpdated on its own — that requires cross-snapshot bucket comparison first', () => {
       const a = normalizeForComparison(pr369Previous, 'projects')
       const b = normalizeForComparison(pr369Current, 'projects')
-      expect(a).toBe(b)
+      expect(a).not.toBe(b)
     })
 
     it('does NOT strip lastUpdated-shaped fields for the blog kind (no such field exists on posts)', () => {
@@ -130,19 +139,248 @@ describe('refresh-diff script', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // Unit: alignProjectLastUpdatedBuckets
+  //
+  // The decision behind fixing PR #411's first review blocker: suppress a
+  // project's `lastUpdated` ONLY while the committed and regenerated values
+  // bucket to the SAME Active/Recent/Archived status (`getProjectStatus`,
+  // `src/utils/projects.ts` — the exact boundary the UI itself uses, not an
+  // arbitrary threshold). Both sides are evaluated against one shared
+  // `referenceTime` so the comparison is deterministic and apples-to-apples.
+  // ---------------------------------------------------------------------------
+
+  describe('alignProjectLastUpdatedBuckets', () => {
+    const referenceTime = new Date('2026-09-16T00:00:00Z')
+
+    // Omits the `lastUpdated` key entirely when undefined — matching how a
+    // real snapshot represents "no value" (JSON has no way to serialize an
+    // explicit `undefined`), so `not.toHaveProperty('lastUpdated')` below is a
+    // meaningful assertion rather than an artifact of how the fixture is built.
+    const projectWithLastUpdated = (lastUpdated?: string): UnknownRecord => {
+      const {lastUpdated: _omit, ...base} = pr369Project
+      return lastUpdated === undefined ? base : {...base, lastUpdated}
+    }
+    const withLastUpdated = (lastUpdated?: string): UnknownRecord => ({projects: [projectWithLastUpdated(lastUpdated)]})
+
+    const firstProject = (snapshot: UnknownRecord): UnknownRecord => {
+      const project = (snapshot.projects as UnknownRecord[])[0]
+      if (!project) throw new Error('expected a project at index 0')
+      return project
+    }
+
+    it('suppresses lastUpdated when both sides move WITHIN the same bucket (the exact #369 case: both Active)', () => {
+      const previous = withLastUpdated('2026-09-01T12:40:27Z')
+      const current = withLastUpdated('2026-09-16T01:56:01Z')
+
+      const aligned = alignProjectLastUpdatedBuckets(current, previous, referenceTime)
+
+      expect(firstProject(aligned.current)).not.toHaveProperty('lastUpdated')
+      expect(firstProject(aligned.previous)).not.toHaveProperty('lastUpdated')
+    })
+
+    it('keeps lastUpdated when crossing the Active→Recent boundary', () => {
+      const previous = withLastUpdated('2026-07-16T00:00:00Z') // ~62 days → Active
+      const current = withLastUpdated('2026-05-01T00:00:00Z') // ~138 days → Recent
+
+      const aligned = alignProjectLastUpdatedBuckets(current, previous, referenceTime)
+
+      expect(firstProject(aligned.current).lastUpdated).toBe('2026-05-01T00:00:00Z')
+      expect(firstProject(aligned.previous).lastUpdated).toBe('2026-07-16T00:00:00Z')
+    })
+
+    it('keeps lastUpdated when crossing the Recent→Archived boundary', () => {
+      // Recent: 3-12 months ago from referenceTime. Archived: >12 months ago.
+      const recentPrevious = withLastUpdated('2026-03-01T00:00:00Z') // ~199 days → Recent
+      const archivedCurrent = withLastUpdated('2024-01-01T00:00:00Z') // >12 months → Archived
+
+      const aligned = alignProjectLastUpdatedBuckets(archivedCurrent, recentPrevious, referenceTime)
+
+      expect(firstProject(aligned.current).lastUpdated).toBe('2024-01-01T00:00:00Z')
+      expect(firstProject(aligned.previous).lastUpdated).toBe('2026-03-01T00:00:00Z')
+    })
+
+    it('DRIFT CASE (the whole point): a stored date old enough to now bucket Recent, with a fresh upstream date bucketing Active → kept (self-healing)', () => {
+      // If this were suppressed via a frozen "same bucket forever" assumption,
+      // an actively-pushed project would silently display a stale status. The
+      // moment the frozen stored date and the live upstream date diverge in
+      // bucket, alignment must stop suppressing — which is exactly what proves
+      // the mechanism is self-healing rather than a ticking time bomb.
+      const staleStoredDate = withLastUpdated('2026-04-01T00:00:00Z') // ~168 days ago → Recent
+      const freshUpstreamDate = withLastUpdated('2026-09-10T00:00:00Z') // ~6 days ago → Active
+
+      const aligned = alignProjectLastUpdatedBuckets(freshUpstreamDate, staleStoredDate, referenceTime)
+
+      expect(firstProject(aligned.current).lastUpdated).toBe('2026-09-10T00:00:00Z')
+      expect(firstProject(aligned.previous).lastUpdated).toBe('2026-04-01T00:00:00Z')
+    })
+
+    it('suppresses lastUpdated when BOTH sides are absent (Unknown === Unknown)', () => {
+      const previous = withLastUpdated(undefined)
+      const current = withLastUpdated(undefined)
+
+      const aligned = alignProjectLastUpdatedBuckets(current, previous, referenceTime)
+
+      expect(firstProject(aligned.current)).not.toHaveProperty('lastUpdated')
+      expect(firstProject(aligned.previous)).not.toHaveProperty('lastUpdated')
+    })
+
+    it('keeps lastUpdated when it is absent on only ONE side (Unknown vs a real bucket is itself a status change)', () => {
+      const previous = withLastUpdated(undefined)
+      const current = withLastUpdated('2026-09-10T00:00:00Z') // Active
+
+      const aligned = alignProjectLastUpdatedBuckets(current, previous, referenceTime)
+
+      expect(firstProject(aligned.current).lastUpdated).toBe('2026-09-10T00:00:00Z')
+      expect(firstProject(aligned.previous)).not.toHaveProperty('lastUpdated')
+    })
+
+    it('leaves a project untouched when it has no counterpart on the other side (added/removed — a real, structural change caught elsewhere)', () => {
+      const previous: UnknownRecord = {projects: []}
+      const current = withLastUpdated('2026-09-10T00:00:00Z')
+
+      const aligned = alignProjectLastUpdatedBuckets(current, previous, referenceTime)
+
+      expect(firstProject(aligned.current).lastUpdated).toBe('2026-09-10T00:00:00Z')
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Unit: evaluateSnapshotCheck (the #369 fixture proof)
   // ---------------------------------------------------------------------------
 
   describe('evaluateSnapshotCheck', () => {
-    it('PR #369 fixture: timestamp-only + generatedAt-only delta in projects-snapshot.json → unchanged', () => {
+    const referenceTime = new Date('2026-09-16T12:00:00Z')
+
+    it('PR #369 fixture: timestamp-only + generatedAt-only delta in projects-snapshot.json → unchanged (both bucket Active)', () => {
       const outcome = evaluateSnapshotCheck(
         'projects-snapshot.json',
         'projects',
         {content: stringify(pr369Current)},
         {content: stringify(pr369Previous)},
+        referenceTime,
       )
       expect(outcome.status).toBe('unchanged')
       expect(outcome.warning).toBeUndefined()
+    })
+
+    it('lastUpdated crossing the Active→Recent boundary → changed', () => {
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: '2026-07-16T00:00:00Z'}], // ~62 days → Active
+      }
+      const current = {
+        ...pr369Current,
+        projects: [{...pr369Project, lastUpdated: '2026-05-01T00:00:00Z'}], // ~138 days → Recent
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
+      )
+      expect(outcome.status).toBe('changed')
+    })
+
+    it('lastUpdated crossing the Recent→Archived boundary → changed', () => {
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: '2026-03-01T00:00:00Z'}], // ~199 days → Recent
+      }
+      const current = {
+        ...pr369Current,
+        projects: [{...pr369Project, lastUpdated: '2024-01-01T00:00:00Z'}], // → Archived
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
+      )
+      expect(outcome.status).toBe('changed')
+    })
+
+    it('DRIFT CASE end-to-end: stale stored date now buckets Recent, fresh upstream buckets Active → changed (proves self-healing)', () => {
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: '2026-04-01T00:00:00Z'}], // ~168 days → Recent
+      }
+      const current = {
+        ...pr369Current,
+        projects: [{...pr369Project, lastUpdated: '2026-09-10T00:00:00Z'}], // ~6 days → Active
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
+      )
+      expect(outcome.status).toBe('changed')
+    })
+
+    it('lastUpdated bucket change occurring TOGETHER with a real field change → changed', () => {
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: '2026-07-16T00:00:00Z'}], // Active
+      }
+      const current = {
+        ...pr369Current,
+        projects: [
+          {
+            ...pr369Project,
+            lastUpdated: '2026-05-01T00:00:00Z', // Recent — crosses the boundary
+            description: 'A totally different description landing in the same run',
+          },
+        ],
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
+      )
+      expect(outcome.status).toBe('changed')
+    })
+
+    it('lastUpdated absent on BOTH sides → unchanged (Unknown === Unknown; no signal either way)', () => {
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: undefined}],
+      }
+      const current = {
+        ...pr369Current,
+        projects: [{...pr369Project, lastUpdated: undefined}],
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
+      )
+      expect(outcome.status).toBe('unchanged')
+    })
+
+    it('lastUpdated absent on only ONE side → changed (gaining/losing tracked activity is itself a status change)', () => {
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: undefined}],
+      }
+      const current = {
+        ...pr369Current,
+        projects: [{...pr369Project, lastUpdated: '2026-09-10T00:00:00Z'}], // Active
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
+      )
+      expect(outcome.status).toBe('changed')
     })
 
     it('generatedAt-only delta in blog-snapshot.json → unchanged', () => {
@@ -227,6 +465,35 @@ describe('refresh-diff script', () => {
         'projects',
         {content: stringify(emptied)},
         {content: stringify(pr369Previous)},
+      )
+      expect(outcome.status).toBe('changed')
+    })
+
+    // BITE-PROOF: stripping `lastUpdated` wholesale (the pre-fix behaviour)
+    // hides a real, user-visible status change. `getProjectStatus`
+    // (src/utils/projects.ts) buckets a project's `lastUpdated` into
+    // Active (<=3mo) / Recent (<=12mo) / Archived, and that bucket drives
+    // the UseProjectFilter status filter. A previous value that bucketed as
+    // Active and a current value that now buckets as Recent is exactly the
+    // drift PR #411 flagged: suppressing it would let an actively-pushed
+    // project silently display a stale status once enough wall-clock time
+    // passes. This must be CHANGED, not unchanged.
+    it('BITE-PROOF: lastUpdated crossing the Active→Recent boundary is a real, user-visible change', () => {
+      const referenceTime = new Date('2026-09-16T00:00:00Z')
+      const previous = {
+        ...pr369Previous,
+        projects: [{...pr369Project, lastUpdated: '2026-07-16T00:00:00Z'}], // ~62 days ago → Active
+      }
+      const current = {
+        ...pr369Current,
+        projects: [{...pr369Project, lastUpdated: '2026-05-01T00:00:00Z'}], // ~138 days ago → Recent
+      }
+      const outcome = evaluateSnapshotCheck(
+        'projects-snapshot.json',
+        'projects',
+        {content: stringify(current)},
+        {content: stringify(previous)},
+        referenceTime,
       )
       expect(outcome.status).toBe('changed')
     })

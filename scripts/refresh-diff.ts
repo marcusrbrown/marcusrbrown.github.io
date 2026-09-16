@@ -17,11 +17,25 @@
  * would notice, ignoring only these volatile fields (none of which mean the
  * project's content changed):
  *   - top-level `generatedAt` in both snapshots — pure generation metadata
- *   - each project's `lastUpdated` in `projects-snapshot.json` — tracks the
- *     upstream repo's push activity, not any displayed property
  *   - each project's `stars` in `projects-snapshot.json` — tracks
  *     third-party interaction (someone starring the repo), not the project
  *     itself changing
+ *
+ * `lastUpdated` in `projects-snapshot.json` is NOT unconditionally ignored.
+ * It is not merely displayed — `getProjectStatus` (`src/utils/projects.ts`)
+ * buckets it into Active (<=3mo) / Recent (<=12mo) / Archived, and that
+ * bucket drives the `UseProjectFilter` status filter. Stripping it wholesale
+ * would be silent drift, not a fix: two nearby dates bucket identically
+ * today, but the frozen stored date keeps aging while the real repo stays
+ * active, so an actively-pushed project would eventually and silently
+ * display as Recent, then Archived. Instead, `lastUpdated` is suppressed
+ * only while the committed and regenerated values bucket to the SAME status
+ * (`alignProjectLastUpdatedBuckets`, evaluated against one shared reference
+ * time so the comparison is apples-to-apples) — the exact boundary the UI
+ * already uses, not an arbitrary threshold. The moment a real bucket change
+ * would occur, the values are left alone and the diff fires, so this is
+ * self-healing rather than a ticking time bomb. See
+ * docs/solutions (PR #411 review) for the drift scenario this replaced.
  *
  * `blog-snapshot.json` posts carry `gistUpdatedAt`, but that field is the
  * timestamp of the exact content being compared (the gist's Markdown
@@ -46,12 +60,14 @@ import {appendFileSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import process from 'node:process'
 
+import {getProjectStatus} from '../src/utils/projects'
+
 export const BLOG_SNAPSHOT_PATH = 'src/data/blog-snapshot.json'
 export const PROJECTS_SNAPSHOT_PATH = 'src/data/projects-snapshot.json'
 export const PREVIEW_DIRECTORY = 'public/project-previews/'
 
 type SnapshotKind = 'blog' | 'projects'
-type UnknownRecord = Record<string, unknown>
+export type UnknownRecord = Record<string, unknown>
 
 /** Read result for the current (working-tree) copy of a file. */
 export type CurrentRead = {content: string} | {error: string}
@@ -86,11 +102,16 @@ const parseJsonRecord = (raw: string, label: string): UnknownRecord => {
 
 /**
  * Strips `generatedAt` and, for `projects-snapshot.json`, each project's
- * `lastUpdated` and `stars`, then returns a stable JSON string for equality
- * comparison. Key order is preserved from the source object; both the
- * committed and the freshly regenerated file are produced by the same
- * generator's `JSON.stringify(snapshot, null, 2)`, so remaining key order
- * always matches when the underlying data matches.
+ * `stars`, then returns a stable JSON string for equality comparison. Key
+ * order is preserved from the source object; both the committed and the
+ * freshly regenerated file are produced by the same generator's
+ * `JSON.stringify(snapshot, null, 2)`, so remaining key order always matches
+ * when the underlying data matches.
+ *
+ * Does NOT touch `lastUpdated` — unlike `stars`, it is not unconditionally
+ * volatile (see `alignProjectLastUpdatedBuckets`, which must run on the
+ * current/previous PAIR before this function, since deciding whether to
+ * suppress a single project's `lastUpdated` requires comparing both sides).
  */
 export const normalizeForComparison = (snapshot: UnknownRecord, kind: SnapshotKind): string => {
   const {generatedAt: _generatedAt, ...rest} = snapshot
@@ -98,12 +119,92 @@ export const normalizeForComparison = (snapshot: UnknownRecord, kind: SnapshotKi
   if (kind === 'projects' && Array.isArray(rest.projects)) {
     rest.projects = rest.projects.map(project => {
       if (typeof project !== 'object' || project === null) return project
-      const {lastUpdated: _lastUpdated, stars: _stars, ...projectRest} = project as UnknownRecord
+      const {stars: _stars, ...projectRest} = project as UnknownRecord
       return projectRest
     })
   }
 
   return JSON.stringify(rest)
+}
+
+const projectId = (project: unknown): unknown =>
+  typeof project === 'object' && project !== null && 'id' in project ? (project as UnknownRecord).id : undefined
+
+const projectLastUpdated = (project: UnknownRecord): string | undefined =>
+  typeof project.lastUpdated === 'string' ? project.lastUpdated : undefined
+
+/**
+ * Suppresses `lastUpdated` on a project ONLY when its committed and
+ * regenerated values bucket to the same Active/Recent/Archived status
+ * (`getProjectStatus`, `src/utils/projects.ts`) as of the shared
+ * `referenceTime`. A project present on only one side (added/removed —
+ * already a real, structural change caught elsewhere) is left untouched.
+ * Absent/undefined `lastUpdated` buckets as `'Unknown'`
+ * (`getProjectStatus`'s own contract), so:
+ *   - undefined on both sides → 'Unknown' === 'Unknown' → suppressed
+ *     (no signal either way; nothing to report).
+ *   - undefined on one side only → 'Unknown' !== a real bucket → kept,
+ *     which surfaces as a real change (gaining/losing tracked activity
+ *     data is itself a user-visible status change).
+ */
+const alignLastUpdatedBucket = (
+  project: unknown,
+  counterpartById: Map<unknown, UnknownRecord>,
+  referenceTime: Date,
+): unknown => {
+  if (typeof project !== 'object' || project === null) return project
+  const projectRecord = project as UnknownRecord
+  const counterpart = counterpartById.get(projectId(projectRecord))
+  if (!counterpart) return projectRecord
+
+  const ownBucket = getProjectStatus(projectLastUpdated(projectRecord), referenceTime)
+  const counterpartBucket = getProjectStatus(projectLastUpdated(counterpart), referenceTime)
+  if (ownBucket !== counterpartBucket) return projectRecord
+
+  const {lastUpdated: _lastUpdated, ...rest} = projectRecord
+  return rest
+}
+
+const indexProjectsById = (projects: unknown[]): Map<unknown, UnknownRecord> => {
+  const byId = new Map<unknown, UnknownRecord>()
+  for (const project of projects) {
+    if (typeof project === 'object' && project !== null) byId.set(projectId(project), project as UnknownRecord)
+  }
+  return byId
+}
+
+/**
+ * Aligns `lastUpdated` between the current and previous `projects-snapshot`
+ * objects (matched by `id`) so that `normalizeForComparison` sees a
+ * suppressed value only where the two sides bucket identically as of
+ * `referenceTime`, and the raw (differing) values everywhere the bucket
+ * actually changed. Both sides are evaluated against the SAME
+ * `referenceTime` so the comparison is apples-to-apples — evaluating each
+ * side against `Date.now()` independently would let clock skew between the
+ * two reads produce a spurious bucket mismatch.
+ */
+export const alignProjectLastUpdatedBuckets = (
+  currentSnapshot: UnknownRecord,
+  previousSnapshot: UnknownRecord,
+  referenceTime: Date,
+): {current: UnknownRecord; previous: UnknownRecord} => {
+  if (!Array.isArray(currentSnapshot.projects) || !Array.isArray(previousSnapshot.projects)) {
+    return {current: currentSnapshot, previous: previousSnapshot}
+  }
+
+  const previousById = indexProjectsById(previousSnapshot.projects)
+  const currentById = indexProjectsById(currentSnapshot.projects)
+
+  return {
+    current: {
+      ...currentSnapshot,
+      projects: currentSnapshot.projects.map(project => alignLastUpdatedBucket(project, previousById, referenceTime)),
+    },
+    previous: {
+      ...previousSnapshot,
+      projects: previousSnapshot.projects.map(project => alignLastUpdatedBucket(project, currentById, referenceTime)),
+    },
+  }
 }
 
 /**
@@ -117,6 +218,7 @@ export const evaluateSnapshotCheck = (
   kind: SnapshotKind,
   current: CurrentRead,
   previous: PreviousRead,
+  referenceTime: Date = new Date(),
 ): CheckOutcome => {
   if ('error' in current) {
     return {
@@ -137,10 +239,20 @@ export const evaluateSnapshotCheck = (
   }
 
   try {
-    const previousNormalized = normalizeForComparison(parseJsonRecord(previous.content, `previous ${label}`), kind)
-    const currentNormalized = normalizeForComparison(parseJsonRecord(current.content, `current ${label}`), kind)
+    let previousParsed = parseJsonRecord(previous.content, `previous ${label}`)
+    let currentParsed = parseJsonRecord(current.content, `current ${label}`)
+
+    if (kind === 'projects') {
+      const aligned = alignProjectLastUpdatedBuckets(currentParsed, previousParsed, referenceTime)
+      currentParsed = aligned.current
+      previousParsed = aligned.previous
+    }
+
+    const previousNormalized = normalizeForComparison(previousParsed, kind)
+    const currentNormalized = normalizeForComparison(currentParsed, kind)
     if (previousNormalized === currentNormalized) {
-      const ignored = kind === 'projects' ? 'generatedAt/lastUpdated/stars ignored' : 'generatedAt ignored'
+      const ignored =
+        kind === 'projects' ? 'generatedAt/stars ignored, lastUpdated unchanged-bucket' : 'generatedAt ignored'
       return {status: 'unchanged', note: `${label}: no semantic change (${ignored})`}
     }
     return {status: 'changed', note: `${label}: content differs`}
@@ -277,19 +389,26 @@ const readPreviewStatus = (root: string): PreviewStatusRead => {
   }
 }
 
-/** Runs the full detection against a real working tree (used by the CLI, and by tests against a scratch git repo). */
-export const runDetection = (root: string): DiffResult => {
+/**
+ * Runs the full detection against a real working tree (used by the CLI, and
+ * by tests against a scratch git repo). `referenceTime` defaults to the
+ * wall clock; tests can inject a fixed value so the `lastUpdated` bucket
+ * comparison is deterministic rather than dependent on when the test runs.
+ */
+export const runDetection = (root: string, referenceTime: Date = new Date()): DiffResult => {
   const blogOutcome = evaluateSnapshotCheck(
     'blog-snapshot.json',
     'blog',
     readCurrentFile(root, BLOG_SNAPSHOT_PATH),
     readCommittedFile(root, BLOG_SNAPSHOT_PATH),
+    referenceTime,
   )
   const projectsOutcome = evaluateSnapshotCheck(
     'projects-snapshot.json',
     'projects',
     readCurrentFile(root, PROJECTS_SNAPSHOT_PATH),
     readCommittedFile(root, PROJECTS_SNAPSHOT_PATH),
+    referenceTime,
   )
   const previewOutcome = evaluatePreviewCheck(readPreviewStatus(root))
 
