@@ -3,7 +3,8 @@ import {spawnSync} from 'node:child_process'
 import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
-import {afterEach, describe, expect, it} from 'vitest'
+import process from 'node:process'
+import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {
   BLOG_SNAPSHOT_PATH,
   combineOutcomes,
@@ -375,6 +376,129 @@ describe('refresh-diff script', () => {
   })
 
   // ---------------------------------------------------------------------------
+  // Hermetic git environment (shared by every integration test below)
+  //
+  // A pre-push hook runs this whole suite as part of `git push`. Git exports
+  // repository-location/index/object-store variables into that hook's
+  // environment (empirically confirmed: `GIT_DIR` and `GIT_PREFIX` are set for
+  // a pre-push hook invoked from a worktree checkout -- reproduced with a
+  // scratch bare remote + worktree + a hook that dumps `env | grep ^GIT_`).
+  // `GIT_INDEX_FILE` is set whenever a temporary/partial index is in play
+  // (e.g. lint-staged's partial-stage step upstream of the push). Left
+  // ambient, any of these silently redirect a `git` command spawned inside
+  // one of this suite's scratch repositories back onto the REAL repository,
+  // worktree, or index that is mid-push -- exactly what broke
+  // `runDetection (integration, real git)` under the hook: `git commit`
+  // inside a scratch tmpdir failed with "Current directory is not a git
+  // directory" because `GIT_DIR`/`GIT_INDEX_FILE` pointed at the real repo.
+  //
+  // Deliberately NOT scrubbed: `GIT_AUTHOR_*`/`GIT_COMMITTER_*`/`GIT_EDITOR`/
+  // `GIT_PAGER`/`GIT_SSH*`/`GIT_ASKPASS`/`GIT_TERMINAL_PROMPT`/`GIT_CONFIG*`.
+  // None of those redirect a command to a different repository, index, or
+  // object store -- they only affect commit metadata, transport, or
+  // interactive UI, and no assertion in this file depends on any of them.
+  const GIT_ENV_VARS_TO_SCRUB = [
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_COMMON_DIR',
+    'GIT_NAMESPACE',
+    'GIT_CEILING_DIRECTORIES',
+    'GIT_DISCOVERY_ACROSS_FILESYSTEM',
+    'GIT_INDEX_FILE',
+    'GIT_INDEX_VERSION',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_QUARANTINE_PATH',
+    'GIT_PREFIX',
+    'GIT_EXEC_PATH',
+  ] as const
+
+  /**
+   * Builds an env object for a SPAWNED child with every `GIT_ENV_VARS_TO_SCRUB`
+   * entry removed, then layers `extraEnv` on top. An `extraEnv` value of
+   * `undefined` deletes that key too (rather than being skipped), so a caller
+   * can explicitly assert a variable's absence -- mirroring
+   * `tests/scripts/pre-push.test.ts` and
+   * docs/solutions/integration-issues/pre-push-hook-blocks-renovate-pushes-2026-09-16.md.
+   */
+  const hermeticGitEnv = (extraEnv: Record<string, string | undefined> = {}): Record<string, string | undefined> => {
+    const env: Record<string, string | undefined> = {...process.env}
+    for (const key of GIT_ENV_VARS_TO_SCRUB) delete env[key]
+
+    Object.assign(env, extraEnv)
+    for (const [key, value] of Object.entries(extraEnv)) {
+      if (value === undefined) delete env[key]
+    }
+
+    return env
+  }
+
+  /**
+   * Runs `fn` with every `GIT_ENV_VARS_TO_SCRUB` entry temporarily removed
+   * from the CURRENT process's `process.env`, restoring the previous value
+   * (or absence) afterward even if `fn` throws. Needed because `runDetection`
+   * calls production code IN-PROCESS: its internal `execFileSync('git', ...)`
+   * calls inherit `process.env` directly (they pass no `env` override), not an
+   * object this test file controls -- so `hermeticGitEnv()` alone (which only
+   * shapes an env object handed to a spawned child) cannot reach them.
+   */
+  const withHermeticProcessEnv = <T>(fn: () => T): T => {
+    const previous = new Map(GIT_ENV_VARS_TO_SCRUB.map(key => [key, process.env[key]]))
+    for (const key of GIT_ENV_VARS_TO_SCRUB) delete process.env[key]
+    try {
+      return fn()
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Regression guard: the hermetic-env helper must not leak ambient GIT_*
+  // variables into anything it touches. Bite-proofed manually: commenting out
+  // either scrub loop above reliably fails the corresponding test below.
+  // ---------------------------------------------------------------------------
+
+  describe('hermetic git environment helpers (regression guard)', () => {
+    const ambientBackup = new Map<string, string | undefined>()
+
+    beforeEach(() => {
+      for (const key of GIT_ENV_VARS_TO_SCRUB) {
+        ambientBackup.set(key, process.env[key])
+        process.env[key] = `contaminated-${key}`
+      }
+    })
+
+    afterEach(() => {
+      for (const [key, value] of ambientBackup) {
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+      }
+      ambientBackup.clear()
+    })
+
+    it('hermeticGitEnv() does not leak ambient GIT_* variables into a spawned command', () => {
+      const script = 'console.log(JSON.stringify(Object.keys(process.env).filter(k => k.startsWith("GIT_"))))'
+      const result = spawnSync(process.execPath, ['-e', script], {encoding: 'utf8', env: hermeticGitEnv()})
+
+      expect(result.status).toBe(0)
+      expect(JSON.parse(result.stdout) as string[]).toEqual([])
+    })
+
+    it('withHermeticProcessEnv() removes ambient GIT_* variables for the callback, then restores them', () => {
+      const seenDuringCallback = withHermeticProcessEnv(() => GIT_ENV_VARS_TO_SCRUB.filter(key => key in process.env))
+      expect(seenDuringCallback).toEqual([])
+
+      // Restored to the contaminated values this describe block's beforeEach set.
+      for (const key of GIT_ENV_VARS_TO_SCRUB) {
+        expect(process.env[key]).toBe(`contaminated-${key}`)
+      }
+    })
+  })
+
+  // ---------------------------------------------------------------------------
   // Integration: runDetection against a real scratch git repository
   // ---------------------------------------------------------------------------
 
@@ -382,7 +506,7 @@ describe('refresh-diff script', () => {
     let repoDir: string
 
     const git = (args: string[]) => {
-      const result = spawnSync('git', args, {cwd: repoDir, encoding: 'utf8'})
+      const result = spawnSync('git', args, {cwd: repoDir, encoding: 'utf8', env: hermeticGitEnv()})
       if (result.status !== 0) {
         throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`)
       }
@@ -422,7 +546,7 @@ describe('refresh-diff script', () => {
       // the #369 timestamp delta, no preview changes.
       writeFileSync(join(repoDir, PROJECTS_SNAPSHOT_PATH), stringify(pr369Current))
 
-      const result = runDetection(repoDir)
+      const result = withHermeticProcessEnv(() => runDetection(repoDir))
       expect(result.changed).toBe(false)
       expect(result.warnings).toEqual([])
     })
@@ -442,7 +566,7 @@ describe('refresh-diff script', () => {
       }
       writeFileSync(join(repoDir, PROJECTS_SNAPSHOT_PATH), stringify(changed))
 
-      const result = runDetection(repoDir)
+      const result = withHermeticProcessEnv(() => runDetection(repoDir))
       expect(result.changed).toBe(true)
     })
 
@@ -460,7 +584,7 @@ describe('refresh-diff script', () => {
       spawnSync('mkdir', ['-p', join(repoDir, PREVIEW_DIRECTORY)])
       writeFileSync(join(repoDir, PREVIEW_DIRECTORY, 'new-image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
 
-      const result = runDetection(repoDir)
+      const result = withHermeticProcessEnv(() => runDetection(repoDir))
       expect(result.changed).toBe(true)
       expect(result.summary.some(line => line.includes('new-image.png'))).toBe(true)
     })
@@ -485,7 +609,7 @@ describe('refresh-diff script', () => {
           join(process.cwd(), 'node_modules/tsx/dist/loader.mjs'),
           join(process.cwd(), 'scripts/refresh-diff.ts'),
         ],
-        {cwd: repoDir, encoding: 'utf8', env: {...process.env, GITHUB_OUTPUT: outputPath}},
+        {cwd: repoDir, encoding: 'utf8', env: hermeticGitEnv({GITHUB_OUTPUT: outputPath})},
       )
 
       expect(run.status).toBe(0)
@@ -505,7 +629,7 @@ describe('refresh-diff script', () => {
           join(process.cwd(), 'node_modules/tsx/dist/loader.mjs'),
           join(process.cwd(), 'scripts/refresh-diff.ts'),
         ],
-        {cwd: repoDir, encoding: 'utf8', env: {...process.env, GITHUB_OUTPUT: outputPath}},
+        {cwd: repoDir, encoding: 'utf8', env: hermeticGitEnv({GITHUB_OUTPUT: outputPath})},
       )
 
       expect(run2.status).toBe(0)
