@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-dispatch-{0}', github.run_id) || '' }}
@@ -20,6 +21,9 @@ jobs:
     outputs:
       node-version: ${{ steps.setup.outputs.node-version }}
       cache-hit: ${{ steps.setup.outputs.cache-hit }}
+      run-unit-tests: ${{ steps.gate-unit-tests.outputs.run }}
+      run-build-typecheck: ${{ steps.gate-build-typecheck.outputs.run }}
+      run-type-check: ${{ steps.gate-type-check.outputs.run }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -27,6 +31,80 @@ jobs:
       - name: Setup project
         id: setup
         uses: ./.github/actions/setup
+
+      - name: Detect relevant path changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: .github/filters.yaml
+
+      - name: Gate unit tests on changed paths
+        id: gate-unit-tests
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_RESULT: ${{ steps.filter.outputs.unit-tests }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$FILTER_RESULT" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$FILTER_RESULT" == "false" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::paths-filter returned an unexpected value: '$FILTER_RESULT' (expected 'true' or 'false')"
+            exit 1
+          fi
+
+      - name: Gate build and type-check on changed paths
+        id: gate-build-typecheck
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          APP_CHANGED: ${{ steps.filter.outputs.app }}
+          BUILD_CONFIG_CHANGED: ${{ steps.filter.outputs.build-config }}
+          AUTOMATION_CHANGED: ${{ steps.filter.outputs.automation }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          result=false
+          for value in "$APP_CHANGED" "$BUILD_CONFIG_CHANGED" "$AUTOMATION_CHANGED"; do
+            case "$value" in
+              true) result=true ;;
+              false) ;;
+              *)
+                echo "::error::paths-filter returned an unexpected value: '$value' (expected 'true' or 'false')"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "run=${result}" >> "$GITHUB_OUTPUT"
+
+      # Deliberately separate from gate-build-typecheck above: `pnpm run check-types`
+      # covers every input to both tsconfig projects (see the `type-check` category
+      # comment in .github/filters.yaml), which is broader than what building a
+      # working dist/ requires. Reusing the build gate here would let changes under
+      # tests/**, examples/**, or .opencode/impeccable/** skip TypeScript compilation
+      # entirely.
+      - name: Gate type-check on changed paths
+        id: gate-type-check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FILTER_RESULT: ${{ steps.filter.outputs.type-check }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$FILTER_RESULT" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$FILTER_RESULT" == "false" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::paths-filter returned an unexpected value: '$FILTER_RESULT' (expected 'true' or 'false')"
+            exit 1
+          fi
 
   lint:
     name: Lint Code
@@ -64,6 +142,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Run tests with coverage
+        if: needs.setup.outputs.run-unit-tests == 'true'
         run: pnpm run test --coverage
 
       - name: Upload coverage artifacts
@@ -86,12 +165,15 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Build project
+        if: needs.setup.outputs.run-build-typecheck == 'true'
         run: pnpm run build
 
       - name: Analyze build output
+        if: needs.setup.outputs.run-build-typecheck == 'true'
         run: pnpm run analyze-build
 
       - name: Check build output
+        if: needs.setup.outputs.run-build-typecheck == 'true'
         run: |
           if [ ! -d "dist" ]; then
             echo "❌ Build failed - dist directory not found"
@@ -126,6 +208,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Run TypeScript compiler
+        if: needs.setup.outputs.run-type-check == 'true'
         run: pnpm run check-types
 
   validate:

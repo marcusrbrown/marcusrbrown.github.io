@@ -1,0 +1,138 @@
+# Path categories consumed by `dorny/paths-filter` to gate expensive CI steps.
+# See docs/plans/2026-09-16-001-refactor-ci-path-filtering-plan.md.
+#
+# Rule: no `added|modified:` prefix on app/build-config/automation/test categories.
+# A deletion or rename must still evaluate true for those, or the validation that
+# would have caught the broken result gets skipped along with the removed file.
+# `added|modified:` is reserved for cases where a deleted file cannot break anything
+# (none of the categories below qualify, so none use it).
+
+app: &app
+  - src/**
+  - public/**
+  - index.html
+  - .gitattributes
+
+build-config: &build-config
+  - package.json
+  - pnpm-lock.yaml
+  - pnpm-workspace.yaml
+  - vite.config.ts
+  - 'tsconfig*.json'
+  - .opencode/tsconfig.json
+  # .opencode/package.json is gitignored (see .opencode/.gitignore) and never
+  # tracked, so it can never appear in a PR diff. Listed anyway per the plan so
+  # the category stays correct if that ever changes; it is inert until then.
+  - .opencode/package.json
+  - .github/actions/setup/**
+
+# Scripts that orchestrate build/validation/CI, plus the git and Copilot hooks
+# that gate local and agent-driven commits. All three are unit-tested directly
+# (tests/scripts/pre-push.test.ts spawns .github/git-hooks/pre-push.ts;
+# tests/copilot-hooks/pre-tool-use.test.ts imports .github/hooks/copilot-hook-utils.ts
+# and spawns .github/hooks/pre-tool-use.ts), so they belong with scripts/** rather
+# than going uncovered.
+#
+# This is also the taxonomy's own control plane: .github/filters.yaml (this file)
+# and .github/workflows/** define every category and every gate in this file, and
+# `automation` is the one anchor shared by unit-tests, e2e, visual, accessibility,
+# performance, and the ci.yaml build gate. Anchoring the control plane here means a
+# change to any workflow or to this file itself is validated by everything it
+# could affect, rather than by one suite guessed to be "most representative".
+automation: &automation
+  - scripts/**
+  - .github/hooks/**
+  - .github/git-hooks/**
+  - .github/filters.yaml
+  - .github/workflows/**
+
+test-config: &test-config
+  - playwright.config.ts
+  - lighthouserc.cjs
+  - tests/fixtures/**
+  - tests/setup.ts
+
+# Everything Vitest picks up under `pnpm test` (vite.config.ts test.exclude only
+# excludes tests/e2e, tests/visual, tests/accessibility, tests/performance).
+# Includes the plan's named dirs plus three gaps found by inspecting the tree:
+# tests/copilot-hooks/**, the loose root-level specs (main.test.tsx,
+# main-integration.test.tsx, setup.test.ts), and .opencode/impeccable/** (its
+# own colocated *.test.ts files run under the same `vitest run` invocation).
+unit-tests:
+  - *app
+  - *build-config
+  - *automation
+  - tests/components/**
+  - tests/hooks/**
+  - tests/utils/**
+  - tests/pages/**
+  - tests/types/**
+  - tests/scripts/**
+  - tests/copilot-hooks/**
+  - tests/main.test.tsx
+  - tests/main-integration.test.tsx
+  - tests/setup.test.ts
+  - .opencode/impeccable/**
+
+e2e:
+  - *app
+  - *build-config
+  - *automation
+  - *test-config
+  - tests/e2e/**
+
+visual:
+  - *app
+  - *build-config
+  - *automation
+  - *test-config
+  - tests/visual/**
+
+accessibility:
+  - *app
+  - *build-config
+  - *automation
+  - *test-config
+  - tests/accessibility/**
+
+performance:
+  - *app
+  - *build-config
+  - *automation
+  - *test-config
+  - tests/performance/**
+
+# `pnpm run check-types` runs two tsconfig projects: root tsconfig.json
+# (include: **/*, exclude: .opencode/**) and .opencode/tsconfig.json
+# (include: **/*). Their includes are complementary with no gap, so the union
+# of both projects' inputs is every tracked file in the repository -- not an
+# approximation of it. `**` is therefore the precise (not overbroad) set of
+# type-check inputs, and it is the only pattern that closes gaps like
+# examples/** and tests/**, which belong to no other category but are
+# compiled by the root project. See .github/workflows/ci.yaml's
+# gate-type-check step, which is deliberately separate from
+# gate-build-typecheck: build only needs app/build-config/automation to
+# produce a working dist/, but type-check must cover everything tsc reaches.
+#
+# Deliberately NOT narrowed to a source-extension glob (e.g. **/*.{ts,tsx,js,
+# jsx,mjs,cjs}), even though `tsc --showConfig` confirms that is the exact set
+# of file extensions both projects sweep via "include" (allowJs is on via the
+# inherited @bfra.me/tsconfig base, and neither project's compilerOptions
+# overrides it; resolveJsonModule is also on from that base, but TypeScript's
+# own include-glob resolution never sweeps in .json files by extension --
+# verified empirically, zero .json files appear in either project's resolved
+# file list). The reason is resolveJsonModule itself: src/utils/analytics.ts,
+# src/hooks/UseProjects.ts, src/hooks/UseBlogPosts.ts, and the schema/data
+# JSON they import (src/schemas/*.schema.json, src/data/*-snapshot.json) type
+# their JSON imports directly against hand-written interfaces. Corrupting
+# src/data/projects-snapshot.json's shape and running `tsc --noEmit` produces
+# real TS2741/TS2352 errors in three files with zero *.ts changed -- confirmed
+# by deliberately breaking and reverting it while writing this comment. An
+# extension-based glob would miss every one of those files, and the set of
+# JSON files reachable this way is not statically enumerable from tsconfig
+# alone (it grows with the import graph, not with a fixed pattern list) --
+# unlike the source-extension set, which IS closed and exhaustively known from
+# TypeScript's own supported extensions. A narrow-but-wrong gate is worse than
+# a correct-but-conservative one, so this stays `**`.
+type-check:
+  - '**'
