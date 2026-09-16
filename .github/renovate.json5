@@ -4,7 +4,7 @@
   // and re-adding it here (as a later extend) overrides the preset's own
   // 'Ungroup unstable (v0.x[.x]) packages' rule, re-gating the whole group behind
   // dependencyDashboardApproval for any 0.x member.
-  extends: ['github>marcusrbrown/renovate-config#5.2.7'],
+  extends: ['github>marcusrbrown/renovate-config#5.2.13'],
   postUpgradeTasks: {
     commands: ['pnpm install', 'pnpm run build', 'pnpm run fix', 'pnpm run fix'],
     executionMode: 'branch',

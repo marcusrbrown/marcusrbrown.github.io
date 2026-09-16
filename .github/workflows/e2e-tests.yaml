@@ -47,7 +47,7 @@ jobs:
       visual: ${{ steps.gate.outputs.visual }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # Path gating applies only to pull requests. On any other event
       # (workflow_dispatch has no diff to classify) the gate step below
@@ -107,7 +107,7 @@ jobs:
     needs: setup
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # OR-union of the three suite categories: this step exists only to support
       # "Build project" below, which is itself gated on the same OR-union.
@@ -149,7 +149,7 @@ jobs:
         browser: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.browser == 'all' && '["chromium","firefox","webkit"]' || github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.browser) || '["chromium"]') }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # Gated on this job's own suite category: nothing later in this job needs
       # node_modules or a browser binary when e2e is not selected to run.
@@ -194,7 +194,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs['test-type'] == 'all' || inputs['test-type'] == 'visual' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # Gated on this job's own suite category: nothing later in this job needs
       # node_modules or a browser binary when visual is not selected to run.
@@ -238,7 +238,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs['test-type'] == 'all' || inputs['test-type'] == 'accessibility' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       # Gated on this job's own suite category: nothing later in this job needs
       # node_modules or a browser binary when accessibility is not selected to run.
@@ -284,7 +284,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Setup project
         uses: ./.github/actions/setup
