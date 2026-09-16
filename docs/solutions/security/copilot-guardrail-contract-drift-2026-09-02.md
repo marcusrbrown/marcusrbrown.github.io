@@ -133,7 +133,7 @@ Contract: <https://docs.github.com/en/copilot/reference/hooks-reference>
 
 Smaller defects found alongside the guardrail, each worth checking for in similar code:
 
-- Instructions to an agent carry the same argument-delivery hazards as scripts. `pnpm test -- --coverage` silently produces no coverage, because pnpm swallows everything after `--`; the third occurrence of this defect in this repository.
+- Instructions to an agent carry the same argument-delivery hazards as scripts. `pnpm test -- --coverage` silently produces no coverage; the third occurrence of this defect in this repository. The loss is not pnpm's — pnpm forwards the literal `--`, and Vitest treats it as an argument separator and ignores everything after it. A script reading raw argv sees the flag fine, so diagnose this at the receiving CLI.
 - `git diff --quiet` is blind to untracked files, so a change check gated on newly created artifacts reports no change. Use `git status --porcelain` when the output includes new files.
 - An output sourced from an action that does not declare it evaluates falsy forever. `pnpm/action-setup` declares only `dest` and `bin_dest`; `actions/setup-node` is what declares `cache-hit`.
 - A condition can be correct for the wrong reason. A trailing `github.event_name != 'workflow_run'` term made the preceding check unreachable, while the real filtering lived in a pinned callee.

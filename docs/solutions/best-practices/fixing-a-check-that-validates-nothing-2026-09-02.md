@@ -135,6 +135,7 @@ Every instance in the table above was caught in review. None were caught by the 
 
 ## Related Issues
 
+- [A developer git hook ran inside bot automation](../integration-issues/pre-push-hook-blocks-renovate-pushes-2026-09-16.md) — a later instance: the fix reproduced a defect one layer down in its own test harness, where `runHook()` inherited `process.env` and made three pre-existing tests take the new bypass path on CI
 - #366 — dashboard failures masked by `|| echo` in the summary lane; the pattern still live on `main`
 - #355–#358 — the audit findings this batch fixed; PRs #360–#363
 - #364 / #365 — the LCP gate that fired on a diff with no runtime code, and the observational-not-silent fix
