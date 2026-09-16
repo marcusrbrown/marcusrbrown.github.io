@@ -67,7 +67,7 @@ postUpgradeTasks: {
 
 `.opencode/impeccable/hook-bridge.integration.test.ts` subprocess-lifecycle tests failed there on 5s/15s budgets (#348 — closed against isolation measurements that a container does not reproduce). Renovate retried across ~23 branches and hit its job timeout.
 
-The `ECONNREFUSED` line in that log is **not** a second cause, and an earlier version of this doc was wrong to name one. It comes from `tests/scripts/playwright-config.test.ts` (#383), where importing `@playwright/test` under the happy-dom default environment triggers a synchronous source-map XHR against happy-dom's default origin. The throw lands in a happy-dom child process, not in Vitest: that spec exits 0 on repeat runs, including under `CI=true`. Why the container run exited 1 is established only for the timeout failures; the `ECONNREFUSED` was adjacent noise that the original stack made look causal.
+The `ECONNREFUSED` line in that log is adjacent noise, not a second cause. It comes from `tests/scripts/playwright-config.test.ts` (#383), where importing `@playwright/test` under the happy-dom default environment triggers a synchronous source-map XHR against happy-dom's default origin. The throw lands in a happy-dom child process rather than in Vitest, and that spec exits 0 on repeat runs including under `CI=true`. Only the timeout failures are established as causing the container run to fail — the asynchronous stack makes the `ECONNREFUSED` look causal, so check the exit code of the suspect spec in isolation before attributing it.
 
 The causal date is exact. `hook-bridge.integration.test.ts` arrived in PR #208 on 2026-07-19 — the same day Renovate's last ordinary PR landed.
 
@@ -167,5 +167,5 @@ Both were plausible and wrong, which is why they are recorded:
 - [Checks that pass while validating nothing](../best-practices/checks-that-pass-while-validating-nothing-2026-09-01.md) — the local-vs-CI divergence rule
 - [Fixing a check that validates nothing](../best-practices/fixing-a-check-that-validates-nothing-2026-09-02.md) — a fix reproducing its own defect one layer down, as this one did in its test harness
 - #348 — the subprocess-lifecycle timeouts that failed in the container
-- #383 — the unhandled `ECONNREFUSED` visible in the same log, which turned out to be adjacent noise rather than a cause
+- #383 — the unhandled `ECONNREFUSED` visible in the same log, adjacent noise rather than a cause
 - PRs #385 and #387
