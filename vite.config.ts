@@ -77,6 +77,25 @@ const projectsSnapshotAlias = process.env.PROJECTS_SNAPSHOT
   ? [{find: '../data/projects-snapshot.json', replacement: path.resolve(process.cwd(), process.env.PROJECTS_SNAPSHOT)}]
   : []
 
+// Directories that are Node-only tooling/automation tests (no DOM needed) rather than
+// application/component tests. Kept as a single source of truth so the Node project's
+// `include` and the DOM project's `exclude` can never drift apart (see #383).
+const NODE_TEST_DIRS = ['tests/scripts', 'tests/copilot-hooks', '.opencode/impeccable']
+
+const VITEST_DEFAULT_INCLUDE = '**/*.{test,spec}.?(c|m)[jt]s?(x)'
+
+// Excludes shared by every project: build output, worktrees, and Playwright-only suites
+// that must not be picked up by `vitest run`.
+const SHARED_TEST_EXCLUDE = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/.worktrees/**',
+  '**/tests/e2e/**',
+  '**/tests/visual/**',
+  '**/tests/performance/**',
+  '**/tests/accessibility/**',
+]
+
 export default defineConfig(({command, mode}) => {
   const websiteId = resolveUmamiWebsiteId(process.env.VITE_UMAMI_WEBSITE_ID)
   const umamiEnabled = command === 'build' && mode === 'production' && websiteId !== undefined
@@ -129,26 +148,41 @@ export default defineConfig(({command, mode}) => {
     },
 
     test: {
-      environment: 'happy-dom',
-      environmentOptions: {
-        happyDOM: {
-          settings: {
-            disableCSSFileLoading: true,
-            disableJavaScriptFileLoading: true,
+      globals: true,
+      // Split into Node and DOM projects (#383): tooling/automation specs under
+      // NODE_TEST_DIRS import Node-only packages (e.g. @playwright/test) that happy-dom
+      // has no business seeing, and previously all inherited the happy-dom default. Each
+      // project's `include`/`exclude` is derived from NODE_TEST_DIRS so the two sets stay
+      // mutually exclusive and every spec is selected exactly once.
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'node',
+            environment: 'node',
+            setupFiles: ['./tests/setup.shared.ts'],
+            include: NODE_TEST_DIRS.map(dir => `${dir}/**/${VITEST_DEFAULT_INCLUDE}`),
+            exclude: SHARED_TEST_EXCLUDE,
           },
         },
-      },
-      globals: true,
-      setupFiles: './tests/setup.ts',
-      // Exclude E2E, visual, and performance tests - they should only run through Playwright
-      exclude: [
-        '**/node_modules/**',
-        '**/dist/**',
-        '**/.worktrees/**',
-        '**/tests/e2e/**',
-        '**/tests/visual/**',
-        '**/tests/performance/**',
-        '**/tests/accessibility/**',
+        {
+          extends: true,
+          test: {
+            name: 'dom',
+            environment: 'happy-dom',
+            environmentOptions: {
+              happyDOM: {
+                settings: {
+                  disableCSSFileLoading: true,
+                  disableJavaScriptFileLoading: true,
+                },
+              },
+            },
+            setupFiles: ['./tests/setup.ts'],
+            include: [VITEST_DEFAULT_INCLUDE],
+            exclude: [...SHARED_TEST_EXCLUDE, ...NODE_TEST_DIRS.map(dir => `${dir}/**`)],
+          },
+        },
       ],
       coverage: {
         provider: 'v8',
