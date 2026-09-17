@@ -95,7 +95,7 @@
     "@bfra.me/tsconfig": "0.13.2",
     "@eslint-react/eslint-plugin": "2.13.0",
     "@lhci/cli": "0.15.1",
-    "@opencode-ai/plugin": "1.18.30",
+    "@opencode-ai/plugin": "1.18.31",
     "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.3",
