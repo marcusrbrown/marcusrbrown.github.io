@@ -503,6 +503,17 @@ jobs:
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
           prompt: ${{ env.PROMPT }}
           timeout: 0
+          # Unset resolves to working-dir, whose preamble forbids branch/commit/
+          # push/PR and hands delivery to a caller that does not exist here — so
+          # autoheal edits are silently discarded. Gated to the same runs as the
+          # push credential above; review mode stays working-dir and never pushes.
+          output-mode: >-
+            ${{
+              (github.event_name == 'schedule'
+                || (github.event_name == 'workflow_dispatch' && inputs.mode == 'autoheal'))
+              && 'branch-pr'
+              || 'working-dir'
+            }}
 
   pull_request_scope:
     name: Validate generated-content PR scope
