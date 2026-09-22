@@ -1,6 +1,6 @@
 # src/components/
 
-19 React 19+ components — PascalCase `.tsx` files, no barrel exports, direct file imports only.
+18 React 19+ components — PascalCase `.tsx` files, no barrel exports, direct file imports only.
 
 ## Organization
 

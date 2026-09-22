@@ -1,6 +1,6 @@
 # scripts/
 
-21 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
+23 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
 
 ## Execution
 
