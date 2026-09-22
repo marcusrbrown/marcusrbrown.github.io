@@ -10,7 +10,7 @@ Developer portfolio — React 19+, TypeScript strict, Vite 7+, pure ESM. Deploye
 
 ```
 src/
-├── components/    # 19 React components (see components/AGENTS.md)
+├── components/    # 18 React components (see components/AGENTS.md)
 ├── hooks/         # 11 custom hooks — PascalCase files! (see hooks/AGENTS.md)
 ├── contexts/      # ThemeContext — single provider wrapping App
 ├── pages/         # 6 route pages: Home, Blog, Projects, About, Privacy, BlogPostPage (/blog/:slug)
@@ -18,7 +18,7 @@ src/
 ├── types/         # TypeScript types, barrel export via index.ts
 ├── schemas/       # theme + blog-frontmatter schemas for runtime validation
 └── styles/        # Global CSS
-scripts/           # 22 build/test automation scripts (see scripts/AGENTS.md)
+scripts/           # 23 build/test automation scripts (see scripts/AGENTS.md)
 public/project-previews/ # Committed generated GitHub social-card preview assets
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
