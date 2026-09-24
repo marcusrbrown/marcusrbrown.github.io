@@ -95,7 +95,7 @@
     "@bfra.me/tsconfig": "0.13.2",
     "@eslint-react/eslint-plugin": "2.13.0",
     "@lhci/cli": "0.15.1",
-    "@opencode-ai/plugin": "1.18.31",
+    "@opencode-ai/plugin": "1.18.32",
     "@playwright/test": "1.63.0",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.3",
@@ -124,14 +124,14 @@
     "remark-rehype": "11.1.2",
     "shiki": "4.4.3",
     "simple-git-hooks": "2.14.0",
-    "tsx": "4.23.13",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "unified": "11.0.5",
     "vite": "7.3.6",
     "vitest": "4.1.11",
     "yaml": "2.9.1"
   },
-  "packageManager": "pnpm@11.27.0",
+  "packageManager": "pnpm@11.27.1",
   "engines": {
     "node": ">=24.0.0",
     "pnpm": ">=11.11.0"
