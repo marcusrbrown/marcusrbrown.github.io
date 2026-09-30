@@ -4,7 +4,7 @@
 
 ## Execution
 
-- **`.ts` files**: Run via `tsx` (e.g., `npx tsx scripts/analyze-build.ts`)
+- **`.ts` files**: Run via `tsx` (e.g., `pnpm exec tsx scripts/analyze-build.ts`)
 - **`.mjs` files**: Run directly via `node` (e.g., `node scripts/test-dashboard.mjs`)
 
 ## By Domain
