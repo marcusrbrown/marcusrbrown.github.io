@@ -7,7 +7,7 @@ settings:
 overrides:
   '@isaacs/brace-expansion@<=5.0.0': '>=5.0.1'
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
-  basic-ftp: 5.3.1
+  basic-ftp: 6.2.1
   brace-expansion: 5.0.12
   browserslist: '>=4.28.7'
   fast-uri: 3.1.8
@@ -1556,8 +1556,8 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  basic-ftp@5.3.1:
-    resolution: {integrity: sha512-bopVNp6ugyA150DDuZfPFdt1KZ5a94ZDiwX4hMgZDzF+GttD80lEy8kj98kbyhLXnPvhtIo93mdnLIjpCAeeOw==}
+  basic-ftp@6.2.1:
+    resolution: {integrity: sha512-bK67isD+lKq46AU8vNtjvMaT2ZqAOAmNCbxUHlFBRD4k15NWxyEjmaKtZPlgce58So4BNTjITGQOVTjL9y0ECA==}
     engines: {node: '>=10.0.0'}
 
   birecord@0.1.2:
@@ -5369,7 +5369,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.25: {}
 
-  basic-ftp@5.3.1: {}
+  basic-ftp@6.2.1: {}
 
   birecord@0.1.2: {}
 
@@ -6372,7 +6372,7 @@ snapshots:
 
   get-uri@6.0.5(supports-color@7.2.0):
     dependencies:
-      basic-ftp: 5.3.1
+      basic-ftp: 6.2.1
       data-uri-to-buffer: 6.0.2
       debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
