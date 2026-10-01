@@ -12,7 +12,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 | E2E               | `e2e/`           | Playwright            | `playwright.config.ts`      |
 | Visual            | `visual/`        | Playwright            | `playwright.config.ts`      |
 | Accessibility     | `accessibility/` | Playwright + axe-core | `playwright.config.ts`      |
-| Performance       | `performance/`   | Lighthouse CI         | `lhci.config.js`            |
+| Performance       | `performance/`   | Lighthouse CI         | `lighthouserc.cjs`          |
 
 ## Key Files
 
@@ -49,7 +49,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Visual Baselines
 
-- **Location**: `visual/screenshots/` — ~30 screenshot images
+- **Location**: `visual/screenshots/` — 44 screenshot images
 - **Note**: Screenshots are generated per-run, not compared via `toMatchSnapshot()`
 - **Update**: `pnpm test:visual:update` regenerates all screenshots
 
