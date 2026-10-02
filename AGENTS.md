@@ -13,6 +13,7 @@ src/
 ├── components/    # 18 React components (see components/AGENTS.md)
 ├── hooks/         # 11 custom hooks — PascalCase files! (see hooks/AGENTS.md)
 ├── contexts/      # ThemeContext — single provider wrapping App
+├── data/          # Committed build-time blog and projects JSON snapshots
 ├── pages/         # 6 route pages: Home, Blog, Projects, About, Privacy, BlogPostPage (/blog/:slug)
 ├── utils/         # 13 utilities — heavily theme-oriented (see utils/AGENTS.md)
 ├── types/         # TypeScript types, barrel export via index.ts
@@ -20,6 +21,7 @@ src/
 └── styles/        # Global CSS
 scripts/           # 23 top-level automation scripts, plus live-audit/ (see scripts/AGENTS.md)
 public/project-previews/ # Committed generated GitHub social-card preview assets
+public/scripts/    # Static theme preload and GitHub Pages SPA redirect/restore bootstraps
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
 └── skills/        # Agent skill definitions (agent-browser, impeccable, playwright-mcp)
