@@ -1,10 +1,10 @@
 # scripts/
 
-21 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
+23 top-level CI/build automation scripts for bundle analysis, performance monitoring, test orchestration, repo management, blog snapshot, project preview refresh, and security boundary checks, plus the `live-audit/` module.
 
 ## Execution
 
-- **`.ts` files**: Run via `tsx` (e.g., `npx tsx scripts/analyze-build.ts`)
+- **`.ts` files**: Run via `tsx` (e.g., `pnpm exec tsx scripts/analyze-build.ts`)
 - **`.mjs` files**: Run directly via `node` (e.g., `node scripts/test-dashboard.mjs`)
 
 ## By Domain
@@ -21,6 +21,13 @@
 | Script                  | Role                                                                 |
 | ----------------------- | -------------------------------------------------------------------- |
 | `build-e2e-fixture.mjs` | Builds the browser-test artifact with the deterministic blog fixture |
+
+- `blog-snapshot-loader.mjs` redirects the prerender snapshot import to `BLOG_SNAPSHOT` when set.
+- `register-blog-snapshot-loader.mjs` registers the snapshot loader through the build command's `--import` flag.
+
+### Blog Prerender
+
+- `prerender-blog.ts` renders static blog post pages and writes `feed.xml` and `sitemap.xml` after the Vite build.
 
 ### Performance Monitoring
 
@@ -58,6 +65,8 @@
 
 | Script | Role |
 | --- | --- |
+| `blog-refresh.ts` | Builds the committed blog snapshot from published gists, preserving the previous snapshot on refresh failure |
+| `projects-refresh.ts` | Builds the committed projects snapshot from the curated GitHub repository feed |
 | `project-preview-refresh.ts` | Fetches and atomically publishes GitHub social cards, with fail-safe refresh and R9 pruning |
 | `refresh-diff.ts` | Semantic (not byte-level) change detector gating the blog-refresh PR: ignores volatile `generatedAt`/`stars`, suppresses `lastUpdated` only while it stays in the same Active/Recent/Archived bucket, fails closed to CHANGED on any read/parse/git failure |
 

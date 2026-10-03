@@ -13,16 +13,18 @@ src/
 ├── components/    # 18 React components (see components/AGENTS.md)
 ├── hooks/         # 11 custom hooks — PascalCase files! (see hooks/AGENTS.md)
 ├── contexts/      # ThemeContext — single provider wrapping App
+├── data/          # Committed build-time blog and projects JSON snapshots
 ├── pages/         # 6 route pages: Home, Blog, Projects, About, Privacy, BlogPostPage (/blog/:slug)
 ├── utils/         # 13 utilities — heavily theme-oriented (see utils/AGENTS.md)
 ├── types/         # TypeScript types, barrel export via index.ts
 ├── schemas/       # theme + blog-frontmatter schemas for runtime validation
 └── styles/        # Global CSS
-scripts/           # 37 build/test automation scripts (see scripts/AGENTS.md)
+scripts/           # 23 top-level automation scripts, plus live-audit/ (see scripts/AGENTS.md)
 public/project-previews/ # Committed generated GitHub social-card preview assets
+public/scripts/    # Static theme preload and GitHub Pages SPA redirect/restore bootstraps
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
-└── skills/        # Agent skill definitions (agent-browser, playwright-mcp)
+└── skills/        # Agent skill definitions (agent-browser, impeccable, playwright-mcp)
 .ai/plan/          # Feature implementation plans (reference only)
 docs/              # solutions/ = documented fixes by category w/ YAML frontmatter (module, tags, problem_type); plus brainstorms/, plans/, blog-system.md
 .github/
@@ -46,7 +48,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | Test dashboard | `scripts/test-dashboard.mjs` | Aggregated health scoring |
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
-| Agent skills | `.agents/skills/` | Browser automation skill definitions (`agent-browser`, `playwright-mcp`) |
+| Agent skills | `.agents/skills/` | Browser automation and UI review skills (`agent-browser`, `impeccable`, `playwright-mcp`) |
 | Visual baselines | `tests/visual/screenshots/` | 44 baseline images |
 
 ## Code Map (Key Symbols)
@@ -77,7 +79,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 
 - **No `any` types** — TypeScript strict mode, no `as any`, `@ts-ignore`, `@ts-expect-error`
 - **No CommonJS** — Pure ESM only. No `require()`, no `module.exports`
-- **No npm/yarn** — pnpm 11.1.3+ required (enforced via `packageManager` field)
+- **No npm/yarn** — pnpm 11.11.0+ required by `engines`; `packageManager` pins the installed version
 - **No default exports** — Named exports preferred everywhere
 - **No `.eslintrc`** — Flat config only
 - **No `.yml`** — Use `.yaml`
