@@ -22,6 +22,13 @@
 | ----------------------- | -------------------------------------------------------------------- |
 | `build-e2e-fixture.mjs` | Builds the browser-test artifact with the deterministic blog fixture |
 
+- `blog-snapshot-loader.mjs` redirects the prerender snapshot import to `BLOG_SNAPSHOT` when set.
+- `register-blog-snapshot-loader.mjs` registers the snapshot loader through the build command's `--import` flag.
+
+### Blog Prerender
+
+- `prerender-blog.ts` renders static blog post pages and writes `feed.xml` and `sitemap.xml` after the Vite build.
+
 ### Performance Monitoring
 
 | Script                      | Role                                                  |
@@ -58,6 +65,8 @@
 
 | Script | Role |
 | --- | --- |
+| `blog-refresh.ts` | Builds the committed blog snapshot from published gists, preserving the previous snapshot on refresh failure |
+| `projects-refresh.ts` | Builds the committed projects snapshot from the curated GitHub repository feed |
 | `project-preview-refresh.ts` | Fetches and atomically publishes GitHub social cards, with fail-safe refresh and R9 pruning |
 | `refresh-diff.ts` | Semantic (not byte-level) change detector gating the blog-refresh PR: ignores volatile `generatedAt`/`stars`, suppresses `lastUpdated` only while it stays in the same Active/Recent/Archived bucket, fails closed to CHANGED on any read/parse/git failure |
 
