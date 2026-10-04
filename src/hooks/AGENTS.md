@@ -1,6 +1,6 @@
 # src/hooks/
 
-11 custom React hooks — compound return objects, strict types, no barrel exports.
+11 custom React hooks — strict types, no barrel exports.
 
 ## CRITICAL: PascalCase Filenames
 
@@ -14,7 +14,7 @@
 | --- | --- |
 | `UseAnalytics.ts` | Route pageview state/readiness (`usePageviewTracking`); interaction events call the typed analytics adapter directly |
 | `UseBlogPosts.ts` | Snapshot-backed blog post listing/lookup |
-| `UsePageTitle.ts` | Dynamic document title with SEO meta |
+| `UsePageTitle.ts` | Dynamic document title; returns `void` |
 | `UseParallax.ts` | Scroll-based parallax transforms |
 | `UseProgressiveImage.ts` | Blurred placeholder → full-resolution transitions |
 | `UseProjectFilter.ts` | Client-side filtering/sorting for project grids |
@@ -26,8 +26,8 @@
 
 ## Patterns
 
-- **Compound returns**: All hooks return destructured objects, never single values or arrays
-- **Explicit interfaces**: Every hook defines a return type interface in-file
+- **Compound returns**: Hooks exposing multiple values use return objects; side-effect-only hooks such as `usePageTitle` return `void`
+- **Explicit return types**: Reuse existing domain types where appropriate (`useThemeContext` returns `ThemeContextValue`); define in-file interfaces for compound returns
 - **Theme access**: Use `useTheme()` — never import `useThemeContext` directly
 - **Projects/blog data**: Both are build-time snapshot reads (`projects-snapshot.json`, `blog-snapshot.json`) — no runtime API calls, no loading state
 - **Analytics**: Keep route pageview state/readiness in `UseAnalytics.ts`; interaction events use the typed adapter in `src/utils/analytics.ts`, not interaction-tracking hooks
