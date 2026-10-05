@@ -55,11 +55,11 @@ examples/          # Usage examples (button-form-styles, use-theme)
 
 | Symbol | Type | Location | Role |
 | --- | --- | --- | --- |
-| `ThemeProvider` | Component | `src/contexts/ThemeContext.tsx:84` | App-wide theme context, CSS custom property injection |
-| `useTheme` | Hook | `src/hooks/UseTheme.ts:43` | Compound return: 17 properties for theme control |
-| `UseThemeReturn` | Interface | `src/hooks/UseTheme.ts:5` | Contract for useTheme hook |
-| `AppContent` | Component | `src/App.tsx:13` | Routes + layout |
-| `detectSystemPreference` | Function | `src/contexts/ThemeContext.tsx:57` | System dark/light detection |
+| `ThemeProvider` | Component | `src/contexts/ThemeContext.tsx:82` | App-wide theme context, CSS custom property injection |
+| `useTheme` | Hook | `src/hooks/UseTheme.ts:67` | Compound return: 20 properties for theme control |
+| `UseThemeReturn` | Interface | `src/hooks/UseTheme.ts:26` | Contract for useTheme hook |
+| `AppContent` | Component | `src/App.tsx:16` | Routes + layout |
+| `detectSystemPreference` | Function | `src/contexts/ThemeContext.tsx:63` | System dark/light detection |
 | `presetThemes` | Constant | `src/utils/preset-themes.ts:15` | 12 preset theme definitions |
 
 ## Conventions (Deviations Only)

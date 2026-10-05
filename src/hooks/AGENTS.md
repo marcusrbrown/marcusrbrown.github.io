@@ -21,7 +21,7 @@
 | `UseProjects.ts` | Snapshot-backed projects hook — synchronous, no loading/error states |
 | `UseScrollAnimation.ts` | Intersection Observer triggers, respects `prefers-reduced-motion` |
 | `UseSyntaxHighlighting.ts` | Shiki-based highlighting (externalized from bundle) |
-| `UseTheme.ts` | **Primary hook** — wraps `ThemeContext`, 17-property `UseThemeReturn` interface |
+| `UseTheme.ts` | **Primary hook** — wraps `ThemeContext`, 20-property `UseThemeReturn` interface |
 | `UseThemeContext.ts` | Raw `ThemeContext` accessor — use `useTheme()` instead unless building the provider itself |
 
 ## Patterns
