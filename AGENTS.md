@@ -90,10 +90,11 @@ examples/          # Usage examples (button-form-styles, use-theme)
 ```bash
 # Dev
 pnpm dev                    # Vite dev server :5173
-pnpm build                  # tsc + vite build → dist/
+pnpm build                  # Check both TS projects, Vite build, blog prerender → dist/
 pnpm preview                # Preview production build
 
 # Quality
+pnpm run check-types        # Type-check app/scripts and .opencode/ without emitting
 pnpm lint                   # ESLint check
 pnpm fix                    # ESLint auto-fix
 
