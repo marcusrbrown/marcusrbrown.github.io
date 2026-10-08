@@ -11,10 +11,10 @@
 
 ### Build Analysis
 
-| Script                   | Role                                                                               |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `analyze-build.ts`       | Bundle size auditing — JS <500KB warning, <2MB max. Generates GitHub job summaries |
-| `performance-budgets.ts` | Enforces Core Web Vitals: LCP <2.5s, FID <100ms, CLS <0.1                          |
+| Script | Role |
+| --- | --- |
+| `analyze-build.ts` | Bundle size auditing — JS <500KB warning, <2MB max. Generates GitHub job summaries |
+| `performance-budgets.ts` | Enforces bundle budgets and validates Lighthouse report inputs; metric thresholds belong to LHCI assertions |
 
 ### Test Builds
 

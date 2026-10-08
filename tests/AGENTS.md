@@ -4,15 +4,16 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Structure → Config Mapping
 
-| Type              | Directory        | Runner                | Config                      |
-| ----------------- | ---------------- | --------------------- | --------------------------- |
-| Unit (components) | `components/`    | Vitest                | `vite.config.ts` (embedded) |
-| Unit (hooks)      | `hooks/`         | Vitest                | `vite.config.ts`            |
-| Unit (utils)      | `utils/`         | Vitest                | `vite.config.ts`            |
-| E2E               | `e2e/`           | Playwright            | `playwright.config.ts`      |
-| Visual            | `visual/`        | Playwright            | `playwright.config.ts`      |
-| Accessibility     | `accessibility/` | Playwright + axe-core | `playwright.config.ts`      |
-| Performance       | `performance/`   | Lighthouse CI         | `lighthouserc.cjs`          |
+| Type              | Directory                    | Runner                | Config                      |
+| ----------------- | ---------------------------- | --------------------- | --------------------------- |
+| Unit (components) | `components/`                | Vitest                | `vite.config.ts` (embedded) |
+| Unit (hooks)      | `hooks/`                     | Vitest                | `vite.config.ts`            |
+| Unit (utils)      | `utils/`                     | Vitest                | `vite.config.ts`            |
+| Unit (automation) | `scripts/`, `copilot-hooks/` | Vitest (Node)         | `vite.config.ts`            |
+| E2E               | `e2e/`                       | Playwright            | `playwright.config.ts`      |
+| Visual            | `visual/`                    | Playwright            | `playwright.config.ts`      |
+| Accessibility     | `accessibility/`             | Playwright + axe-core | `playwright.config.ts`      |
+| Performance       | `performance/`               | Lighthouse CI         | `lighthouserc.cjs`          |
 
 ## Key Files
 
