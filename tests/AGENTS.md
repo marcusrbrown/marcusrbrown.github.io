@@ -44,7 +44,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Coverage
 
-- **Thresholds**: 80% statements/branches/functions/lines (enforced in Vite config)
+- **Thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Provider**: V8
 - **Hooks**: `tests/hooks/` uses matching filenames; currently every hook except `UseSyntaxHighlighting.ts` and `UseThemeContext.ts` has a corresponding test file. Prefer this pattern over a hard-coded coverage count as hooks change.
 
