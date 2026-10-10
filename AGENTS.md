@@ -13,16 +13,18 @@ src/
 ├── components/    # 18 React components (see components/AGENTS.md)
 ├── hooks/         # 11 custom hooks — PascalCase files! (see hooks/AGENTS.md)
 ├── contexts/      # ThemeContext — single provider wrapping App
+├── data/          # Committed build-time blog and projects JSON snapshots
 ├── pages/         # 6 route pages: Home, Blog, Projects, About, Privacy, BlogPostPage (/blog/:slug)
 ├── utils/         # 13 utilities — heavily theme-oriented (see utils/AGENTS.md)
 ├── types/         # TypeScript types, barrel export via index.ts
 ├── schemas/       # theme + blog-frontmatter schemas for runtime validation
 └── styles/        # Global CSS
-scripts/           # 37 build/test automation scripts (see scripts/AGENTS.md)
+scripts/           # 23 top-level automation scripts, plus live-audit/ (see scripts/AGENTS.md)
 public/project-previews/ # Committed generated GitHub social-card preview assets
+public/scripts/    # Static theme preload and GitHub Pages SPA redirect/restore bootstraps
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
-└── skills/        # Agent skill definitions (agent-browser, playwright-mcp)
+└── skills/        # Agent skill definitions (agent-browser, impeccable, playwright-mcp)
 .ai/plan/          # Feature implementation plans (reference only)
 docs/              # solutions/ = documented fixes by category w/ YAML frontmatter (module, tags, problem_type); plus brainstorms/, plans/, blog-system.md
 .github/
@@ -46,18 +48,18 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | Test dashboard | `scripts/test-dashboard.mjs` | Aggregated health scoring |
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
-| Agent skills | `.agents/skills/` | Browser automation skill definitions (`agent-browser`, `playwright-mcp`) |
+| Agent skills | `.agents/skills/` | Browser automation and UI review skills (`agent-browser`, `impeccable`, `playwright-mcp`) |
 | Visual baselines | `tests/visual/screenshots/` | 44 baseline images |
 
 ## Code Map (Key Symbols)
 
 | Symbol | Type | Location | Role |
 | --- | --- | --- | --- |
-| `ThemeProvider` | Component | `src/contexts/ThemeContext.tsx:84` | App-wide theme context, CSS custom property injection |
-| `useTheme` | Hook | `src/hooks/UseTheme.ts:43` | Compound return: 17 properties for theme control |
-| `UseThemeReturn` | Interface | `src/hooks/UseTheme.ts:5` | Contract for useTheme hook |
-| `AppContent` | Component | `src/App.tsx:13` | Routes + layout |
-| `detectSystemPreference` | Function | `src/contexts/ThemeContext.tsx:57` | System dark/light detection |
+| `ThemeProvider` | Component | `src/contexts/ThemeContext.tsx:82` | App-wide theme context, CSS custom property injection |
+| `useTheme` | Hook | `src/hooks/UseTheme.ts:67` | Compound return: 20 properties for theme control |
+| `UseThemeReturn` | Interface | `src/hooks/UseTheme.ts:26` | Contract for useTheme hook |
+| `AppContent` | Component | `src/App.tsx:16` | Routes + layout |
+| `detectSystemPreference` | Function | `src/contexts/ThemeContext.tsx:63` | System dark/light detection |
 | `presetThemes` | Constant | `src/utils/preset-themes.ts:15` | 12 preset theme definitions |
 
 ## Conventions (Deviations Only)
@@ -77,7 +79,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 
 - **No `any` types** — TypeScript strict mode, no `as any`, `@ts-ignore`, `@ts-expect-error`
 - **No CommonJS** — Pure ESM only. No `require()`, no `module.exports`
-- **No npm/yarn** — pnpm 11.1.3+ required (enforced via `packageManager` field)
+- **No npm/yarn** — pnpm 11.11.0+ required by `engines`; `packageManager` pins the installed version
 - **No default exports** — Named exports preferred everywhere
 - **No `.eslintrc`** — Flat config only
 - **No `.yml`** — Use `.yaml`
@@ -88,10 +90,11 @@ examples/          # Usage examples (button-form-styles, use-theme)
 ```bash
 # Dev
 pnpm dev                    # Vite dev server :5173
-pnpm build                  # tsc + vite build → dist/
+pnpm build                  # Check both TS projects, Vite build, blog prerender → dist/
 pnpm preview                # Preview production build
 
 # Quality
+pnpm run check-types        # Type-check app/scripts and .opencode/ without emitting
 pnpm lint                   # ESLint check
 pnpm fix                    # ESLint auto-fix
 
@@ -112,9 +115,9 @@ pnpm badges                 # Update README badges
 ## Notes
 
 - **Git hooks auto-run**: `simple-git-hooks` + `lint-staged` runs `eslint --fix` on commit
-- **Coverage thresholds**: 80% statements/branches/functions/lines (enforced in Vite config)
+- **Coverage thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Performance budgets**: JS <500KB warning, total <2MB max, LCP <2.5s, FID <100ms, CLS <0.1
-- **No env vars required**: `VITE_GITHUB_TOKEN` optional for higher GitHub API rate limits
+- **No env vars required for local development**: `VITE_UMAMI_WEBSITE_ID` enables production-only analytics; follow activation constraints in `docs/analytics.md`
 - **Accessibility mandatory**: WCAG 2.1 AA — all interactive elements keyboard-accessible, reduced motion respected
 - **PR format**: Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `refactor:`)
 - **Subdirectory AGENTS.md**: See `src/components/`, `src/hooks/`, `src/utils/`, `scripts/`, `tests/`

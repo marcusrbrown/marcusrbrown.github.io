@@ -4,15 +4,16 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Structure → Config Mapping
 
-| Type              | Directory        | Runner                | Config                      |
-| ----------------- | ---------------- | --------------------- | --------------------------- |
-| Unit (components) | `components/`    | Vitest                | `vite.config.ts` (embedded) |
-| Unit (hooks)      | `hooks/`         | Vitest                | `vite.config.ts`            |
-| Unit (utils)      | `utils/`         | Vitest                | `vite.config.ts`            |
-| E2E               | `e2e/`           | Playwright            | `playwright.config.ts`      |
-| Visual            | `visual/`        | Playwright            | `playwright.config.ts`      |
-| Accessibility     | `accessibility/` | Playwright + axe-core | `playwright.config.ts`      |
-| Performance       | `performance/`   | Lighthouse CI         | `lhci.config.js`            |
+| Type              | Directory                    | Runner                | Config                      |
+| ----------------- | ---------------------------- | --------------------- | --------------------------- |
+| Unit (components) | `components/`                | Vitest                | `vite.config.ts` (embedded) |
+| Unit (hooks)      | `hooks/`                     | Vitest                | `vite.config.ts`            |
+| Unit (utils)      | `utils/`                     | Vitest                | `vite.config.ts`            |
+| Unit (automation) | `scripts/`, `copilot-hooks/` | Vitest (Node)         | `vite.config.ts`            |
+| E2E               | `e2e/`                       | Playwright            | `playwright.config.ts`      |
+| Visual            | `visual/`                    | Playwright            | `playwright.config.ts`      |
+| Accessibility     | `accessibility/`             | Playwright + axe-core | `playwright.config.ts`      |
+| Performance       | `performance/`               | Lighthouse CI         | `lighthouserc.cjs`          |
 
 ## Key Files
 
@@ -43,13 +44,13 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Coverage
 
-- **Thresholds**: 80% statements/branches/functions/lines (enforced in Vite config)
+- **Thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Provider**: V8
 - **Hooks**: `tests/hooks/` uses matching filenames; currently every hook except `UseSyntaxHighlighting.ts` and `UseThemeContext.ts` has a corresponding test file. Prefer this pattern over a hard-coded coverage count as hooks change.
 
 ## Visual Baselines
 
-- **Location**: `visual/screenshots/` — ~30 screenshot images
+- **Location**: `visual/screenshots/` — 44 screenshot images
 - **Note**: Screenshots are generated per-run, not compared via `toMatchSnapshot()`
 - **Update**: `pnpm test:visual:update` regenerates all screenshots
 
