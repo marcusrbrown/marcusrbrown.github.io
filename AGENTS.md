@@ -117,7 +117,7 @@ pnpm badges                 # Update README badges
 - **Git hooks auto-run**: `simple-git-hooks` + `lint-staged` runs `eslint --fix` on commit
 - **Coverage thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Performance budgets**: JS <500KB warning, total <2MB max, LCP <2.5s, FID <100ms, CLS <0.1
-- **No env vars required**: `VITE_GITHUB_TOKEN` optional for higher GitHub API rate limits
+- **No env vars required for local development**: `VITE_UMAMI_WEBSITE_ID` enables production-only analytics; follow activation constraints in `docs/analytics.md`
 - **Accessibility mandatory**: WCAG 2.1 AA — all interactive elements keyboard-accessible, reduced motion respected
 - **PR format**: Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `refactor:`)
 - **Subdirectory AGENTS.md**: See `src/components/`, `src/hooks/`, `src/utils/`, `scripts/`, `tests/`
