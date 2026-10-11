@@ -25,12 +25,14 @@ public/scripts/    # Static theme preload and GitHub Pages SPA redirect/restore 
 tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 .agents/
 └── skills/        # Agent skill definitions (agent-browser, impeccable, playwright-mcp)
+.opencode/         # Impeccable hook bridge and its separately type-checked TS project
 .ai/plan/          # Feature implementation plans (reference only)
 docs/              # solutions/ = documented fixes by category w/ YAML frontmatter (module, tags, problem_type); plus brainstorms/, plans/, blog-system.md
 .github/
 ├── workflows/     # 8 workflows: deploy, ci, e2e-tests, performance, fro-bot, blog-refresh (including preview-image refresh), renovate, copilot-setup-steps
 ├── actions/setup/ # Reusable CI setup action (Node 24, pnpm, Playwright)
-└── hooks/         # Copilot hooks (pre-tool-use guardrails)
+├── hooks/         # Copilot hooks (pre-tool-use guardrails)
+└── git-hooks/     # Local pre-push lint/test/build validation; CI uses required checks
 examples/          # Usage examples (button-form-styles, use-theme)
 ```
 
@@ -114,7 +116,7 @@ pnpm badges                 # Update README badges
 
 ## Notes
 
-- **Git hooks auto-run**: `simple-git-hooks` + `lint-staged` runs `eslint --fix` on commit
+- **Git hooks auto-run**: `simple-git-hooks` + `lint-staged` runs `eslint --fix` on commit; `.github/git-hooks/pre-push.ts` runs tests, then lint/build locally, and defers to required checks when `CI` or `GITHUB_ACTIONS` is set
 - **Coverage thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Performance budgets**: JS <500KB warning, total <2MB max, LCP <2.5s, FID <100ms, CLS <0.1
 - **No env vars required for local development**: `VITE_UMAMI_WEBSITE_ID` enables production-only analytics; follow activation constraints in `docs/analytics.md`
