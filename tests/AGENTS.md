@@ -38,8 +38,8 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Test Matrices
 
-- **Visual**: 2 themes (light/dark) × 2 breakpoints (375/1440px), ~28 tests
-- **E2E**: 3 browsers (Chromium, Firefox, WebKit)
+- **Visual**: Chromium artifact capture for light/dark themes, 375/1440px layouts, theme transitions, and the Dracula picker state; see `visual/*.spec.ts` for the current cases
+- **E2E**: Chromium, Firefox, and WebKit desktop projects, plus mobile Chrome/Safari, tablet Chrome, and 375/768/1024/1440px responsive projects in `playwright.config.ts`
 - **Accessibility**: WCAG 2.1 AA across all routes
 
 ## Coverage
