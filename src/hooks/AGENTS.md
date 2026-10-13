@@ -16,7 +16,7 @@
 | `UseBlogPosts.ts` | Snapshot-backed blog post listing/lookup |
 | `UsePageTitle.ts` | Dynamic document title; returns `void` |
 | `UseParallax.ts` | Scroll-based parallax transforms |
-| `UseProgressiveImage.ts` | Blurred placeholder → full-resolution transitions |
+| `UseProgressiveImage.ts` | IntersectionObserver-gated image loading; returns the image ref and load/error/visibility state |
 | `UseProjectFilter.ts` | Client-side filtering/sorting for project grids |
 | `UseProjects.ts` | Snapshot-backed projects hook — synchronous, no loading/error states |
 | `UseScrollAnimation.ts` | Intersection Observer triggers, respects `prefers-reduced-motion` |
