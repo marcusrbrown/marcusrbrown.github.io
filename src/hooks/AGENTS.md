@@ -36,4 +36,4 @@
 
 - **Location**: `tests/hooks/` (9 of 11 hooks currently have matching test files)
 - **Framework**: Vitest + React Testing Library
-- **Untested**: `UseSyntaxHighlighting`, `UseThemeContext`
+- **No dedicated test files**: `UseSyntaxHighlighting`, `UseThemeContext`; `UseThemeContext` is exercised indirectly by theme consumers, so a missing matching filename does not imply zero coverage
