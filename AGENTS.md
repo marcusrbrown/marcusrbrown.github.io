@@ -118,7 +118,7 @@ pnpm badges                 # Update README badges
 
 - **Git hooks auto-run**: `simple-git-hooks` + `lint-staged` runs `eslint --fix` on commit; `.github/git-hooks/pre-push.ts` runs tests, then lint/build locally, and defers to required checks when `CI` or `GITHUB_ACTIONS` is set
 - **Coverage thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
-- **Performance budgets**: JS <500KB warning, total <2MB max, LCP <2.5s, FID <100ms, CLS <0.1
+- **Build size budgets** (`scripts/analyze-build.ts`): JS warns above 400 KiB, limit 500 KiB; CSS warns above 80 KiB, hard limit 100 KiB; total warns above ~1.6 MiB, limit 2 MiB. Lighthouse assertions separately gate runtime metrics.
 - **No env vars required for local development**: `VITE_UMAMI_WEBSITE_ID` enables production-only analytics; follow activation constraints in `docs/analytics.md`
 - **Accessibility mandatory**: WCAG 2.1 AA — all interactive elements keyboard-accessible, reduced motion respected
 - **PR format**: Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `perf:`, `refactor:`)

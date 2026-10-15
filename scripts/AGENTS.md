@@ -13,7 +13,7 @@
 
 | Script | Role |
 | --- | --- |
-| `analyze-build.ts` | Bundle size auditing — JS <500KB warning, <2MB max. Generates GitHub job summaries |
+| `analyze-build.ts` | Bundle size auditing — JS warning/limit 400/500 KiB, CSS warning/hard limit 80/100 KiB, total warning/limit ~1.6/2 MiB. Generates GitHub job summaries |
 | `performance-budgets.ts` | Enforces bundle budgets and validates Lighthouse report inputs; metric thresholds belong to LHCI assertions |
 
 ### Test Builds
