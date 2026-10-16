@@ -17,7 +17,8 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Key Files
 
-- `setup.ts` — Global Vitest setup (DOM mocks, theme providers, Shiki stubbing)
+- `setup.shared.ts` — Environment-neutral setup for both Vitest projects; rejects unexpected fetch requests unless a test installs an explicit fixture
+- `setup.ts` — DOM-project-only setup: imports shared setup, installs jest-dom matchers and browser API mocks, and cleans up React renders
 - `scripts/check-react-router-rsc-boundary.test.ts` — Unit coverage for the fail-closed React Router RSC advisory boundary
 - `visual/utils.ts` — Theme mocking + visual test helpers
 - `e2e/base-path.spec.ts` — Smoke tests: asset loading, blank-page guard, sub-page routing
@@ -38,6 +39,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Test Matrices
 
+- **Unit**: Separate Node and happy-dom projects in `vite.config.ts`; `tests/scripts/`, `tests/copilot-hooks/`, and `.opencode/impeccable/` run in Node. Keep browser globals in `setup.ts`, not `setup.shared.ts`.
 - **Visual**: Chromium artifact capture for light/dark themes, 375/1440px layouts, theme transitions, and the Dracula picker state; see `visual/*.spec.ts` for the current cases
 - **E2E**: Chromium, Firefox, and WebKit desktop projects, plus mobile Chrome/Safari, tablet Chrome, and 375/768/1024/1440px responsive projects in `playwright.config.ts`
 - **Accessibility**: WCAG 2.1 AA across all routes
