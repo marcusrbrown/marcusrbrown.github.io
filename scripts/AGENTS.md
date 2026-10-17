@@ -28,6 +28,8 @@
 ### Blog Prerender
 
 - `prerender-blog.ts` renders static blog post pages and writes `feed.xml` and `sitemap.xml` after the Vite build.
+- Prefer `pnpm build` for production or `pnpm run build:e2e` for the deterministic browser-test fixture; both register the snapshot loader so client and prerendered posts use the same data.
+- When rerunning only prerender against an existing build, use `pnpm exec tsx --import ./scripts/register-blog-snapshot-loader.mjs scripts/prerender-blog.ts` and preserve that build's `BLOG_SNAPSHOT` value. Plain `tsx` does not apply Vite's snapshot alias.
 
 ### Performance Monitoring
 
