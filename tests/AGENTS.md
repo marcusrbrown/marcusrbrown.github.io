@@ -12,6 +12,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 | Unit (utils)      | `utils/`                     | Vitest                | `vite.config.ts`            |
 | Unit (automation) | `scripts/`, `copilot-hooks/` | Vitest (Node)         | `vite.config.ts`            |
 | Unit (bridge)     | `../.opencode/impeccable/`   | Vitest (Node)         | `vite.config.ts`            |
+| Type contracts    | `types/`                     | TypeScript (no emit)  | `tsconfig.json`             |
 | E2E               | `e2e/`                       | Playwright            | `playwright.config.ts`      |
 | Visual            | `visual/`                    | Playwright            | `playwright.config.ts`      |
 | Accessibility     | `accessibility/`             | Playwright + axe-core | `playwright.config.ts`      |
@@ -21,6 +22,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 - `setup.shared.ts` — Environment-neutral setup for both Vitest projects; rejects unexpected fetch requests unless a test installs an explicit fixture
 - `setup.ts` — DOM-project-only setup: imports shared setup, installs jest-dom matchers and browser API mocks, and cleans up React renders
+- `types/umami-track-overloads.typecheck.ts` — Compile-only analytics overload contracts checked by `pnpm run check-types` and `pnpm build`; the `.typecheck.ts` suffix is not selected by Vitest
 - `scripts/check-react-router-rsc-boundary.test.ts` — Unit coverage for the fail-closed React Router RSC advisory boundary
 - `visual/utils.ts` — Theme mocking + visual test helpers
 - `e2e/base-path.spec.ts` — Smoke tests: asset loading, blank-page guard, sub-page routing
