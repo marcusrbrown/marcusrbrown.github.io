@@ -56,7 +56,7 @@ Our testing strategy includes five main categories:
 
 | Test Type         | Purpose                        | Tools                   | Coverage         |
 | ----------------- | ------------------------------ | ----------------------- | ---------------- |
-| **Unit Tests**    | Component and function testing | Vitest, Testing Library | 80%+ required    |
+| **Unit Tests**    | Component and function testing | Vitest, Testing Library | Per-metric gates |
 | **E2E Tests**     | User workflow testing          | Playwright              | Cross-browser    |
 | **Visual Tests**  | UI consistency                 | Playwright Visual       | Theme variations |
 | **Accessibility** | WCAG compliance                | axe-core                | All pages        |
@@ -100,11 +100,11 @@ pnpm test --grep \"theme\"
 
 ### Coverage Requirements
 
-- **Minimum Coverage**: 80% across all metrics
-- **Statements**: 80%+
-- **Branches**: 80%+
-- **Functions**: 80%+
-- **Lines**: 80%+
+- **Enforced Coverage**: Per-metric thresholds in `vite.config.ts`
+- **Statements**: 90%+
+- **Branches**: 85%+
+- **Functions**: 88%+
+- **Lines**: 90%+
 
 ### Writing Unit Tests
 
@@ -594,7 +594,7 @@ pnpm exec playwright show-report
 ### Before Submitting Tests
 
 1. **Run Full Suite**: `pnpm test:all`
-2. **Check Coverage**: Ensure 80%+ coverage maintained
+2. **Check Coverage**: Meet all four thresholds in [Coverage Requirements](#coverage-requirements)
 3. **Update Baselines**: If visual changes are intentional
 4. **Generate Dashboard**: `pnpm dashboard && pnpm badges`
 
@@ -602,7 +602,7 @@ pnpm exec playwright show-report
 
 - [ ] All existing tests pass
 - [ ] New features have corresponding tests
-- [ ] Test coverage meets 80% threshold
+- [ ] Test coverage meets all four per-metric thresholds in `vite.config.ts`
 - [ ] E2E tests cover user-facing changes
 - [ ] Visual tests updated for UI changes
 - [ ] Accessibility tests pass for new pages/components
