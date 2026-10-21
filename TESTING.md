@@ -21,7 +21,7 @@ This document provides comprehensive testing guidelines for contributors to the 
 ### Prerequisites
 
 - Node.js v24+ LTS
-- pnpm v11.1.3+
+- pnpm v11.11.0+ (use the version pinned by `packageManager` in `package.json`)
 - Git
 
 ### Setup
@@ -86,16 +86,16 @@ pnpm test
 pnpm test --coverage
 
 # Watch mode for development
-pnpm test --watch
+pnpm exec vitest watch
 
-# Open Vitest UI
-pnpm test --ui
+# List tests without running them
+pnpm exec vitest list
 
 # Run specific test file
-pnpm test src/components/Header.test.tsx
+pnpm test tests/components/Header.test.tsx
 
 # Run tests matching pattern
-pnpm test --grep \"theme\"
+pnpm test -t "theme"
 ```
 
 ### Coverage Requirements
