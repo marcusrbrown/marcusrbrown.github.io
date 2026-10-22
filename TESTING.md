@@ -136,12 +136,12 @@ test("handles theme toggle", async () => {
 #### Utility Function Testing
 
 ```typescript
+// tests/utils/blog.test.ts
 import {expect, test} from "vitest"
-import {formatDate} from "../utils/formatDate"
+import {slugify} from "../../src/utils/blog"
 
-test("formats date correctly", () => {
-  const date = new Date("2024-01-15T10:30:00Z")
-  expect(formatDate(date)).toBe("January 15, 2024")
+test("slugify produces a URL-safe slug", () => {
+  expect(slugify("Hello World!")).toBe("hello-world")
 })
 ```
 
@@ -580,7 +580,7 @@ await expect(page).toHaveScreenshot("page.png", {
 pnpm test --reporter=verbose
 
 # Debug specific test
-pnpm test --grep \"specific test\" --reporter=verbose
+pnpm test tests/utils/blog.test.ts -t "slugify" --reporter=verbose
 
 # Playwright debug mode
 pnpm exec playwright test --debug
