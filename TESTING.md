@@ -111,25 +111,24 @@ pnpm test -t "theme"
 #### Component Testing Example
 
 ```tsx
+// tests/components/Header.test.tsx
 import {render, screen} from "@testing-library/react"
-import {expect, test, vi} from "vitest"
-import {ThemeProvider} from "../contexts/ThemeContext"
-import {Header} from "./Header"
+import {MemoryRouter} from "react-router-dom"
+import {expect, test} from "vitest"
+import Header from "../../src/components/Header"
+import {ThemeProvider} from "../../src/contexts/ThemeContext"
 
 test("renders navigation menu", () => {
   render(
-    <ThemeProvider>
-      <Header />
-    </ThemeProvider>,
+    <MemoryRouter>
+      <ThemeProvider>
+        <Header />
+      </ThemeProvider>
+    </MemoryRouter>,
   )
 
-  expect(screen.getByRole("navigation")).toBeInTheDocument()
-  expect(screen.getByText("Home")).toBeInTheDocument()
-})
-
-test("handles theme toggle", async () => {
-  const mockToggle = vi.fn()
-  // ... test implementation
+  expect(screen.getByRole("navigation", {name: "Main navigation"})).toBeInTheDocument()
+  expect(screen.getByRole("link", {name: "Home"})).toHaveAttribute("href", "/")
 })
 ```
 
