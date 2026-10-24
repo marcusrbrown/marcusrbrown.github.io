@@ -91,7 +91,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@bfra.me/eslint-config": "0.52.2",
-    "@bfra.me/prettier-config": "0.16.11",
+    "@bfra.me/prettier-config": "0.16.13",
     "@bfra.me/tsconfig": "0.13.2",
     "@eslint-react/eslint-plugin": "2.13.0",
     "@lhci/cli": "0.15.1",
