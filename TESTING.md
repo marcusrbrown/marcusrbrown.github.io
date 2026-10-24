@@ -488,15 +488,7 @@ test("fetches user data", async () => {
 
 #### Component Dependencies
 
-```typescript
-// Mock theme context
-vi.mock("../contexts/ThemeContext", () => ({
-  useTheme: () => ({
-    currentTheme: "light",
-    toggleTheme: vi.fn(),
-  }),
-}))
-```
+For theme-dependent components, render the real `ThemeProvider` as shown in the [component testing example](#component-testing-example). `useTheme` is exported from `src/hooks/UseTheme.ts`, not `src/contexts/ThemeContext.tsx`, and its `currentTheme` is a `Theme` object rather than a mode string. See `tests/components/Header.test.tsx` for router/provider setup and `tests/hooks/UseTheme.test.tsx` for theme-action tests.
 
 ## Troubleshooting
 
