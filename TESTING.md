@@ -21,7 +21,7 @@ This document provides comprehensive testing guidelines for contributors to the 
 ### Prerequisites
 
 - Node.js v24+ LTS
-- pnpm v11.1.3+
+- pnpm v11.11.0+ (use the version pinned by `packageManager` in `package.json`)
 - Git
 
 ### Setup
@@ -56,7 +56,7 @@ Our testing strategy includes five main categories:
 
 | Test Type         | Purpose                        | Tools                   | Coverage         |
 | ----------------- | ------------------------------ | ----------------------- | ---------------- |
-| **Unit Tests**    | Component and function testing | Vitest, Testing Library | 80%+ required    |
+| **Unit Tests**    | Component and function testing | Vitest, Testing Library | Per-metric gates |
 | **E2E Tests**     | User workflow testing          | Playwright              | Cross-browser    |
 | **Visual Tests**  | UI consistency                 | Playwright Visual       | Theme variations |
 | **Accessibility** | WCAG compliance                | axe-core                | All pages        |
@@ -86,62 +86,61 @@ pnpm test
 pnpm test --coverage
 
 # Watch mode for development
-pnpm test --watch
+pnpm exec vitest watch
 
-# Open Vitest UI
-pnpm test --ui
+# List tests without running them
+pnpm exec vitest list
 
 # Run specific test file
-pnpm test src/components/Header.test.tsx
+pnpm test tests/components/Header.test.tsx
 
 # Run tests matching pattern
-pnpm test --grep \"theme\"
+pnpm test -t "theme"
 ```
 
 ### Coverage Requirements
 
-- **Minimum Coverage**: 80% across all metrics
-- **Statements**: 80%+
-- **Branches**: 80%+
-- **Functions**: 80%+
-- **Lines**: 80%+
+- **Enforced Coverage**: Per-metric thresholds in `vite.config.ts`
+- **Statements**: 90%+
+- **Branches**: 85%+
+- **Functions**: 88%+
+- **Lines**: 90%+
 
 ### Writing Unit Tests
 
 #### Component Testing Example
 
 ```tsx
+// tests/components/Header.test.tsx
 import {render, screen} from "@testing-library/react"
-import {expect, test, vi} from "vitest"
-import {ThemeProvider} from "../contexts/ThemeContext"
-import {Header} from "./Header"
+import {MemoryRouter} from "react-router-dom"
+import {expect, test} from "vitest"
+import Header from "../../src/components/Header"
+import {ThemeProvider} from "../../src/contexts/ThemeContext"
 
 test("renders navigation menu", () => {
   render(
-    <ThemeProvider>
-      <Header />
-    </ThemeProvider>,
+    <MemoryRouter>
+      <ThemeProvider>
+        <Header />
+      </ThemeProvider>
+    </MemoryRouter>,
   )
 
-  expect(screen.getByRole("navigation")).toBeInTheDocument()
-  expect(screen.getByText("Home")).toBeInTheDocument()
-})
-
-test("handles theme toggle", async () => {
-  const mockToggle = vi.fn()
-  // ... test implementation
+  expect(screen.getByRole("navigation", {name: "Main navigation"})).toBeInTheDocument()
+  expect(screen.getByRole("link", {name: "Home"})).toHaveAttribute("href", "/")
 })
 ```
 
 #### Utility Function Testing
 
 ```typescript
+// tests/utils/blog.test.ts
 import {expect, test} from "vitest"
-import {formatDate} from "../utils/formatDate"
+import {slugify} from "../../src/utils/blog"
 
-test("formats date correctly", () => {
-  const date = new Date("2024-01-15T10:30:00Z")
-  expect(formatDate(date)).toBe("January 15, 2024")
+test("slugify produces a URL-safe slug", () => {
+  expect(slugify("Hello World!")).toBe("hello-world")
 })
 ```
 
@@ -489,15 +488,7 @@ test("fetches user data", async () => {
 
 #### Component Dependencies
 
-```typescript
-// Mock theme context
-vi.mock("../contexts/ThemeContext", () => ({
-  useTheme: () => ({
-    currentTheme: "light",
-    toggleTheme: vi.fn(),
-  }),
-}))
-```
+For theme-dependent components, render the real `ThemeProvider` as shown in the [component testing example](#component-testing-example). `useTheme` is exported from `src/hooks/UseTheme.ts`, not `src/contexts/ThemeContext.tsx`, and its `currentTheme` is a `Theme` object rather than a mode string. See `tests/components/Header.test.tsx` for router/provider setup and `tests/hooks/UseTheme.test.tsx` for theme-action tests.
 
 ## Troubleshooting
 
@@ -580,7 +571,7 @@ await expect(page).toHaveScreenshot("page.png", {
 pnpm test --reporter=verbose
 
 # Debug specific test
-pnpm test --grep \"specific test\" --reporter=verbose
+pnpm test tests/utils/blog.test.ts -t "slugify" --reporter=verbose
 
 # Playwright debug mode
 pnpm exec playwright test --debug
@@ -594,7 +585,7 @@ pnpm exec playwright show-report
 ### Before Submitting Tests
 
 1. **Run Full Suite**: `pnpm test:all`
-2. **Check Coverage**: Ensure 80%+ coverage maintained
+2. **Check Coverage**: Meet all four thresholds in [Coverage Requirements](#coverage-requirements)
 3. **Update Baselines**: If visual changes are intentional
 4. **Generate Dashboard**: `pnpm dashboard && pnpm badges`
 
@@ -602,7 +593,7 @@ pnpm exec playwright show-report
 
 - [ ] All existing tests pass
 - [ ] New features have corresponding tests
-- [ ] Test coverage meets 80% threshold
+- [ ] Test coverage meets all four per-metric thresholds in `vite.config.ts`
 - [ ] E2E tests cover user-facing changes
 - [ ] Visual tests updated for UI changes
 - [ ] Accessibility tests pass for new pages/components
