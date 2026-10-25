@@ -169,7 +169,7 @@ pnpm test:e2e:headed
 pnpm test:e2e:ui
 
 # Run specific browser
-pnpm exec playwright test --project=chromium
+pnpm exec playwright test --project=chromium-desktop
 
 # Run specific test file
 pnpm exec playwright test tests/e2e/navigation.spec.ts
@@ -182,9 +182,9 @@ pnpm test:e2e:codegen
 
 Tests run across three browsers:
 
-- **Chromium**: Primary browser (Chrome/Edge)
-- **Firefox**: Mozilla Firefox
-- **WebKit**: Safari engine
+- **Chromium**: Primary browser (Chrome/Edge), project `chromium-desktop`
+- **Firefox**: Mozilla Firefox, project `firefox-desktop`
+- **WebKit**: Safari engine, project `webkit-desktop`
 
 ### Writing E2E Tests
 
