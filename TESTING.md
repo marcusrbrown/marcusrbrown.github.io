@@ -197,22 +197,22 @@ import type {Locator, Page} from "@playwright/test"
 export class HomePage {
   readonly page: Page
   readonly heroSection: Locator
-  readonly themeToggle: Locator
+  readonly themeTrigger: Locator
   readonly navigationMenu: Locator
 
   constructor(page: Page) {
     this.page = page
     this.heroSection = page.getByTestId("hero-section")
-    this.themeToggle = page.getByRole("button", {name: "Toggle theme"})
-    this.navigationMenu = page.getByRole("navigation")
+    this.themeTrigger = page.getByRole("button", {name: /Open theme picker/})
+    this.navigationMenu = page.getByRole("navigation", {name: "Main navigation", exact: true})
   }
 
   async goto() {
     await this.page.goto("/")
   }
 
-  async toggleTheme() {
-    await this.themeToggle.click()
+  async openThemePicker() {
+    await this.themeTrigger.click()
   }
 }
 ```
@@ -231,7 +231,7 @@ test("navigation works correctly", async ({page}) => {
   await expect(homePage.heroSection).toBeVisible()
 
   // Test navigation
-  await page.getByRole("link", {name: "About"}).click()
+  await homePage.navigationMenu.getByRole("link", {name: "About", exact: true}).click()
   await expect(page).toHaveURL(/.*about/)
 })
 ```
