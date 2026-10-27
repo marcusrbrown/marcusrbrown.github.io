@@ -178,6 +178,13 @@ pnpm exec playwright test tests/e2e/navigation.spec.ts
 pnpm test:e2e:codegen
 ```
 
+Locally, Playwright builds the deterministic E2E fixture before starting preview. With `CI` set, `playwright.config.ts` starts preview against an existing build instead and reads `PLAYWRIGHT_BASE_URL` explicitly. Prepare the fixture first when reproducing CI:
+
+```bash
+pnpm run build:e2e
+CI=true PLAYWRIGHT_BASE_URL=http://localhost:4173 pnpm exec playwright test --project=chromium-desktop
+```
+
 ### Browser Matrix
 
 Tests run across three browsers:
