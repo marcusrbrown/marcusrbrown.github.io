@@ -253,7 +253,7 @@ test("navigation works correctly", async ({page}) => {
 
 ## Visual Regression Testing
 
-Visual tests capture screenshots and compare them across theme variations.
+Visual tests capture screenshots across theme variations for review. The current specs use `page.screenshot()` or locator screenshots; they do not perform automatic pixel comparisons against stored baselines.
 
 ### Running Visual Tests
 
@@ -261,7 +261,7 @@ Visual tests capture screenshots and compare them across theme variations.
 # Run visual regression tests
 pnpm test:visual
 
-# Update baseline screenshots
+# Regenerate screenshot artifacts (snapshot-update flag is not required by the current specs)
 pnpm test:visual:update
 
 # Run with visible browser
@@ -271,42 +271,40 @@ pnpm test:visual:headed
 pnpm test:visual:artifacts:clean
 ```
 
-### Baseline Management
+### Screenshot Artifact Management
 
-Visual tests compare against baseline screenshots stored in the repository.
+Screenshot captures are written to `tests/visual/screenshots/`. A passing capture run does not establish pixel equality with committed images; inspect the artifacts when reviewing visual changes.
 
-#### Updating Baselines
+#### Refreshing Captures
 
 ```bash
-# Update all baselines
-UPDATE_SNAPSHOTS=1 pnpm test:visual
+# Refresh all captures
+pnpm test:visual
 
-# Update specific test
-UPDATE_SNAPSHOTS=1 pnpm exec playwright test tests/visual/components.spec.ts
+# Refresh a specific spec using the configured visual project
+pnpm exec playwright test --project=visual-tests tests/visual/components.spec.ts
 ```
 
-#### Baseline Storage
+#### Artifact Storage
 
-- **Location**: `tests/visual/**/*-baseline.png`
-- **Naming**: `{test-name}-{theme}-{viewport}-{os}.png`
+- **Location**: `tests/visual/screenshots/*.png`
+- **Naming**: Explicit paths in each spec, such as `header-light-theme.png`
 - **Retention**: Permanent (with cleanup automation)
 
 ### Writing Visual Tests
 
 ```typescript
 // tests/visual/components.spec.ts
-import {expect, test} from "@playwright/test"
+import {test} from "@playwright/test"
+import {preparePageForVisualTest, waitForComponentStable} from "./utils"
 
-test("header appears correctly across themes", async ({page}) => {
-  await page.goto("/")
-
-  // Test light theme
-  await page.getByRole("button", {name: "Toggle theme"}).click()
-  await expect(page.locator("header")).toHaveScreenshot("header-light.png")
-
-  // Test dark theme
-  await page.getByRole("button", {name: "Toggle theme"}).click()
-  await expect(page.locator("header")).toHaveScreenshot("header-dark.png")
+test("captures the light-theme header", async ({page}) => {
+  await preparePageForVisualTest(page, {theme: "light"})
+  await waitForComponentStable(page, "header.header")
+  await page.locator("header.header").screenshot({
+    path: "tests/visual/screenshots/header-light-theme.png",
+    animations: "disabled",
+  })
 })
 ```
 
