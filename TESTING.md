@@ -548,16 +548,9 @@ use: {
 
 #### Visual Tests
 
-**Problem**: Many false positive differences
+**Problem**: Screenshot captures differ unexpectedly
 
-**Solution**: Adjust threshold or update baselines
-
-```typescript
-await expect(page).toHaveScreenshot("page.png", {
-  threshold: 0.3, // Allow 30% difference
-  maxDiffPixels: 100,
-})
-```
+**Solution**: Compare the capture environments: use the same browser version, viewport, theme, fonts, and deterministic E2E fixture. Use the existing stability helpers in `tests/visual/utils.ts` before capturing, then inspect the images for genuine UI changes. The current capture-only specs have no pixel-difference threshold to adjust; keep assertions and validation budgets intact when diagnosing failures.
 
 **Problem**: Fonts render differently
 
