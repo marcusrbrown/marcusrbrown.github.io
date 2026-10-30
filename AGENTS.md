@@ -51,7 +51,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
 | Agent skills | `.agents/skills/` | Browser automation and UI review skills (`agent-browser`, `impeccable`, `playwright-mcp`) |
-| Visual baselines | `tests/visual/screenshots/` | 44 baseline images |
+| Visual captures | `tests/visual/screenshots/` | 44 committed screenshots; capture-only specs, manual comparison |
 
 ## Code Map (Key Symbols)
 
@@ -103,7 +103,7 @@ pnpm fix                    # ESLint auto-fix
 # Test
 pnpm test                   # Vitest unit tests
 pnpm test:e2e               # Playwright cross-browser
-pnpm test:visual            # Visual regression
+pnpm test:visual            # Capture screenshots for manual comparison
 pnpm test:accessibility      # axe-core WCAG 2.1 AA
 pnpm test:performance        # Lighthouse CI
 pnpm test:all               # All test suites
