@@ -21,7 +21,7 @@ This document provides comprehensive testing guidelines for contributors to the 
 ### Prerequisites
 
 - Node.js v24+ LTS
-- pnpm v11.1.3+
+- pnpm v11.11.0+ (use the version pinned by `packageManager` in `package.json`)
 - Git
 
 ### Setup
@@ -56,7 +56,7 @@ Our testing strategy includes five main categories:
 
 | Test Type         | Purpose                        | Tools                   | Coverage         |
 | ----------------- | ------------------------------ | ----------------------- | ---------------- |
-| **Unit Tests**    | Component and function testing | Vitest, Testing Library | 80%+ required    |
+| **Unit Tests**    | Component and function testing | Vitest, Testing Library | Per-metric gates |
 | **E2E Tests**     | User workflow testing          | Playwright              | Cross-browser    |
 | **Visual Tests**  | UI consistency                 | Playwright Visual       | Theme variations |
 | **Accessibility** | WCAG compliance                | axe-core                | All pages        |
@@ -86,62 +86,61 @@ pnpm test
 pnpm test --coverage
 
 # Watch mode for development
-pnpm test --watch
+pnpm exec vitest watch
 
-# Open Vitest UI
-pnpm test --ui
+# List tests without running them
+pnpm exec vitest list
 
 # Run specific test file
-pnpm test src/components/Header.test.tsx
+pnpm test tests/components/Header.test.tsx
 
 # Run tests matching pattern
-pnpm test --grep \"theme\"
+pnpm test -t "theme"
 ```
 
 ### Coverage Requirements
 
-- **Minimum Coverage**: 80% across all metrics
-- **Statements**: 80%+
-- **Branches**: 80%+
-- **Functions**: 80%+
-- **Lines**: 80%+
+- **Enforced Coverage**: Per-metric thresholds in `vite.config.ts`
+- **Statements**: 90%+
+- **Branches**: 85%+
+- **Functions**: 88%+
+- **Lines**: 90%+
 
 ### Writing Unit Tests
 
 #### Component Testing Example
 
 ```tsx
+// tests/components/Header.test.tsx
 import {render, screen} from "@testing-library/react"
-import {expect, test, vi} from "vitest"
-import {ThemeProvider} from "../contexts/ThemeContext"
-import {Header} from "./Header"
+import {MemoryRouter} from "react-router-dom"
+import {expect, test} from "vitest"
+import Header from "../../src/components/Header"
+import {ThemeProvider} from "../../src/contexts/ThemeContext"
 
 test("renders navigation menu", () => {
   render(
-    <ThemeProvider>
-      <Header />
-    </ThemeProvider>,
+    <MemoryRouter>
+      <ThemeProvider>
+        <Header />
+      </ThemeProvider>
+    </MemoryRouter>,
   )
 
-  expect(screen.getByRole("navigation")).toBeInTheDocument()
-  expect(screen.getByText("Home")).toBeInTheDocument()
-})
-
-test("handles theme toggle", async () => {
-  const mockToggle = vi.fn()
-  // ... test implementation
+  expect(screen.getByRole("navigation", {name: "Main navigation"})).toBeInTheDocument()
+  expect(screen.getByRole("link", {name: "Home"})).toHaveAttribute("href", "/")
 })
 ```
 
 #### Utility Function Testing
 
 ```typescript
+// tests/utils/blog.test.ts
 import {expect, test} from "vitest"
-import {formatDate} from "../utils/formatDate"
+import {slugify} from "../../src/utils/blog"
 
-test("formats date correctly", () => {
-  const date = new Date("2024-01-15T10:30:00Z")
-  expect(formatDate(date)).toBe("January 15, 2024")
+test("slugify produces a URL-safe slug", () => {
+  expect(slugify("Hello World!")).toBe("hello-world")
 })
 ```
 
@@ -170,7 +169,7 @@ pnpm test:e2e:headed
 pnpm test:e2e:ui
 
 # Run specific browser
-pnpm exec playwright test --project=chromium
+pnpm exec playwright test --project=chromium-desktop
 
 # Run specific test file
 pnpm exec playwright test tests/e2e/navigation.spec.ts
@@ -179,13 +178,20 @@ pnpm exec playwright test tests/e2e/navigation.spec.ts
 pnpm test:e2e:codegen
 ```
 
+Locally, Playwright builds the deterministic E2E fixture before starting preview. With `CI` set, `playwright.config.ts` starts preview against an existing build instead and reads `PLAYWRIGHT_BASE_URL` explicitly. Prepare the fixture first when reproducing CI:
+
+```bash
+pnpm run build:e2e
+CI=true PLAYWRIGHT_BASE_URL=http://localhost:4173 pnpm exec playwright test --project=chromium-desktop
+```
+
 ### Browser Matrix
 
 Tests run across three browsers:
 
-- **Chromium**: Primary browser (Chrome/Edge)
-- **Firefox**: Mozilla Firefox
-- **WebKit**: Safari engine
+- **Chromium**: Primary browser (Chrome/Edge), project `chromium-desktop`
+- **Firefox**: Mozilla Firefox, project `firefox-desktop`
+- **WebKit**: Safari engine, project `webkit-desktop`
 
 ### Writing E2E Tests
 
@@ -198,22 +204,22 @@ import type {Locator, Page} from "@playwright/test"
 export class HomePage {
   readonly page: Page
   readonly heroSection: Locator
-  readonly themeToggle: Locator
+  readonly themeTrigger: Locator
   readonly navigationMenu: Locator
 
   constructor(page: Page) {
     this.page = page
     this.heroSection = page.getByTestId("hero-section")
-    this.themeToggle = page.getByRole("button", {name: "Toggle theme"})
-    this.navigationMenu = page.getByRole("navigation")
+    this.themeTrigger = page.getByRole("button", {name: /Open theme picker/})
+    this.navigationMenu = page.getByRole("navigation", {name: "Main navigation", exact: true})
   }
 
   async goto() {
     await this.page.goto("/")
   }
 
-  async toggleTheme() {
-    await this.themeToggle.click()
+  async openThemePicker() {
+    await this.themeTrigger.click()
   }
 }
 ```
@@ -232,7 +238,7 @@ test("navigation works correctly", async ({page}) => {
   await expect(homePage.heroSection).toBeVisible()
 
   // Test navigation
-  await page.getByRole("link", {name: "About"}).click()
+  await homePage.navigationMenu.getByRole("link", {name: "About", exact: true}).click()
   await expect(page).toHaveURL(/.*about/)
 })
 ```
@@ -247,7 +253,7 @@ test("navigation works correctly", async ({page}) => {
 
 ## Visual Regression Testing
 
-Visual tests capture screenshots and compare them across theme variations.
+Visual tests capture screenshots across theme variations for review. The current specs use `page.screenshot()` or locator screenshots; they do not perform automatic pixel comparisons against stored baselines.
 
 ### Running Visual Tests
 
@@ -255,7 +261,7 @@ Visual tests capture screenshots and compare them across theme variations.
 # Run visual regression tests
 pnpm test:visual
 
-# Update baseline screenshots
+# Regenerate screenshot artifacts (snapshot-update flag is not required by the current specs)
 pnpm test:visual:update
 
 # Run with visible browser
@@ -265,42 +271,40 @@ pnpm test:visual:headed
 pnpm test:visual:artifacts:clean
 ```
 
-### Baseline Management
+### Screenshot Artifact Management
 
-Visual tests compare against baseline screenshots stored in the repository.
+Screenshot captures are written to `tests/visual/screenshots/`. A passing capture run does not establish pixel equality with committed images; inspect the artifacts when reviewing visual changes.
 
-#### Updating Baselines
+#### Refreshing Captures
 
 ```bash
-# Update all baselines
-UPDATE_SNAPSHOTS=1 pnpm test:visual
+# Refresh all captures
+pnpm test:visual
 
-# Update specific test
-UPDATE_SNAPSHOTS=1 pnpm exec playwright test tests/visual/components.spec.ts
+# Refresh a specific spec using the configured visual project
+pnpm exec playwright test --project=visual-tests tests/visual/components.spec.ts
 ```
 
-#### Baseline Storage
+#### Artifact Storage
 
-- **Location**: `tests/visual/**/*-baseline.png`
-- **Naming**: `{test-name}-{theme}-{viewport}-{os}.png`
+- **Location**: `tests/visual/screenshots/*.png`
+- **Naming**: Explicit paths in each spec, such as `header-light-theme.png`
 - **Retention**: Permanent (with cleanup automation)
 
 ### Writing Visual Tests
 
 ```typescript
 // tests/visual/components.spec.ts
-import {expect, test} from "@playwright/test"
+import {test} from "@playwright/test"
+import {preparePageForVisualTest, waitForComponentStable} from "./utils"
 
-test("header appears correctly across themes", async ({page}) => {
-  await page.goto("/")
-
-  // Test light theme
-  await page.getByRole("button", {name: "Toggle theme"}).click()
-  await expect(page.locator("header")).toHaveScreenshot("header-light.png")
-
-  // Test dark theme
-  await page.getByRole("button", {name: "Toggle theme"}).click()
-  await expect(page.locator("header")).toHaveScreenshot("header-dark.png")
+test("captures the light-theme header", async ({page}) => {
+  await preparePageForVisualTest(page, {theme: "light"})
+  await waitForComponentStable(page, "header.header")
+  await page.locator("header.header").screenshot({
+    path: "tests/visual/screenshots/header-light-theme.png",
+    animations: "disabled",
+  })
 })
 ```
 
@@ -347,12 +351,12 @@ test("home page meets accessibility standards", async ({page}) => {
 test("keyboard navigation works", async ({page}) => {
   await page.goto("/")
 
-  // Test tab navigation
+  // The header brand link is the first focusable element on a fresh page.
   await page.keyboard.press("Tab")
-  await expect(page.getByRole("link", {name: "Skip to content"})).toBeFocused()
+  await expect(page.getByRole("banner").getByRole("link", {name: "mrbro.dev", exact: true})).toBeFocused()
 
   await page.keyboard.press("Tab")
-  await expect(page.getByRole("link", {name: "Home"})).toBeFocused()
+  await expect(page.getByRole("navigation", {name: "Main navigation", exact: true}).getByRole("link", {name: "Home", exact: true})).toBeFocused()
 })
 ```
 
@@ -489,15 +493,7 @@ test("fetches user data", async () => {
 
 #### Component Dependencies
 
-```typescript
-// Mock theme context
-vi.mock("../contexts/ThemeContext", () => ({
-  useTheme: () => ({
-    currentTheme: "light",
-    toggleTheme: vi.fn(),
-  }),
-}))
-```
+For theme-dependent components, render the real `ThemeProvider` as shown in the [component testing example](#component-testing-example). `useTheme` is exported from `src/hooks/UseTheme.ts`, not `src/contexts/ThemeContext.tsx`, and its `currentTheme` is a `Theme` object rather than a mode string. See `tests/components/Header.test.tsx` for router/provider setup and `tests/hooks/UseTheme.test.tsx` for theme-action tests.
 
 ## Troubleshooting
 
@@ -552,16 +548,9 @@ use: {
 
 #### Visual Tests
 
-**Problem**: Many false positive differences
+**Problem**: Screenshot captures differ unexpectedly
 
-**Solution**: Adjust threshold or update baselines
-
-```typescript
-await expect(page).toHaveScreenshot("page.png", {
-  threshold: 0.3, // Allow 30% difference
-  maxDiffPixels: 100,
-})
-```
+**Solution**: Compare the capture environments: use the same browser version, viewport, theme, fonts, and deterministic E2E fixture. Use the existing stability helpers in `tests/visual/utils.ts` before capturing, then inspect the images for genuine UI changes. The current capture-only specs have no pixel-difference threshold to adjust; keep assertions and validation budgets intact when diagnosing failures.
 
 **Problem**: Fonts render differently
 
@@ -580,7 +569,7 @@ await expect(page).toHaveScreenshot("page.png", {
 pnpm test --reporter=verbose
 
 # Debug specific test
-pnpm test --grep \"specific test\" --reporter=verbose
+pnpm test tests/utils/blog.test.ts -t "slugify" --reporter=verbose
 
 # Playwright debug mode
 pnpm exec playwright test --debug
@@ -594,7 +583,7 @@ pnpm exec playwright show-report
 ### Before Submitting Tests
 
 1. **Run Full Suite**: `pnpm test:all`
-2. **Check Coverage**: Ensure 80%+ coverage maintained
+2. **Check Coverage**: Meet all four thresholds in [Coverage Requirements](#coverage-requirements)
 3. **Update Baselines**: If visual changes are intentional
 4. **Generate Dashboard**: `pnpm dashboard && pnpm badges`
 
@@ -602,7 +591,7 @@ pnpm exec playwright show-report
 
 - [ ] All existing tests pass
 - [ ] New features have corresponding tests
-- [ ] Test coverage meets 80% threshold
+- [ ] Test coverage meets all four per-metric thresholds in `vite.config.ts`
 - [ ] E2E tests cover user-facing changes
 - [ ] Visual tests updated for UI changes
 - [ ] Accessibility tests pass for new pages/components

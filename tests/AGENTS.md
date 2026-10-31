@@ -4,19 +4,25 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Structure → Config Mapping
 
-| Type              | Directory        | Runner                | Config                      |
-| ----------------- | ---------------- | --------------------- | --------------------------- |
-| Unit (components) | `components/`    | Vitest                | `vite.config.ts` (embedded) |
-| Unit (hooks)      | `hooks/`         | Vitest                | `vite.config.ts`            |
-| Unit (utils)      | `utils/`         | Vitest                | `vite.config.ts`            |
-| E2E               | `e2e/`           | Playwright            | `playwright.config.ts`      |
-| Visual            | `visual/`        | Playwright            | `playwright.config.ts`      |
-| Accessibility     | `accessibility/` | Playwright + axe-core | `playwright.config.ts`      |
-| Performance       | `performance/`   | Lighthouse CI         | `lhci.config.js`            |
+| Type              | Directory                    | Runner                | Config                      |
+| ----------------- | ---------------------------- | --------------------- | --------------------------- |
+| Unit (components) | `components/`                | Vitest                | `vite.config.ts` (embedded) |
+| Unit (hooks)      | `hooks/`                     | Vitest                | `vite.config.ts`            |
+| Unit (pages)      | `pages/`                     | Vitest                | `vite.config.ts`            |
+| Unit (utils)      | `utils/`                     | Vitest                | `vite.config.ts`            |
+| Unit (automation) | `scripts/`, `copilot-hooks/` | Vitest (Node)         | `vite.config.ts`            |
+| Unit (bridge)     | `../.opencode/impeccable/`   | Vitest (Node)         | `vite.config.ts`            |
+| Type contracts    | `types/`                     | TypeScript (no emit)  | `tsconfig.json`             |
+| E2E               | `e2e/`                       | Playwright            | `playwright.config.ts`      |
+| Visual            | `visual/`                    | Playwright            | `playwright.config.ts`      |
+| Accessibility     | `accessibility/`             | Playwright + axe-core | `playwright.config.ts`      |
+| Performance       | `performance/`               | Lighthouse CI         | `lighthouserc.cjs`          |
 
 ## Key Files
 
-- `setup.ts` — Global Vitest setup (DOM mocks, theme providers, Shiki stubbing)
+- `setup.shared.ts` — Environment-neutral setup for both Vitest projects; rejects unexpected fetch requests unless a test installs an explicit fixture
+- `setup.ts` — DOM-project-only setup: imports shared setup, installs jest-dom matchers and browser API mocks, and cleans up React renders
+- `types/umami-track-overloads.typecheck.ts` — Compile-only analytics overload contracts checked by `pnpm run check-types` and `pnpm build`; the `.typecheck.ts` suffix is not selected by Vitest
 - `scripts/check-react-router-rsc-boundary.test.ts` — Unit coverage for the fail-closed React Router RSC advisory boundary
 - `visual/utils.ts` — Theme mocking + visual test helpers
 - `e2e/base-path.spec.ts` — Smoke tests: asset loading, blank-page guard, sub-page routing
@@ -37,19 +43,20 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 ## Test Matrices
 
-- **Visual**: 2 themes (light/dark) × 2 breakpoints (375/1440px), ~28 tests
-- **E2E**: 3 browsers (Chromium, Firefox, WebKit)
+- **Unit**: Separate Node and happy-dom projects in `vite.config.ts`; `tests/scripts/`, `tests/copilot-hooks/`, and `.opencode/impeccable/` run in Node. Keep browser globals in `setup.ts`, not `setup.shared.ts`.
+- **Visual**: Chromium artifact capture for light/dark themes, 375/1440px layouts, theme transitions, and the Dracula picker state; see `visual/*.spec.ts` for the current cases
+- **E2E**: Chromium, Firefox, and WebKit desktop projects, plus mobile Chrome/Safari, tablet Chrome, and 375/768/1024/1440px responsive projects in `playwright.config.ts`
 - **Accessibility**: WCAG 2.1 AA across all routes
 
 ## Coverage
 
-- **Thresholds**: 80% statements/branches/functions/lines (enforced in Vite config)
+- **Thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Provider**: V8
 - **Hooks**: `tests/hooks/` uses matching filenames; currently every hook except `UseSyntaxHighlighting.ts` and `UseThemeContext.ts` has a corresponding test file. Prefer this pattern over a hard-coded coverage count as hooks change.
 
 ## Visual Baselines
 
-- **Location**: `visual/screenshots/` — ~30 screenshot images
+- **Location**: `visual/screenshots/` — 44 screenshot images
 - **Note**: Screenshots are generated per-run, not compared via `toMatchSnapshot()`
 - **Update**: `pnpm test:visual:update` regenerates all screenshots
 
