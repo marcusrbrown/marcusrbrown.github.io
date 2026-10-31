@@ -351,12 +351,12 @@ test("home page meets accessibility standards", async ({page}) => {
 test("keyboard navigation works", async ({page}) => {
   await page.goto("/")
 
-  // Test tab navigation
+  // The header brand link is the first focusable element on a fresh page.
   await page.keyboard.press("Tab")
-  await expect(page.getByRole("link", {name: "Skip to content"})).toBeFocused()
+  await expect(page.getByRole("banner").getByRole("link", {name: "mrbro.dev", exact: true})).toBeFocused()
 
   await page.keyboard.press("Tab")
-  await expect(page.getByRole("link", {name: "Home"})).toBeFocused()
+  await expect(page.getByRole("navigation", {name: "Main navigation", exact: true}).getByRole("link", {name: "Home", exact: true})).toBeFocused()
 })
 ```
 
