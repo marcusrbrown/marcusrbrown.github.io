@@ -38,11 +38,13 @@ This document provides comprehensive testing guidelines for contributors to the 
    pnpm exec playwright install
    ```
 
-3. **Run all tests**:
+3. **Run unit and Playwright tests**:
 
    ```bash
    pnpm test:all
    ```
+
+   `test:all` runs Vitest and the configured Playwright projects. It does not collect unit coverage or run Lighthouse; use `pnpm test --coverage` for the [coverage gates](#coverage-requirements) and the separate commands in [Performance Testing](#performance-testing) for performance validation.
 
 4. **Generate dashboard and badges**:
 
