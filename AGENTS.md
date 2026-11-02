@@ -106,7 +106,7 @@ pnpm test:e2e               # Playwright cross-browser
 pnpm test:visual            # Capture screenshots for manual comparison
 pnpm test:accessibility      # axe-core WCAG 2.1 AA
 pnpm test:performance        # Lighthouse CI
-pnpm test:all               # All test suites
+pnpm test:all               # Vitest + configured Playwright projects; no coverage/Lighthouse
 
 # Analysis
 pnpm run analyze-build      # Bundle size + CI summary
