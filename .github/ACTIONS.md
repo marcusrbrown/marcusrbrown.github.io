@@ -129,8 +129,8 @@ A composite action that standardizes project setup across all workflows.
 
 **Features:**
 
-- ✅ Checkout with proper Git configuration
-- ✅ pnpm v11.1.3 setup (derived from `package.json`'s `packageManager` field)
+- ✅ Uses the caller's existing checkout (run checkout before invoking this action)
+- ✅ pnpm setup using the version pinned in `package.json`'s `packageManager` field
 - ✅ Node.js v24 with automatic caching
 - ✅ Dependency installation with frozen lockfile
 - ✅ Optional checksum-verified `agent-browser` acquisition on Linux x64
