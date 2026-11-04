@@ -16,7 +16,7 @@ Runs on:
 
 - **Setup**: Prepares Node.js, pnpm, and dependencies with caching
 - **Lint**: ESLint validation and formatting checks
-- **Test**: Unit tests with coverage reporting (80% threshold)
+- **Test**: Unit tests with coverage reporting (90% statements, 85% branches, 88% functions, 90% lines)
 - **Build**: Production build validation
 - **Type Check**: TypeScript compilation validation
 - **Validate**: Security audit and dependency health checks
@@ -189,7 +189,7 @@ A composite action that standardizes project setup across all workflows.
 
 ### 🎯 Quality Gates
 
-- **80% Test Coverage**: Enforced via vitest configuration
+- **Per-Metric Test Coverage**: 90% statements, 85% branches, 88% functions, 90% lines, enforced in `vite.config.ts`
 - **ESLint Validation**: Code quality and formatting
 - **TypeScript Strict**: Type safety validation
 - **Cross-Platform Testing**: Ubuntu, Windows, macOS support
