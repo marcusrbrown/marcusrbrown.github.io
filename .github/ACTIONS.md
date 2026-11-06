@@ -182,7 +182,7 @@ A composite action that standardizes project setup across all workflows.
 
 ### ⚡ Performance Optimizations
 
-- **Smart Caching**: Node modules and pnpm cache
+- **Smart Caching**: pnpm store and optional Playwright browser downloads
 - **Parallel Jobs**: Independent jobs run concurrently
 - **Conditional Logic**: Skip unnecessary steps
 - **Artifact Management**: 7-day retention for build outputs
@@ -196,18 +196,12 @@ A composite action that standardizes project setup across all workflows.
 
 ## Caching Strategy
 
-The pipeline uses multiple caching layers:
+The setup action caches downloads rather than installed dependencies:
 
-1. **pnpm Cache**: Handled by `actions/setup-node`
-2. **Node Modules**: Implicit via pnpm caching
-3. **Build Artifacts**: 7-day retention for debugging
+1. **pnpm Store**: `actions/setup-node` caches pnpm's package store using `pnpm-lock.yaml` as the dependency key input. A cache hit does not restore `node_modules`; `pnpm install --frozen-lockfile` still runs when dependency installation is enabled.
+2. **Playwright Browsers**: When `install-playwright` is enabled, `actions/cache` caches `~/.cache/ms-playwright` under `playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}`. Linux system dependencies and the browser installation check still run after a cache hit.
 
-Cache keys include:
-
-- OS and architecture
-- Node.js version
-- pnpm-lock.yaml hash
-- Custom suffix when needed
+Build outputs are transferred between jobs as artifacts, with 7-day retention for debugging; they are separate from these download caches. See [the setup action](actions/setup/action.yaml) for the authoritative cache inputs and keys.
 
 ## Monitoring & Debugging
 
