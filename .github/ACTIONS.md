@@ -51,6 +51,14 @@ Runs on:
 
 > **Note:** The E2E workflow uses `playwright.config.ts` which sets `retries: 2` on CI, absorbing transient network flakiness automatically.
 
+### Performance Testing Workflow (`.github/workflows/performance.yaml`)
+
+Runs on pushes and pull requests to `main`, manual dispatch, and Mondays at 06:00 UTC (`0 6 * * 1`). Pull-request path filters gate the expensive audit steps; other events run the full audit.
+
+- **Performance Audit**: Independent desktop/mobile matrix jobs with 20-minute deadlines build the site, analyze absolute bundle budgets, run Lighthouse assertions and budget validation, then check relative regressions against a cached main-branch baseline before running theme-switching tests.
+- **Baselines**: Each device restores `performance-baseline.json` from its main-branch cache prefix. Only non-PR runs on `main` may save a baseline. Download caches described below are separate from this regression evidence.
+- **Performance Summary**: Aggregates device artifacts and reports the audit result. Passing absolute bundle budgets does not establish that the relative regression gate passed; inspect the failing device step before diagnosing a shared PR failure.
+
 ### Fro Bot Live Audit Lane (`.github/workflows/fro-bot.yaml`)
 
 The existing `Fro Bot` job remains the generic required check. Its dedicated live-audit lane is report-only and runs as `live-audit-preflight` → `live-audit-discovery` / finalizer → `live-audit-reporter`:
