@@ -107,6 +107,10 @@ CLI-based browser automation via the project-local `pnpm exec agent-browser`. Us
 - Comparing deployed vs local preview builds
 - Spot-checking WCAG compliance visually
 
+### Impeccable (`.agents/skills/impeccable/SKILL.md`)
+
+Frontend design and review guidance for hierarchy, typography, accessibility, responsive behavior, and theming. Its project-local scripts support design audits and live-edit tooling; `.opencode/` contains the separately type-checked hook bridge. Browser-backed visual discovery in scheduled automation belongs to the dedicated live-audit lane described above.
+
 ### 🎭 playwright-mcp (`.agents/skills/playwright-mcp/SKILL.md`)
 
 Accessibility-tree-based browser automation via the Playwright MCP server. Use for:
