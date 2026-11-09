@@ -42,8 +42,8 @@ Runs on:
 **Jobs:**
 
 - **Setup**: Installs Playwright browsers and caches them via the composite action
-- **Build for Tests**: Builds the site for serving during E2E test runs
-- **E2E Tests**: Runs Playwright functional tests (matrix: chromium)
+- **Build for Tests**: Builds the deterministic blog fixture and uploads the shared artifact whenever any functional, visual, or accessibility suite is selected
+- **E2E Tests**: Runs the `chromium-desktop` project on pull requests; manual dispatch selects Chromium, Firefox, WebKit, or all three through the browser matrix
 - **Visual Regression**: Captures screenshots for manual comparison; the current specs do not assert screenshot baselines
 - **Accessibility Tests**: Runs axe-core WCAG 2.1 AA audits across all pages
 - **Test Summary**: Aggregates results and generates badge data
