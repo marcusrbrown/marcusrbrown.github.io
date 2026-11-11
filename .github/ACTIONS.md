@@ -126,8 +126,8 @@ Accessibility-tree-based browser automation via the Playwright MCP server. Use f
 {
   "mcpServers": {
     "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@latest"]
+      "command": "pnpm",
+      "args": ["dlx", "@playwright/mcp@latest"]
     }
   }
 }
