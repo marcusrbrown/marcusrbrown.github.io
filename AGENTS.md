@@ -44,12 +44,14 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | Add component | `src/components/` | PascalCase `.tsx`, no barrel exports |
 | Add hook | `src/hooks/` | **PascalCase** filenames: `UseMyHook.ts` |
 | Add route | `src/App.tsx` | React Router v7 Routes |
+| Blog data | `scripts/blog-refresh.ts` → `src/data/blog-snapshot.json` → `src/hooks/UseBlogPosts.ts` | Build-time snapshot; `scripts/prerender-blog.ts` generates post pages, feed, and sitemap |
 | Projects data | `scripts/projects-refresh.ts` → `src/data/projects-snapshot.json` → `src/hooks/UseProjects.ts` | Build-time snapshot; no runtime GitHub API call (avoids visitor rate limits) |
 | Syntax highlighting | `src/utils/syntax-highlighting.ts` → `src/hooks/UseSyntaxHighlighting.ts` | Shiki, externalized in build |
 | Build analysis | `scripts/analyze-build.ts` | Bundle size budgets + CI summaries |
 | Test dashboard | `scripts/test-dashboard.mjs` | Aggregated health scoring |
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
+| Live audit | `scripts/live-audit/` → `docs/live-audit-evidence.md` | Dedicated discovery/finalizer/reporter lane owns visual evidence and issue mutations |
 | Agent skills | `.agents/skills/` | Browser automation and UI review skills (`agent-browser`, `impeccable`, `playwright-mcp`) |
 | Visual captures | `tests/visual/screenshots/` | 44 committed screenshots; capture-only specs, manual comparison |
 
