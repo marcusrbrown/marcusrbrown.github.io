@@ -27,7 +27,7 @@ tests/             # Multi-type test infrastructure (see tests/AGENTS.md)
 └── skills/        # Agent skill definitions (agent-browser, impeccable, playwright-mcp)
 .opencode/         # Impeccable hook bridge and its separately type-checked TS project
 .ai/plan/          # Feature implementation plans (reference only)
-docs/              # solutions/ = documented fixes by category w/ YAML frontmatter (module, tags, problem_type); plus brainstorms/, plans/, blog-system.md
+docs/              # solutions/ = fixes w/ YAML frontmatter (module, tags, problem_type); brainstorms/, plans/, blog-system.md, analytics.md, live-audit-evidence.md
 .github/
 ├── workflows/     # 8 workflows: deploy, ci, e2e-tests, performance, fro-bot, blog-refresh (including preview-image refresh), renovate, copilot-setup-steps
 ├── actions/setup/ # Reusable CI setup action (Node 24, pnpm, Playwright)
@@ -44,6 +44,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | Add component | `src/components/` | PascalCase `.tsx`, no barrel exports |
 | Add hook | `src/hooks/` | **PascalCase** filenames: `UseMyHook.ts` |
 | Add route | `src/App.tsx` | React Router v7 Routes |
+| Analytics | `src/components/AnalyticsTracker.tsx` → `src/hooks/UseAnalytics.ts` → `src/utils/analytics.ts` | Router pageviews and typed interaction catalog; `docs/analytics.md` owns activation and retention prerequisites |
 | Blog data | `scripts/blog-refresh.ts` → `src/data/blog-snapshot.json` → `src/hooks/UseBlogPosts.ts` | Build-time snapshot; `scripts/prerender-blog.ts` generates post pages, feed, and sitemap |
 | Projects data | `scripts/projects-refresh.ts` → `src/data/projects-snapshot.json` → `src/hooks/UseProjects.ts` | Build-time snapshot; no runtime GitHub API call (avoids visitor rate limits) |
 | Syntax highlighting | `src/utils/syntax-highlighting.ts` → `src/hooks/UseSyntaxHighlighting.ts` | Shiki, externalized in build |
