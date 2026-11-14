@@ -22,13 +22,13 @@
 | `UseScrollAnimation.ts` | Intersection Observer triggers, respects `prefers-reduced-motion` |
 | `UseSyntaxHighlighting.ts` | Shiki-based highlighting (externalized from bundle) |
 | `UseTheme.ts` | **Primary hook** — wraps `ThemeContext`, 20-property `UseThemeReturn` interface |
-| `UseThemeContext.ts` | Raw `ThemeContext` accessor — use `useTheme()` instead unless building the provider itself |
+| `UseThemeContext.ts` | Raw `ThemeContext` accessor used by `UseTheme.ts`; feature consumers use `useTheme()` |
 
 ## Patterns
 
 - **Compound returns**: Hooks exposing multiple values use return objects; side-effect-only hooks such as `usePageTitle` return `void`
 - **Explicit return types**: Reuse existing domain types where appropriate (`useThemeContext` returns `ThemeContextValue`); define in-file interfaces for compound returns
-- **Theme access**: Use `useTheme()` — never import `useThemeContext` directly
+- **Theme access**: Components and feature hooks use `useTheme()`; `UseTheme.ts` uses `useThemeContext()` to implement that public hook
 - **Projects/blog data**: Both are build-time snapshot reads (`projects-snapshot.json`, `blog-snapshot.json`) — no runtime API calls, no loading state
 - **Analytics**: Keep route pageview state/readiness in `UseAnalytics.ts`; interaction events use the typed adapter in `src/utils/analytics.ts`, not interaction-tracking hooks
 
