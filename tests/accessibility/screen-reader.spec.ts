@@ -447,6 +447,14 @@ test.describe('Screen Reader Compatibility Tests', () => {
     test('should have no serious or critical violations with the theme picker open', async ({page}) => {
       await page.goto('/')
       await page.locator('.theme-toggle').click()
+      // Opening the picker leaves the trigger hovered, which runs the color transitions from
+      // --transition-theme-fast plus the label span's --transition-theme-instant. axe samples computed
+      // colors, so scanning mid-transition reports blended fg/bg pairs that never render at rest.
+      await page.waitForFunction(() =>
+        document
+          .getAnimations()
+          .every(animation => !(animation instanceof CSSTransition) || animation.playState === 'finished'),
+      )
       const accessibilityScanResults = await new AxeBuilder({page})
         .withTags(['wcag2a', 'wcag21a', 'wcag2aa', 'wcag21aa'])
         .analyze()
