@@ -739,7 +739,7 @@ jobs:
           fi
 
       - name: Run Fro Bot
-        uses: fro-bot/agent@43023e5b9755fe307c03ede1067cc182564d30e3 # v0.113.2
+        uses: fro-bot/agent@4e394905b7eafda2d7424816eb7846d3f09c40df # v0.144.2
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
@@ -754,10 +754,10 @@ jobs:
           github-token: ${{ secrets.FRO_BOT_PAT }}
           trusted-head-sha: ${{ steps.prehead.outputs.ref }}
           model: ${{ vars.FRO_BOT_MODEL }}
-          omo-providers: ${{ secrets.OMO_PROVIDERS }}
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
           prompt: ${{ env.PROMPT }}
           timeout: 0
+          isolate-agent: 'true'
 
   live-audit-preflight:
     name: Live audit preflight
