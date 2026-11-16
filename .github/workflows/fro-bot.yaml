@@ -998,7 +998,8 @@ jobs:
           github-token: ${{ github.token }}
           model: ${{ vars.FRO_BOT_MODEL }}
           opencode-config: ${{ secrets.OPENCODE_CONFIG }}
-          prompt: ${{ steps.load-prompt.outputs.prompt }}
+          prompt: >-
+            This run checks that agent-browser works for the isolated agent. Change nothing, open nothing, post nothing. Do not override HOME, TMPDIR or any XDG variable; use the default environment. From the repo root run these and reply with their exact output only: `id`; `echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"`; `pnpm exec agent-browser --session probe open https://example.com`; `pnpm exec agent-browser --session probe get title`; `pnpm exec agent-browser --session probe close`.
           response-mode: none
           timeout: 1200000
           isolate-agent: 'true'
