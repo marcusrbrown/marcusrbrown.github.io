@@ -52,6 +52,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 
 - **Thresholds**: 90% statements, 85% branches, 88% functions, 90% lines (enforced in Vite config)
 - **Provider**: V8
+- **Scope**: Coverage measures `src/**/*.{ts,tsx}`, excluding `src/types/` and `src/vite-env.d.ts`; Node tooling tests run in the unit suite, but their script implementations are outside these coverage percentages.
 - **Command**: `pnpm run test --coverage` runs the full unit suite and checks all four coverage metrics.
 - **Failure diagnostics**: `pnpm run test --coverage --coverage.reportOnFailure` also emits coverage when tests fail; a failing test still exits nonzero, so coverage percentages alone do not establish a passing quality gate.
 - **Hooks**: `tests/hooks/` uses matching filenames; currently every hook except `UseSyntaxHighlighting.ts` and `UseThemeContext.ts` has a corresponding test file. Prefer this pattern over a hard-coded coverage count as hooks change.
