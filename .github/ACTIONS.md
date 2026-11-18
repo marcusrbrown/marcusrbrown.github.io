@@ -32,6 +32,8 @@ Runs on:
 
 Deploys to GitHub Pages at `mrbro.dev`.
 
+The build job runs lint, unit tests without coverage, and the production build (including both TypeScript projects) before uploading the Pages artifact. It does not run `analyze-build` or enforce coverage thresholds. A successful deployment therefore does not establish that the separate coverage and bundle-analysis gates passed.
+
 ### 🧪 E2E Tests Workflow (`.github/workflows/e2e-tests.yaml`)
 
 Runs on:
