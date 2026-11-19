@@ -105,6 +105,7 @@ pnpm fix                    # ESLint auto-fix
 
 # Test
 pnpm test                   # Vitest unit tests
+pnpm run test --coverage     # Full unit suite + all four enforced coverage thresholds
 pnpm test:e2e               # Playwright cross-browser
 pnpm test:visual            # Capture screenshots for manual comparison
 pnpm test:accessibility      # axe-core WCAG 2.1 AA
