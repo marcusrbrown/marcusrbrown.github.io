@@ -64,8 +64,8 @@ importers:
         specifier: 0.54.1
         version: 0.54.1(52f512ea81d5f0b2517614c360dac4b4)
       '@bfra.me/prettier-config':
-        specifier: 0.16.13
-        version: 0.16.13(prettier@3.10.1)
+        specifier: 0.16.14
+        version: 0.16.14(prettier@3.10.1)
       '@bfra.me/tsconfig':
         specifier: 0.13.2
         version: 0.13.2
@@ -316,8 +316,8 @@ packages:
       eslint-plugin-react-refresh:
         optional: true
 
-  '@bfra.me/prettier-config@0.16.13':
-    resolution: {integrity: sha512-Wd0NV9NYGvUDwPq8B9ZQwBmMac2RvG6sumdorCBvjInmmXe0zgZReec1XOvorpuGK8hVpCbA/h4eJ1RoJLkS7w==}
+  '@bfra.me/prettier-config@0.16.14':
+    resolution: {integrity: sha512-5KrMzFDz0yHcW4yrnpiWzK0LkDIB9aiG3fq28SnsQf4hp33rvAw2tE3WdAz0z8DbhveqafDsGMzE6JWu/bgNug==}
     peerDependencies:
       prettier: ^3.0.0
 
@@ -4127,7 +4127,7 @@ snapshots:
       - ts-declaration-location
       - typescript
 
-  '@bfra.me/prettier-config@0.16.13(prettier@3.10.1)':
+  '@bfra.me/prettier-config@0.16.14(prettier@3.10.1)':
     dependencies:
       prettier: 3.10.1
 
