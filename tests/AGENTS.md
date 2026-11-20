@@ -26,6 +26,7 @@ Multi-type testing: unit (Vitest), E2E/visual/a11y (Playwright), performance (Li
 - `scripts/check-react-router-rsc-boundary.test.ts` — Unit coverage for the fail-closed React Router RSC advisory boundary
 - `visual/utils.ts` — Theme mocking + visual test helpers
 - `e2e/base-path.spec.ts` — Smoke tests: asset loading, blank-page guard, sub-page routing
+- `fixtures/blog-snapshot.json` — Deterministic blog snapshot selected by `scripts/build-e2e-fixture.mjs` via `BLOG_SNAPSHOT`; `pnpm run build:e2e` uses it for the browser-test build
 - `e2e/fixtures/` — Viewport configs + test data (2 files)
 - `e2e/utils/` — Navigation and test helpers (2 files)
 
