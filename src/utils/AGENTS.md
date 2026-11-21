@@ -39,4 +39,4 @@ FOUC-prevention theme preload now lives at `public/scripts/theme-preloader.js` â
 
 ## Testing
 
-- **Location**: `tests/utils/` (14 test files, including `analytics.test.ts`)
+- **Location**: `tests/utils/` (15 test files, including `analytics.test.ts`)
