@@ -586,7 +586,7 @@ pnpm exec playwright show-report
 
 1. **Run Full Suite**: `pnpm test:all`
 2. **Check Coverage**: Meet all four thresholds in [Coverage Requirements](#coverage-requirements)
-3. **Update Baselines**: If visual changes are intentional
+3. **Review Screenshot Captures**: Regenerate and manually compare captures if visual changes are intentional
 4. **Generate Dashboard**: `pnpm dashboard && pnpm badges`
 
 ### Test Requirements for PRs
