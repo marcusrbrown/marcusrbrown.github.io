@@ -516,7 +516,9 @@ vi.mock("../utils/api", () => ({
 
 **Problem**: Coverage reports missing files
 
-**Solution**: Ensure test files follow naming convention `*.test.{ts,tsx}`
+**Solution**: Check `coverage.include` and `coverage.exclude` in `vite.config.ts`: coverage measures application `src/` files, not Node tooling implementations, even when their tests run. Test discovery is separate; unit test files use `*.test.{ts,tsx}`.
+
+If a failed test prevents the report from being emitted, use `pnpm run test --coverage --coverage.reportOnFailure` to collect diagnostic percentages. The command still exits nonzero for a failing test; percentages above the thresholds do not establish a passing gate.
 
 #### E2E Tests
 
