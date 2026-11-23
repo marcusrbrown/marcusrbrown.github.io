@@ -377,6 +377,9 @@ Performance tests use Lighthouse CI to monitor Core Web Vitals and optimization 
 ### Running Performance Tests
 
 ```bash
+# Build and report absolute bundle budgets (separate from Lighthouse)
+pnpm build && pnpm run analyze-build
+
 # Run Lighthouse CI
 pnpm test:performance
 
