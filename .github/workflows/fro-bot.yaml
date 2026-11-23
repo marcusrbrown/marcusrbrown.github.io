@@ -466,7 +466,7 @@ jobs:
           install-playwright: 'true'
 
       - name: Run Fro Bot
-        uses: fro-bot/agent@65239fc570b0e7adc3c0d0c263282ee91ff6108d # v0.146.0
+        uses: fro-bot/agent@261711a0cd110642df4068633fafa569359d6d34 # v0.147.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
@@ -721,7 +721,7 @@ jobs:
           fi
 
       - name: Run Fro Bot
-        uses: fro-bot/agent@65239fc570b0e7adc3c0d0c263282ee91ff6108d # v0.146.0
+        uses: fro-bot/agent@261711a0cd110642df4068633fafa569359d6d34 # v0.147.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
           IS_SUNDAY_UTC: ${{ env.IS_SUNDAY_UTC || 'false' }}
@@ -990,7 +990,7 @@ jobs:
           PY
 
       - name: Run bounded visual discovery
-        uses: fro-bot/agent@65239fc570b0e7adc3c0d0c263282ee91ff6108d # v0.146.0
+        uses: fro-bot/agent@261711a0cd110642df4068633fafa569359d6d34 # v0.147.1
         env:
           OPENCODE_PROMPT_ARTIFACT: 'true'
         with:
