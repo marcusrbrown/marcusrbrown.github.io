@@ -523,6 +523,10 @@ vi.mock("../utils/api", () => ({
 
 If a failed test prevents the report from being emitted, use `pnpm run test --coverage --coverage.reportOnFailure` to collect diagnostic percentages. The command still exits nonzero for a failing test; percentages above the thresholds do not establish a passing gate.
 
+**Problem**: The `refresh-diff` hermetic-environment regression guard fails only in a configured Git environment
+
+**Diagnosis**: The helper in `tests/scripts/refresh-diff.test.ts` deliberately preserves `GIT_CONFIG*`, but its spawned-child assertion expects every `GIT_*` name to be absent ([tracked in #516](https://github.com/marcusrbrown/marcusrbrown.github.io/issues/516)). Reproduce with `pnpm test tests/scripts/refresh-diff.test.ts` in the failing environment. Do not unset ambient Git configuration or narrow the assertion merely to obtain a passing result; reconcile the preservation contract with deterministic scrubbed, preserved, and restored-variable cases first. Diagnostic coverage is not a substitute for that repair.
+
 #### E2E Tests
 
 **Problem**: Tests are flaky/intermittent failures
