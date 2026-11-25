@@ -15,7 +15,7 @@
 ## Patterns
 
 - **Theme integration**: Via `useTheme` hook + CSS custom properties — no inline styles
-- **Imports**: Direct file paths only (`import { Header } from './Header'`), no index.ts barrel
+- **Imports**: Direct file paths only (`import Header from './Header'` for the existing default-exported component), no index.ts barrel
 - **Exports**: Named exports only, no `export default`
 - **Props types**: Interfaces defined in-file or `src/types/`
 
