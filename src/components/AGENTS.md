@@ -16,7 +16,7 @@
 
 - **Theme integration**: Via `useTheme` hook + CSS custom properties — no inline styles
 - **Imports**: Direct file paths only (`import Header from './Header'` for the existing default-exported component), no index.ts barrel
-- **Exports**: Named exports only, no `export default`
+- **Exports**: Use named exports for new components. Existing default exports (for example, `Header` and `BackgroundPattern`) are legacy; match their current import signature rather than migrating exports as part of documentation maintenance.
 - **Props types**: Interfaces defined in-file or `src/types/`
 
 ## Accessibility (WCAG 2.1 AA)
