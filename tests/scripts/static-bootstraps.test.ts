@@ -21,8 +21,8 @@ const NOT_FOUND_HTML = readScript('public/404.html')
 
 /** Runs a bootstrap script inside a sandbox with the given globals. */
 const runInSandbox = (source: string, sandbox: Record<string, unknown>): void => {
-  const vmContext = vm.createContext(sandbox)
-  vm.runInContext(source, vmContext)
+  const ScriptContext = vm.createContext(sandbox)
+  vm.runInContext(source, ScriptContext)
 }
 
 describe('theme-preloader.js (public bootstrap)', () => {
