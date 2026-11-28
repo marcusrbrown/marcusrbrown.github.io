@@ -49,6 +49,7 @@ examples/          # Usage examples (button-form-styles, use-theme)
 | Projects data | `scripts/projects-refresh.ts` → `src/data/projects-snapshot.json` → `src/hooks/UseProjects.ts` | Build-time snapshot; no runtime GitHub API call (avoids visitor rate limits) |
 | Syntax highlighting | `src/utils/syntax-highlighting.ts` → `src/hooks/UseSyntaxHighlighting.ts` | Shiki, externalized in build |
 | Build analysis | `scripts/analyze-build.ts` | Bundle size budgets + CI summaries |
+| React Router RSC boundary | `scripts/check-react-router-rsc-boundary.ts` | `pnpm run security:react-router-rsc` checks the RSC/server-action boundary, not a full dependency audit |
 | Test dashboard | `scripts/test-dashboard.mjs` | Aggregated health scoring |
 | CI/CD | `.github/workflows/deploy.yaml` | Main pipeline: lint → test → build → deploy |
 | E2E CI | `.github/workflows/e2e-tests.yaml` | Visual, accessibility, functional E2E jobs; PR notification |
