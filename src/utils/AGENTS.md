@@ -26,7 +26,7 @@ FOUC-prevention theme preload now lives at `public/scripts/theme-preloader.js` â
 | `blog-validation.ts` | Node/build-time Ajv frontmatter schema validation (not browser-safe) |
 | `projects.ts` | GitHub repo â†’ project transforms, portfolio/site-repo filtering |
 | `preview-image-path.ts` | Computes public project-preview image path from a repo id |
-| `syntax-highlighting.ts` | Shiki integration â€” externalized from bundle via build config |
+| `syntax-highlighting.ts` | Shiki integration outside Pages mode; GitHub Pages builds render escaped plain code without initializing Shiki |
 | `schema-validation.ts` | JSON schema validation against `src/schemas/theme.schema.json` |
 
 ## Patterns
@@ -39,4 +39,4 @@ FOUC-prevention theme preload now lives at `public/scripts/theme-preloader.js` â
 
 ## Testing
 
-- **Location**: `tests/utils/` (14 test files, including `analytics.test.ts`)
+- **Location**: `tests/utils/` (15 test files, including `analytics.test.ts`)
