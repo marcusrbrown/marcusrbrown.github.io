@@ -62,7 +62,7 @@ importers:
         version: 4.14.1(playwright-core@1.65.1)
       '@bfra.me/eslint-config':
         specifier: 0.54.1
-        version: 0.54.1(7b2c1267571fca3c48f82fb917cd8e6f)
+        version: 0.54.1(8be389dc81cafed923b257cbe562ee42)
       '@bfra.me/prettier-config':
         specifier: 0.16.14
         version: 0.16.14(prettier@3.10.1)
@@ -124,8 +124,8 @@ importers:
         specifier: 7.1.1
         version: 7.1.1(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
       eslint-plugin-react-refresh:
-        specifier: 0.5.7
-        version: 0.5.7(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
+        specifier: 0.5.8
+        version: 0.5.8(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
       happy-dom:
         specifier: 21.0.4
         version: 21.0.4
@@ -2114,8 +2114,8 @@ packages:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
       typescript: '>=4.8.4 <6.0.0'
 
-  eslint-plugin-react-refresh@0.5.7:
-    resolution: {integrity: sha512-XhJSzLljuYD4UjNuFGJu2v7aD3sqNVK12w5/DCUfrNfHWegZo2+TsavNx8MuxMwEquuFAzNbNfXKU0WoZ+YUIg==}
+  eslint-plugin-react-refresh@0.5.8:
+    resolution: {integrity: sha512-VYgz1iCC5LxeAd6YRz5ATfg8WKrNb1ulHMpCe4pQpn3CS9DiYpZi5wcag73O8iChLhrl/CmlGMmzA6eXZ2cX4Q==}
     peerDependencies:
       eslint: ^9 || ^10
 
@@ -4129,7 +4129,7 @@ snapshots:
     dependencies:
       is-in-ci: 2.0.0
 
-  '@bfra.me/eslint-config@0.54.1(7b2c1267571fca3c48f82fb917cd8e6f)':
+  '@bfra.me/eslint-config@0.54.1(8be389dc81cafed923b257cbe562ee42)':
     dependencies:
       '@bfra.me/es': 0.1.0
       '@eslint-community/eslint-plugin-eslint-comments': 4.8.1(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
@@ -4163,7 +4163,7 @@ snapshots:
       eslint-config-prettier: 10.1.8(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
       eslint-plugin-prettier: 5.5.7(eslint-config-prettier@10.1.8(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0)))(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(prettier@3.10.1)
       eslint-plugin-react-hooks: 7.1.1(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)
-      eslint-plugin-react-refresh: 0.5.7(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
+      eslint-plugin-react-refresh: 0.5.8(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0))
     transitivePeerDependencies:
       - '@eslint/json'
       - '@typescript-eslint/eslint-plugin'
@@ -5955,7 +5955,7 @@ snapshots:
       - '@typescript/native'
       - supports-color
 
-  eslint-plugin-react-refresh@0.5.7(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0)):
+  eslint-plugin-react-refresh@0.5.8(eslint@10.15.0(jiti@2.7.0)(supports-color@7.2.0)):
     dependencies:
       eslint: 10.15.0(jiti@2.7.0)(supports-color@7.2.0)
 
